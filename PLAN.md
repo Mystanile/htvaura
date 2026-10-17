@@ -18,7 +18,7 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 2.0 Server bridge for safekeeps (me), review findings fixed, see "Where we stopped"
 - [ ] 2.1 to 2.5 Safekeeps app screens (teammate)
 - [x] 3.1 Demo panel (`server/kaze/panel.py`, `server/panel/index.html`, `server/tests/test_panel.py`). Not yet tried on real phones.
-- [ ] 4.1 to 4.2 Find them
+- [ ] 4.1 to 4.2 Find them: in progress on branch `find-them` (app) and `main` (server ping). See decisions 10 and 11.
 - [ ] 5.1 to 5.4 BLE band
 
 ## Handoff: start here (2026-10-17, about 09:00)
@@ -93,6 +93,9 @@ The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/
 7. Team phones are all iPhones. Phases 1 to 4 run in Expo Go. BLE (phase 5) needs a custom dev build from Xcode on a Mac.
 8. Band hardware (phase 5): Arduino Uno R4 WiFi with ArduinoBLE, one Grove button, one Grove touch sensor, a Grove buzzer, and an LED. The button and the touch sensor use the same gestures as the app (decision 1). Ping plays the buzzer and blinks the LED. The full spec is in `Hardware/kaze_band/HARDWARE.md`: pins, BLE UUIDs, event bytes, ask and ping behavior, and RSSI measured at the venue.
 9. Removing a friend during a night (decided 2026-10-17). Contacts are fixed when the night starts. If the user removes a friend while a night is running, the removal applies from the next night. For the rest of the current night, the removed friend still gets alerts, location, ack, and resolve exactly as before. Reason: if removal applied at once, a person holding the phone could remove contacts to cancel a hidden alert, and every workaround for that created a new tell. Cost: a friend removed mid-night can still see that night's alerts and location until the night ends. Exception: a hidden alert (duress or fake end) carries into the next night with its contacts, so a removed friend keeps it, with live location, until it is resolved. Test: `test_a_hidden_alert_carries_into_the_next_night_for_a_removed_friend`.
+
+10. Location during a night (decided 2026-10-17). While a night runs and the app is open, the phone sends its GPS location to the server about every 30 s. The server shows it to contacts only during an active alert (`view_for`), and clears it when the alert ends. Reason: the phone never knows a duress alert is running, so this is the only way duress contacts get a location.
+11. Ping only for visible alerts (decided 2026-10-17). A contact can ping the person's phone (loud sound and flash) only through the user's visible front alert, never a hidden one. A ringing phone would expose a duress alert to the person watching.
 
 ## Architecture
 
