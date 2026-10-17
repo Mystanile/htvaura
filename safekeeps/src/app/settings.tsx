@@ -43,7 +43,7 @@ function BandSection() {
           <AppButton label={pairing ? 'Looking for band...' : 'Pair band'} disabled={pairing} onPress={() => { void pair(); }} />
         </>
       )}
-      {problem && <ThemedText accessibilityLiveRegion="polite" themeColor="danger">{problem}</ThemedText>}
+      {problem && <ThemedText announce themeColor="danger">{problem}</ThemedText>}
     </SectionCard>
   );
 }

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { ActionSheetIOS, Linking, Platform, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, ActionSheetIOS, Linking, Platform, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { SectionCard } from '@/components/section-card';
@@ -50,6 +50,19 @@ export function AlertsSection() {
   const nameOf = useNameOf();
   const [picking, setPicking] = useState<string | null>(null); // user_id of the alert whose map list is open (not iOS)
   const alerts = state.night?.alerts ?? [];
+  // Say "X is on it" when someone takes an alert, and when an alert closes, since the buttons the person was on go away.
+  const seen = useRef<Record<string, string | null>>({});
+  useEffect(() => {
+    const now: Record<string, string | null> = {};
+    for (const alert of alerts) {
+      now[alert.user_id] = alert.acknowledged_by;
+      const before = seen.current[alert.user_id];
+      const holder = nameOf(alert.acknowledged_by);
+      if (before === null && holder !== null) AccessibilityInfo.announceForAccessibility(`${holder} ${holder === 'You' ? 'are' : 'is'} on it`);
+    }
+    if (Object.keys(seen.current).some(id => !(id in now))) AccessibilityInfo.announceForAccessibility('Alert closed');
+    seen.current = now;
+  }); // runs each render: it only speaks when something changed since the last one
   if (alerts.length === 0) return null;
   return (
     <>

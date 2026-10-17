@@ -19,6 +19,7 @@ export function Field({ label, helper, ...input }: TextInputProps & { label: str
       <ThemedText type="smallBold">{label}</ThemedText>
       <TextInput
         accessibilityLabel={label}
+        accessibilityHint={helper}
         placeholderTextColor={theme.placeholder}
         selectionColor={theme.accent}
         keyboardAppearance={theme.scheme === 'dark' ? 'dark' : 'light'}
@@ -31,7 +32,8 @@ export function Field({ label, helper, ...input }: TextInputProps & { label: str
           borderColor: focused ? theme.accent : theme.fieldBorder, backgroundColor: theme.field,
           color: theme.text, opacity: input.editable === false ? 0.5 : 1,
         }} />
-      {helper && <ThemedText type="small" themeColor="textSecondary">{helper}</ThemedText>}
+      {/* the input already says it as its hint, so a screen reader skips this copy */}
+      {helper && <ThemedText type="small" themeColor="textSecondary" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{helper}</ThemedText>}
     </View>
   );
 }
@@ -44,14 +46,14 @@ export function Choice<T extends string | number>({ label, options, value, onCha
   return (
     <View style={{ gap: Spacing.two }}>
       {label && <ThemedText type="smallBold">{label}</ThemedText>}
-      <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two }}>
+      <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two }}>
         {options.map(option => {
           const selected = option.value === value;
           return (
             <Pressable key={String(option.value)} accessibilityRole="radio" accessibilityLabel={option.label}
               accessibilityState={{ selected, disabled }} disabled={disabled} onPress={() => onChange(option.value)}
               style={({ pressed }) => ({
-                minHeight: TouchTarget, paddingHorizontal: 12, paddingVertical: Spacing.two,
+                minHeight: TouchTarget, minWidth: TouchTarget, paddingHorizontal: 12, paddingVertical: Spacing.two,
                 borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center',
                 backgroundColor: selected ? theme.primary : pressed ? theme.backgroundSelected : 'transparent',
                 borderWidth: 1.5, borderColor: selected ? theme.primaryPressed : theme.fieldBorder,
@@ -72,7 +74,7 @@ export function SwitchRow({ label, value, onValueChange, disabled = false }: {
   label: string; value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean;
 }) {
   const theme = useTheme();
-  const offTrack = theme.scheme === 'dark' ? '#3B4A4C' : '#B4BBAA'; // a grey, so off never looks like the green on track
+  const offTrack = '#616954'; // dark enough for 3:1 against every card (the thumb alone is too pale); the thumb side shows on or off
   return (
     <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: value, disabled }}
       disabled={disabled} onPress={() => onValueChange(!value)}

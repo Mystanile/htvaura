@@ -12,7 +12,7 @@ export function AlertBanner() {
   const first = nameOf(alerts[0].user_id) ?? 'A friend';
   return (
     <SectionCard tone="ink">
-      <ThemedText type="name" themeColor="accent" accessibilityLiveRegion="polite">
+      <ThemedText type="name" themeColor="accent" announce>
         {alerts.length === 1 ? `${first} could use a hand` : `${first} and ${alerts.length - 1} more could use a hand`}
       </ThemedText>
     </SectionCard>

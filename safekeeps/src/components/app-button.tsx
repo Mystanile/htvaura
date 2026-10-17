@@ -24,7 +24,7 @@ export function AppButton({ label, onPress, variant = 'primary', disabled = fals
         const filled = variant === 'primary';
         const edge = variant === 'danger' ? theme.danger : variant === 'secondary' ? theme.accent : theme.primaryPressed;
         return {
-          minHeight: variant === 'quiet' ? TouchTarget : 52, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two,
+          minHeight: variant === 'quiet' ? TouchTarget : 52, minWidth: TouchTarget, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two,
           borderRadius: Radius.control, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
           flex: flex ? 1 : undefined,
           backgroundColor: filled ? 'transparent'
