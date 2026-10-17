@@ -115,3 +115,9 @@ async def ack_alert(owner_id: str, authorization: str | None = Header(default=No
 @router.post("/alerts/{owner_id}/resolve")
 async def resolve_alert(owner_id: str, authorization: str | None = Header(default=None)):
     return await act_on_alert(owner_id, authorization, lambda me: loop.Resolve(by=me))
+
+
+@router.post("/alerts/{owner_id}/ping")
+async def ping_alert(owner_id: str, authorization: str | None = Header(default=None)):
+    """Make the owner's phone ring. The loop counts it only for a visible alert, never a hidden one."""
+    return await act_on_alert(owner_id, authorization, loop.Ping)

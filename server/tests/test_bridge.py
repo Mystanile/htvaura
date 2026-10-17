@@ -2,7 +2,7 @@
 from fastapi.testclient import TestClient
 import pytest
 
-from kaze.app import app
+from kaze.app import app, sessions
 from kaze import safekeeps
 from test_safekeeps import accept, profile
 
@@ -549,3 +549,49 @@ def test_a_second_request_right_after_a_check_in_starts_a_new_check(client):
     assert state() == "asking"
     client.post(f"/safekeeps/friends/{a['id']}/requests", headers=hb, json={})  # asking again while asking
     assert state() == "asking"
+
+
+def test_ping_counts_only_on_a_visible_alert_and_always_answers_200(client):
+    (alice, a), (bob, b), (carol, c), (dave, d) = people(client, "Alice", "Bob", "Carol", "Dave")
+    ping = lambda who: client.post(f"/safekeeps/alerts/{alice['id']}/ping", headers=who)
+    ping_at = lambda: client.get(NIGHT, headers=a).json()["view"]["ping_at"]
+    start(client, a, [[bob["id"]]], [carol["id"]])
+    assert ping(b).status_code == 200 and ping_at() is None  # no alert yet
+    client.post(NIGHT + "/events", headers=a, json={"type": "Duress"})  # hidden alert only
+    for who in (b, c, d):
+        assert ping(who).status_code == 200
+    assert ping_at() is None
+    client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={})
+    client.post("/demo/skip", json={"seconds": 50})  # silence: the visible alert reaches Bob
+    answers = [ping(who) for who in (c, d, b)]  # a duress-only contact, a non-tier friend, then Bob
+    assert [(r.status_code, r.json()) for r in answers] == [(200, {"ok": True})] * 3
+    assert ping_at() is not None
+    # a stranger and an unknown owner get the same answer
+    _, s = profile(client, "Stranger")
+    assert ping(s).json() == {"ok": True}
+    assert client.post("/safekeeps/alerts/nobody/ping", headers=s).json() == {"ok": True}
+
+
+def test_ping_is_ignored_for_a_non_contact_and_before_the_alert_reaches_a_tier(client):
+    (alice, a), (bob, b), (carol, c) = people(client, "Alice", "Bob", "Carol")
+    start(client, a, [[bob["id"]]], [carol["id"]])
+    client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={})
+    client.post("/demo/skip", json={"seconds": 50})
+    client.post(f"/safekeeps/alerts/{alice['id']}/ping", headers=c)
+    assert client.get(NIGHT, headers=a).json()["view"]["ping_at"] is None
+    client.post(f"/safekeeps/alerts/{alice['id']}/ping", headers=b)
+    assert client.get(NIGHT, headers=a).json()["view"]["ping_at"] is not None
+
+
+def test_location_sent_all_night_is_seen_only_during_an_alert_and_cleared_after_resolve(client):
+    (alice, a), (bob, b) = people(client, "Alice", "Bob")
+    start(client, a, [[bob["id"]]], [bob["id"]])
+    client.post(NIGHT + "/events", headers=a, json={"type": "LocationUpdate", "lat": 43.7, "lng": -79.2})
+    assert alerts(client, b) == []  # no alert, so nothing is shown
+    client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={})
+    client.post("/demo/skip", json={"seconds": 50})
+    assert alerts(client, b)[0]["location"] == [43.7, -79.2]
+    client.post(f"/safekeeps/alerts/{alice['id']}/ack", headers=b)
+    client.post(f"/safekeeps/alerts/{alice['id']}/resolve", headers=b)
+    assert alerts(client, b) == []
+    assert sessions[alice["id"]].location is None and all(x.location is None for x in sessions[alice["id"]].alerts)

@@ -19,7 +19,7 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 2.1, 2.3, 2.4 Safekeeps app screens, built on branch `checkin-screens` while the teammate slept. Waiting for her review in the pull request. Tested in a web browser with two tabs, not yet on a real iPhone.
 - [ ] 2.5 Triggers: periodic and "ask a friend" work. Home-by time is not built.
 - [x] 3.1 Demo panel (`server/kaze/panel.py`, `server/panel/index.html`, `server/tests/test_panel.py`). Not yet tried on real phones.
-- [ ] 4.1 to 4.2 Find them: in progress on branch `find-them` (app) and `main` (server ping). See decisions 10 and 11.
+- [x] 4.1 to 4.2 Find them: server ping on `main`, app on branch `find-them` (pull request into `checkin-screens`). Tested in a web browser with a faked location. The compass arrow, real GPS, and the ping sound need a phone. See decisions 10 and 11.
 - [ ] 5.1 to 5.4 BLE band
 
 ## Handoff: start here (2026-10-17, about 09:00)
@@ -27,7 +27,7 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 A new session continues from this section. Read it first, then the Status list above.
 
 Where the code is:
-- `main` has the server: loop, bridge, demo panel. 201 server tests pass (`cd server && .venv/bin/pytest -q`).
+- `main` has the server: loop, bridge, demo panel. 213 server tests pass (`cd server && .venv/bin/pytest -q`).
 - Branch `checkin-screens` has the teammate's app with tasks 2.1, 2.3, 2.4 added, plus `main` merged in. Pull request #1 (https://github.com/Mystanile/htvaura/pull/1) is open and waits for the teammate's review. Do not merge it without the user.
 - A second checkout of that branch is at `~/Desktop/kaze-app` (git worktree), with `node_modules` installed. Run the demo from there.
 - `Hardware/kaze_band/kaze_band.ino` has uncommitted changes by the user in the main folder. Do not commit or touch them.
@@ -46,7 +46,7 @@ Rules from the user for this repo:
 Not tested yet: the app on real iPhones (vibration, real taps), and the panel on real phones. Both wait for the Xcode build.
 
 Next steps, in order:
-1. Phase 4, find them (4.1 GPS arrow with expo-location and heading, 4.2 "ping" that makes the person's phone ring and flash). Give the user a short plan and wait for a go first. Test what a browser can show, and list the rest for the phone test.
+1. Done: phase 4, find them. The app side waits for the teammate's review in its pull request, and its phone test waits for the Xcode build.
 2. Phase 5 on the user's Mac: a development build of the teammate's app in Xcode (5.1). Install it on both iPhones over a cable. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
 3. (was step 1) Fix what breaks on the real phones.
 4. Task 2.5: the home-by-time trigger.
@@ -185,12 +185,12 @@ def step(session: Session, event, now: float) -> tuple[Session, list[Effect]]   
 def view_for(session: Session, viewer_id: str) -> dict
 ```
 
-Events are dataclasses: `Trigger(kind)` with kind in home_by, separation, periodic, manual. `ConfirmOk()`, `Duress()`, `Tick()`, `Ack(contact_id)`, `Resolve(by, pin=None)`, `Disconnect()`, `Reconnect()`, `LocationUpdate(lat, lng)`, `Leave()`.
+Events are dataclasses: `Trigger(kind)` with kind in home_by, separation, periodic, manual. `ConfirmOk()`, `Duress()`, `Tick()`, `Ack(contact_id)`, `Ping(contact_id)`, `Resolve(by, pin=None)`, `Disconnect()`, `Reconnect()`, `LocationUpdate(lat, lng)`, `Leave()`.
 
 User screens: `armed`, `asking`, `alarm`, `alert_active`, `thanks`, `pin_retry`, `ended_true`, `ended_fake`.
 
 Effect kinds:
-- To the user: `check` {kind, deadline}, `alarm` {deadline}, `screen` {screen}.
+- To the user: `check` {kind, deadline}, `alarm` {deadline}, `screen` {screen}, `ping` {at}.
 - To a contact: `alert` {user_id, kind, card, tier}, `owner` {user_id, acknowledged_by}, `resolved` {user_id}, `wrong_pin_warning` {user_id}.
 - To group members: `left` {user_id}.
 
@@ -217,6 +217,7 @@ Alert rules. Contacts act on alerts and never on the front.
 - Resolve with `by` equal to a contact applies to the alert on that contact's screen, if that contact is allowed. For a normal alert only its acknowledged_by contact is allowed. For a duress alert any contact in duress_contacts is allowed. A duress contact who has no alert on their screen yet may still end an active duress alert. `by=None` is always ignored. Anything else is ignored with no effects. The alert becomes resolved, its alerted contacts get `resolved`, and the alert forgets its location. If this contact may also end the front alert (they are its acknowledger), that alert ends in the same step.
 - Location. The front keeps one position, set by LocationUpdate. It is cleared whenever the front ends (correct PIN, 2nd wrong PIN, or the acknowledger resolves the front alert). It is not carried to a new night. Each alert also keeps its own position, set when it starts and updated by LocationUpdate. A contact sees the position of the alert on their screen. So a hidden alert never changes the position that a front alert shows, and ending a hidden alert never clears it.
 - Resolving a hidden alert sends nothing to the user and does not touch the front. Resolving the front alert by its acknowledger also resolves the front. The user gets `screen` `ended_true` and wrong_pins is reset.
+- Ping (decision 11) from a contact counts only on the visible front alert. The front must be escalating or acknowledged, the front alert must not be hidden, the contact must be in its `alerted` list, and its `acknowledged_by` must be None or that contact. Then `Session.ping_at` is set to `now` and the user gets one `ping` effect {at: now}. Otherwise it is ignored with no effects. A hidden alert (duress or fake-ended) and a duress-only contact can never ping. `ping_at` is cleared when the front ends. It is a front field, so a hidden-alert user and an honest twin stay identical.
 - Disconnect and Reconnect only change `connected`. LocationUpdate only stores the location. Neither sends effects.
 
 ### Front and alerts (hidden alerts)
@@ -231,7 +232,7 @@ The goal is that a watcher cannot tell that a hidden alert is running. This hold
 - Why this is safe to rely on: `server/tests/test_twin.py` builds a hidden session and an honest session, sends both the same user events and random contact events, and checks that the user view and the user effects stay equal after every step. The only allowed difference is `ended_fake` against `ended_true`.
 
 `view_for(session, viewer_id)`:
-- For the user: `{"state", "screen", "deadline"}`. The state is the front state, and resolved shows armed. Deadline is only shown in asking and waiting. After the duress gesture, the user gets exactly the same dict as a user who tapped ok. The word "duress" never appears in the user's view.
+- For the user: `{"state", "screen", "deadline", "ping_at"}`. The state is the front state, and resolved shows armed. Deadline is only shown in asking and waiting. After the duress gesture, the user gets exactly the same dict as a user who tapped ok. The word "duress" never appears in the user's view.
 - For anyone else: `{"user_id", "active": False}` unless the viewer is in `alerted` of an active alert. Then `{"user_id", "active": True, "kind", "card", "acknowledged_by", "location"}`. If the viewer is in more than one active alert, the alert on top is a duress alert first, else the newest one. An alert that another contact took comes last. If share_location_with is "alerted", or the viewer is acknowledged_by of that alert, location is the position of that alert. Otherwise it is None.
 
 ### cards.py
@@ -325,11 +326,11 @@ A teammate owns `safekeeps/` and tasks 2.1 to 2.5. Do not edit anything in `safe
 - 2.5 (teammate) Triggers: periodic now runs on the server. "Ask a friend" is the manual trigger. Home-by time comes later. Separation comes from the demo panel only.
 
 Phase 3: demo panel (`/panel` served by FastAPI)
-- 3.1 Done. A one-file web page at `/panel`. It polls `GET /demo/state` every second and shows every night: front state, screen, countdown, connected badge, next periodic check, location, and every alert (hidden ones too, marked). Each night has buttons for Trigger (manual, periodic, separation, home_by), Disconnect or Reconnect, and a sample location. The top bar has skip buttons (+15 s, +30 s, +60 s, +15 min) and a reset with an in-page confirm. A privacy table per night shows what `view_for` gives each person. A scenario guide lists the 7 KAZE scenarios as steps. Endpoints: `GET /panel`, `GET /demo/state`, `POST /demo/event` (Trigger, Disconnect, Reconnect, LocationUpdate for any session, Safekeeps ones too), `POST /demo/skip`, `POST /demo/reset`. If `KAZE_DEMO_KEY` is set, the four data routes need it as the header `X-Demo-Key` (not in the URL, so it stays out of logs). The page asks for the key. Safekeeps nights count as connected, since phones poll. `POST /safekeeps/night` takes `share_location_with`. Reset leaves the Safekeeps SQLite profiles alone. "Contact ignores" needs no button: nobody taps "I'm on it" and time skips ahead. "Separate friend" is Trigger "separation".
+- 3.1 Done. A one-file web page at `/panel`. It polls `GET /demo/state` every second and shows every night: front state, screen, countdown, connected badge, next periodic check, location, and every alert (hidden ones too, marked). Each night has buttons for Trigger (manual, periodic, separation, home_by), Disconnect or Reconnect, and a sample location. The night card shows the last ping time. The top bar has skip buttons (+15 s, +30 s, +60 s, +15 min) and a reset with an in-page confirm. A privacy table per night shows what `view_for` gives each person. A scenario guide lists the 7 KAZE scenarios as steps. Endpoints: `GET /panel`, `GET /demo/state`, `POST /demo/event` (Trigger, Disconnect, Reconnect, LocationUpdate for any session, Safekeeps ones too), `POST /demo/skip`, `POST /demo/reset`. If `KAZE_DEMO_KEY` is set, the four data routes need it as the header `X-Demo-Key` (not in the URL, so it stays out of logs). The page asks for the key. Safekeeps nights count as connected, since phones poll. `POST /safekeeps/night` takes `share_location_with`. Reset leaves the Safekeeps SQLite profiles alone. "Contact ignores" needs no button: nobody taps "I'm on it" and time skips ahead. "Separate friend" is Trigger "separation".
 
 Phase 4: find them
 - 4.1 During an active alert, the acknowledging friend sees a GPS arrow (expo-location position + heading) and distance.
-- 4.2 "Ping" button: the person's phone plays a loud sound and flashes.
+- 4.2 "Ping" button: the person's phone plays a loud sound and flashes. Server side is done: `POST /safekeeps/alerts/{owner_id}/ping`, `Ping` in the loop, `ping_at` in the user's view (decision 11). The app side is on branch `find-them`: the Find screen with the Ping button, the sound and flash, and the 30 s `LocationUpdate` sender (decision 10). A browser run checked the Find screen, the Ping button rules, and the flash, with the location faked in the page. The compass, real GPS, and the sound need a phone. The button is hidden when another friend has the alert.
 
 Phase 5: BLE band (only after phases 1 to 4 work)
 

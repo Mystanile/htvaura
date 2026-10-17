@@ -26,7 +26,7 @@ from . import loop
 from .loop import Config, view_for
 
 EVENTS = {c.__name__: c for c in (
-    loop.Trigger, loop.ConfirmOk, loop.Duress, loop.Tick, loop.Ack, loop.Resolve,
+    loop.Trigger, loop.ConfirmOk, loop.Duress, loop.Tick, loop.Ack, loop.Ping, loop.Resolve,
     loop.Disconnect, loop.Reconnect, loop.LocationUpdate, loop.Leave,
 )}
 TRIGGER_KINDS = ("home_by", "separation", "periodic", "manual")

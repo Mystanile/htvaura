@@ -6,6 +6,8 @@ This file lists what the prototype really does, what the demo fakes, and what th
 
 - The check-in loop on the server: triggers, ask and grace timers, ranked tiers, acknowledgement, PIN cancel with one silent retry, duress, and privacy views. The 7 KAZE scenarios pass as automated tests (100 server tests in total).
 - Timers keep running on the server after a phone disconnects (scenario 4, tested over a real WebSocket).
+- Location is sent all night, about every 30 s while the app is open, and shown to contacts only during an active alert. It is cleared when the alert ends (tested). Duress contacts get a location this way, because the phone never knows a duress alert is running.
+- Ping (a contact makes the person's phone ring) works only on visible alerts, and never on a duress or fake-ended alert, because a ringing phone would show a hidden alert to a watcher. The server side is tested. The sound and flash on a real phone are not tested yet.
 
 ## Simulated
 
