@@ -8,33 +8,33 @@ import '@/global.css';
 import { Platform } from 'react-native';
 
 const Palette = {
-  text: '#162224',
-  background: '#f8ffe8',
-  backgroundElement: '#FFFFFF',
-  backgroundSelected: '#E3EECF',
-  textSecondary: '#56604C',
-  accent: '#4D651C',
-  accentSoft: '#E5F0CC',
-  onAccent: '#FFFFFF',
-  border: '#D6E2C4',
-  primary: '#B1CF58',
-  primaryPressed: '#9AB744',
-  primaryDisabled: '#D3DCC0',
-  onPrimary: '#162224',
+  text: '#5C5439',
+  background: '#9ED395',
+  backgroundElement: '#F8F3E0',
+  backgroundSelected: '#DCD3B5',
+  textSecondary: '#686442',
+  accent: '#52653B',
+  accentSoft: '#EAE3CB',
+  onAccent: '#F8F3E0',
+  border: '#8A7857',
+  primary: '#D5B796',
+  primaryPressed: '#C5A380',
+  primaryDisabled: '#DDD0B8',
+  onPrimary: '#5C5439',
 } as const;
 
 // Keep the requested brand palette in both system appearance modes.
 export const Colors = { light: Palette, dark: Palette } as const;
 export const CardColors = {
-  text: '#f8ffe8', textSecondary: '#C4CEBD',
-  backgroundElement: '#162224', backgroundSelected: '#243638',
-  border: '#162224', accent: '#B1CF58', accentSoft: '#304137',
+  text: '#9ED395', textSecondary: '#C4CEBD',
+  backgroundElement: '#5C5439', backgroundSelected: '#243638',
+  border: '#5C5439', accent: '#D5B796', accentSoft: '#304137',
 } as const;
 export const AppFont = 'Righteous';
 
 export const FriendsColors = {
   backgroundElement: '#9ebd64', backgroundSelected: '#90AD59',
-  text: '#162224', textSecondary: '#162224', accent: '#162224',
+  text: '#5C5439', textSecondary: '#5C5439', accent: '#5C5439',
   border: '#9ebd64',
 } as const;
 

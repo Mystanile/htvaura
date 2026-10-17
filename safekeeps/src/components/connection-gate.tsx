@@ -15,9 +15,9 @@ export function ConnectionGate({ children }: PropsWithChildren) {
   if (state.hydrating) return <AppScreen><ThemedText>Opening your demo...</ThemedText></AppScreen>;
   if (!state.session) return (
     <AppScreen>
-      <ThemedText type="smallBold">Welcome to Safekeeps</ThemedText>
+      <ThemedText type="smallBold">Welcome to homebound</ThemedText>
       <ThemedText>Start as a guest. Each device gets its own identity—no sign-in needed.</ThemedText>
-      <Host matchContents seedColor="#ffdedf">
+      <Host colorScheme="light" matchContents seedColor="#ffdedf">
         <Column spacing={16}>
           {(state.error || (Platform.OS !== 'web' && !process.env.EXPO_PUBLIC_API_URL)) && (
             <TextInput value={url} placeholder="Server address"
@@ -35,7 +35,7 @@ export function ConnectionGate({ children }: PropsWithChildren) {
       <ServerAddress />
       <ThemedText>{state.error ? 'Unable to connect.' : 'Loading your friends...'}</ThemedText>
       {state.error && <ThemedText selectable>{state.error}</ThemedText>}
-      <Host matchContents seedColor="#ffdedf">
+      <Host colorScheme="light" matchContents seedColor="#ffdedf">
         <Button label="Retry" onPress={() => { void state.refresh(); }} />
       </Host>
     </AppScreen>

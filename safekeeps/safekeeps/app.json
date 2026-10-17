@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "safekeeps",
-    "slug": "safekeeps",
+    "name": "homebound",
+    "slug": "homebound",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "safekeeps",
+    "scheme": "homebound",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"

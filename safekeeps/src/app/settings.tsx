@@ -15,7 +15,7 @@ export default function SettingsScreen() {
       <ConnectionStatus />
       <SectionCard>
         <ThemedText type="heading">Check-in reminders</ThemedText>
-        <Host matchContents seedColor={ButtonSeed}>
+        <Host colorScheme="light" matchContents seedColor={ButtonSeed}>
           <Column spacing={16}>
             <Switch label="Show check-in countdown" value={state.remindersEnabled} onValueChange={state.setRemindersEnabled} />
             <Picker selectedValue={state.intervalMinutes} onValueChange={state.setIntervalMinutes} enabled={state.remindersEnabled}>

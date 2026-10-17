@@ -10,7 +10,7 @@ export function ServerAddress() {
   return (
     <>
       <ThemedText type="heading">Connection</ThemedText>
-      <Host matchContents seedColor={ButtonSeed}>
+      <Host colorScheme="light" matchContents seedColor={ButtonSeed}>
         <Column spacing={12}>
           <TextInput value={url} placeholder="http://YOUR_COMPUTER_IP:8000"
             autoCapitalize="none" autoCorrect={false} keyboardType="url" editable={!state.busy} />

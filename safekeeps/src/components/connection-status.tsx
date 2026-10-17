@@ -9,7 +9,7 @@ export function ConnectionStatus() {
   return (
     <>
       <ThemedText selectable accessibilityLiveRegion="polite">{state.error}</ThemedText>
-      <Host matchContents seedColor="#ffdedf">
+      <Host colorScheme="light" matchContents seedColor="#ffdedf">
         <Button label="Retry connection" disabled={state.busy} onPress={() => { void state.refresh(); }} />
       </Host>
     </>

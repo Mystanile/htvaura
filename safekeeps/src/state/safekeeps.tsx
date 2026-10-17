@@ -114,13 +114,26 @@ function useSafekeepsState() {
     });
   }
 
+  async function startNight(pin: string, tiers: string[][], duressContacts: string[]) {
+    return mutate(async () => {
+      if (!session) throw new Error('Create a profile first.');
+      if (!pin.trim()) throw new Error('Choose a PIN for ending your night.');
+      if (!tiers.length) throw new Error('Choose at least one check-in contact.');
+      if (!duressContacts.length) throw new Error('Choose at least one silent-alert contact.');
+      await api(session.url, '/night', session.token, {
+        pin, tiers, duress_contacts: duressContacts,
+        ...(remindersEnabled ? { check_every_minutes: intervalMinutes } : {}),
+      });
+    });
+  }
+
   const lastCheckIn = data?.me.lastCheckIn ?? null;
   const minutesRemaining = Math.max(0, Math.ceil(((lastCheckIn ?? startedAt) + intervalMinutes * 60_000 - now) / 60_000));
   return {
     session, me: data?.me, friends: data?.friends ?? [], incoming: data?.incoming ?? [],
     friendRequests: data?.friendRequests ?? [], sentRequests: data?.sentRequests ?? [],
-    hydrating, loading: !!session && !data, error: error ?? connectionError, busy, refresh, startGuest, reconnect,
-    lastCheckIn, remindersEnabled, setRemindersEnabled, intervalMinutes, setIntervalMinutes, minutesRemaining,
+    hydrating, loading: !!session && !data, error: error ?? connectionError, busy, refresh, startGuest, reconnect, startNight,
+    lastCheckIn, remindersEnabled, setRemindersEnabled, intervalMinutes, setIntervalMinutes, minutesRemaining, now,
     recordCheckIn: () => post('/check-ins'),
     addFriend: (code: string, name = '') => post('/friends', { code, name }),
     acceptFriend: (id: string, name = '') => post('/friend-requests/' + encodeURIComponent(id) + '/accept', { name }),

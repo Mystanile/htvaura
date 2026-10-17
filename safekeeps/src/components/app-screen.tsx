@@ -11,7 +11,7 @@ export function AppScreen({ children, topInset = false, header }: PropsWithChild
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <Image
-        source={require('@/assets/images/leaf-background.png')}
+        source={require('@/assets/images/homebound/grass.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
         contentPosition="center"
@@ -19,9 +19,9 @@ export function AppScreen({ children, topInset = false, header }: PropsWithChild
         pointerEvents="none"
       />
       {header && (
-        <View style={{ paddingTop: insets.top + 12, paddingBottom: 12,
-          paddingHorizontal: 20, backgroundColor: theme.background, zIndex: 1 }}>
-          <View style={{ width: '100%', maxWidth: 600, alignSelf: 'center' }}>{header}</View>
+        <View style={{ paddingTop: insets.top + 4, paddingBottom: 4,
+          paddingHorizontal: 16, zIndex: 1 }}>
+          <View style={{ width: '100%', maxWidth: 520, alignSelf: 'center' }}>{header}</View>
         </View>
       )}
     <ScrollView
@@ -29,9 +29,9 @@ export function AppScreen({ children, topInset = false, header }: PropsWithChild
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior={header ? 'never' : 'automatic'}
       contentContainerStyle={{
-        padding: 20, paddingBottom: 20 + insets.bottom,
-        paddingTop: 20 + (topInset ? insets.top : 0),
-        gap: 20, width: '100%', maxWidth: 640, alignSelf: 'center',
+        padding: 16, paddingBottom: 24 + insets.bottom,
+        paddingTop: 4 + (topInset ? insets.top : 0),
+        gap: 16, width: '100%', maxWidth: 500, alignSelf: 'center',
       }}>
       {children}
     </ScrollView>

@@ -32,7 +32,7 @@ export default function FriendScreen() {
         <ThemedText selectable>{formatCheckIn(friend.lastCheckIn)}</ThemedText>
       </SectionCard>
       <ThemedText type="heading">Check on {friend.name}</ThemedText>
-      <Host matchContents seedColor={ButtonSeed}>
+      <Host colorScheme="light" matchContents seedColor={ButtonSeed}>
         <Column spacing={16}>
           <Button label={state.busy ? 'Sending...' : 'Request check-in'} disabled={state.busy}
             onPress={() => { void state.requestCheckIn(friend.id); }} />
@@ -51,7 +51,7 @@ export default function FriendScreen() {
         {confirmRemoval && (
           <ThemedText>Remove {friend.name}? This removes the friendship and pending requests on both devices.</ThemedText>
         )}
-        <Host matchContents seedColor={ButtonSeed}>
+        <Host colorScheme="light" matchContents seedColor={ButtonSeed}>
           <Column spacing={12}>
             <Button label={confirmRemoval ? 'Confirm removal' : 'Remove friend'} disabled={state.busy}
               onPress={() => {
