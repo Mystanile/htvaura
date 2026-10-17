@@ -63,6 +63,8 @@ Branch `ntfy` (newest work, 2026-10-17 evening):
 - Worktree `~/Desktop/kaze-ntfy`, made from `judging`. Commit `ea1e5ab` adds the ntfy push (task 2.6). Not pushed, no pull request yet. 300 server tests and 57 app node tests pass.
 - Local reminder notifications for the user's own checks (`expo-notifications`, no push, no entitlement) are built on this branch. Unit-tested only, not yet tried on a phone. Server: the user's view now has `next_check`. 301 server tests and 64 app node tests pass.
 - ntfy push reached a locked iPhone 13 on 2026-10-17. Also passed on that phone the same evening: duress PIN, scaled alerts, the new text colours and VoiceOver.
+- Local reminders (`8dc3bc3`): the user's own scheduled check reached a locked iPhone 13 as "Homebound: Open the app." on 2026-10-17. Not tested: the notification from a band heartbeat wake.
+- The server tunnel address changed on 2026-10-17 evening. The phone app takes a new address in Settings, Connection, with no rebuild.
 - Still to test, with the teammate: Find them two-state band signal (two phones and the band), the band duress gesture, battery drain.
 - Retest of 6.12 and 6.13 over HTTP on a scratch server: the duress PIN and the duress gesture pass in all five front states. The phone gets the same answer as for the real PIN or an ok.
 - The Find them simulation is stable at 4 or more readings a second. Open bugs, not fixed:
