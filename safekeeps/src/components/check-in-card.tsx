@@ -61,10 +61,12 @@ function NightCheckIn({ view }: { view: NightView }) {
   const [sending, setSending] = useState(false); // gesture finished, still being delivered (retries)
   const [pinOpen, setPinOpen] = useState(false); // "Cancel an alert" on the armed screen
   const [pinTry, setPinTry] = useState(0); // bumps on every PIN sent, so the same answer twice still shows
+  const [leaving, setLeaving] = useState(false); // "Leave night" tapped once, waiting for "Yes, leave the night"
   const [seenScreen, setSeenScreen] = useState(view.screen);
-  if (seenScreen !== view.screen) { // close that PIN entry as soon as the server view moves on
+  if (seenScreen !== view.screen) { // close that PIN entry and the leave question as soon as the server view moves on
     setSeenScreen(view.screen);
     setPinOpen(false);
+    setLeaving(false);
   }
 
   // thanks and ended_* go back to the armed look after a few seconds
@@ -188,8 +190,16 @@ function NightCheckIn({ view }: { view: NightView }) {
       )}
       {inAlert ? (
         <ThemedText type="small" themeColor="textSecondary">Enter your PIN to end the alert first.</ThemedText>
+      ) : view.state !== 'armed' ? null /* asking or waiting: answer the check first, the server refuses Leave now */
+        : leaving ? (
+        <>
+          <ThemedText accessibilityLiveRegion="polite">Leave the night? We will stop checking in on you.</ThemedText>
+          <AppButton label="Yes, leave the night" variant="danger" disabled={state.busy}
+            onPress={() => { setLeaving(false); void state.sendNightEvent('Leave'); }} />
+          <AppButton label="Cancel" variant="quiet" onPress={() => setLeaving(false)} />
+        </>
       ) : (
-        <AppButton label="Leave night" variant="secondary" onPress={() => { void state.sendNightEvent('Leave'); }} />
+        <AppButton label="Leave night" variant="secondary" onPress={() => setLeaving(true)} />
       )}
     </>
   );

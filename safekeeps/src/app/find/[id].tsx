@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useBandSignal } from '@/hooks/use-band-signal';
 import { useTheme } from '@/hooks/use-theme';
+import { locationAgeText } from '@/services/age';
 import { ZONE_TEXT } from '@/services/band';
 import { api } from '@/services/demo-api';
 import { arrowRotation, bearingDegrees, compassWord, distanceMetres, formatDistance, smoothAngle, type LatLng } from '@/services/geo';
@@ -81,6 +82,7 @@ export default function FindScreen() {
   );
 
   const target = { lat: alert.location[0], lng: alert.location[1] };
+  const age = locationAgeText(alert.location_at, state.night?.now ?? 0); // server clock of the last poll, every 2.5 s
   const bearing = own.position ? bearingDegrees(own.position, target) : null;
   const heading = own.heading;
 
@@ -102,6 +104,7 @@ export default function FindScreen() {
       <Stack.Screen options={{ title: 'Find them' }} />
       <SectionCard tone="ink">
         <ThemedText type="heading" style={{ textAlign: 'center' }}>{name}</ThemedText>
+        {age !== null && <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>{age}</ThemedText>}
         {own.denied ? (
           <ThemedText style={{ textAlign: 'center' }}>Allow location in your settings to see how far away {name} is.</ThemedText>
         ) : own.position === null || bearing === null ? (

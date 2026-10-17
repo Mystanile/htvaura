@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { askKey, decodeEvent, encodeByte, median, shouldPingBand, trend, zone, type Sample } from './band.ts';
+import { askKey, decodeEvent, encodeByte, keepPending, median, shouldPingBand, trend, zone, type Sample } from './band.ts';
 
 const b64 = (byte: number) => Buffer.from([byte]).toString('base64');
 const at = (t: number, rssi: number): Sample => ({ t, rssi });
@@ -29,12 +29,29 @@ test('encodeByte matches real base64 for every byte', () => {
   }
 });
 
-test('askKey is the deadline while asking, null in every other state', () => {
-  assert.equal(askKey({ state: 'asking', deadline: 1700 }), 1700);
-  for (const state of ['armed', 'waiting', 'escalating', 'acknowledged', 'ended'] as const) {
+test('askKey is set while asking and waiting, null in every other state', () => {
+  assert.notEqual(askKey({ state: 'asking', deadline: 1700 }), null);
+  assert.notEqual(askKey({ state: 'waiting', deadline: 1715 }), null);
+  for (const state of ['armed', 'escalating', 'acknowledged', 'ended'] as const) {
     assert.equal(askKey({ state, deadline: 1700 }), null);
   }
   assert.equal(askKey({ state: 'asking', deadline: null }), null);
+  assert.equal(askKey({ state: 'waiting', deadline: null }), null);
+});
+
+test('askKey: the waiting stage is a new key, so the band asks again', () => {
+  assert.notEqual(askKey({ state: 'asking', deadline: 1700 }), askKey({ state: 'waiting', deadline: 1700 }));
+  assert.notEqual(askKey({ state: 'asking', deadline: 1700 }), askKey({ state: 'waiting', deadline: 1715 }));
+  assert.equal(askKey({ state: 'waiting', deadline: 1715 }), askKey({ state: 'waiting', deadline: 1715 }));
+});
+
+test('keepPending: ok and duress both last 60 s, so a late delivery cannot tell them apart', () => {
+  const at = 1_000_000;
+  for (const age of [0, 60_001, 120_000, 3_600_000, 3_600_001]) {
+    assert.equal(keepPending({ type: 'ConfirmOk', at }, at + age), keepPending({ type: 'Duress', at }, at + age), `age ${age}`);
+  }
+  assert.equal(keepPending({ type: 'ConfirmOk', at }, at + 60_000), true);
+  assert.equal(keepPending({ type: 'ConfirmOk', at }, at + 60_001), false);
 });
 
 test('shouldPingBand: new and recent only', () => {
@@ -103,7 +120,7 @@ test('short or garbage base64 never throws and gives null', () => {
 });
 
 test('askKey: a deadline of 0 is still a key, a new deadline is a new key', () => {
-  assert.equal(askKey({ state: 'asking', deadline: 0 }), 0);
+  assert.notEqual(askKey({ state: 'asking', deadline: 0 }), null);
   assert.notEqual(askKey({ state: 'asking', deadline: 1700 }), askKey({ state: 'asking', deadline: 1760 }));
 });
 

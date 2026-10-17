@@ -6,7 +6,7 @@ import { Radius, Spacing, TouchTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export const INTERVALS = [
-  { label: '15 min', value: 15 }, { label: '30 min', value: 30 },
+  { label: '5 min', value: 5 }, { label: '10 min', value: 10 }, { label: '15 min', value: 15 }, { label: '30 min', value: 30 },
   { label: '1 hour', value: 60 }, { label: '2 hours', value: 120 },
 ];
 

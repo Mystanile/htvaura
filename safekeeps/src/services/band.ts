@@ -30,9 +30,20 @@ export function encodeByte(byte: number) {
   return ALPHABET[byte >> 2] + ALPHABET[(byte & 3) << 4] + '==';
 }
 
-// The ask is written once per key. The key is the deadline, so a new check gives a new key.
+// The ask is written once per key. The key is the state plus the deadline, so a new check gives a new key
+// and the louder waiting stage asks the band again.
 export function askKey(view: Pick<NightView, 'state' | 'deadline'>) {
-  return view.state === 'asking' ? view.deadline : null;
+  return (view.state === 'asking' || view.state === 'waiting') && view.deadline !== null ? `${view.state}:${view.deadline}` : null;
+}
+
+// A band answer the relay could not deliver, kept to try again. at is the phone time (ms) the band sent it.
+export type PendingEvent = { type: 'ConfirmOk' | 'Duress'; at: number };
+// Kept for 1 hour, the same for ok and duress: a delivered answer moves the friends' last check-in and can
+// answer the check on screen, so a different time for each kind would tell them apart. The cost: a late ok can
+// answer a newer check that is still asking.
+const PENDING_MS = 60_000; // same for ok and duress; a late answer must never answer a newer check
+export function keepPending(event: PendingEvent, nowMs: number) {
+  return nowMs - event.at <= PENDING_MS;
 }
 
 const PING_FRESH_SECONDS = 30;

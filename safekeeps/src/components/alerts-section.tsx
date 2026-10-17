@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { locationAgeText } from '@/services/age';
 import { useSafekeeps } from '@/state/safekeeps';
 
 export function useNameOf() {
@@ -55,6 +56,8 @@ export function AlertsSection() {
       {alerts.map(alert => {
         const holder = nameOf(alert.acknowledged_by);
         const canResolve = alert.acknowledged_by === state.me?.id || alert.kind === 'duress';
+        const stale = nameOf(alert.stale_ack_by ?? null);
+        const age = alert.location !== null ? locationAgeText(alert.location_at, state.night?.now ?? 0) /* server clock of the last poll */ : null;
         return (
           <SectionCard key={alert.user_id} tone="green">
             <ThemedText type="heading">{nameOf(alert.user_id) ?? 'A friend'}</ThemedText>
@@ -62,6 +65,15 @@ export function AlertsSection() {
             <List title="Do" items={alert.card.do} />
             <List title="Don't" items={alert.card.dont} />
             <ThemedText type="smallBold">{holder === null ? 'Nobody is on it yet' : `${holder} ${holder === 'You' ? 'are' : 'is'} on it`}</ThemedText>
+            {alert.stale_ack_by != null && (
+              <ThemedText type="smallBold">
+                {stale === 'You' ? 'You said you were on it but have not resolved it.' : `${stale ?? 'A friend'} said they were on it but has not resolved it.`}
+              </ThemedText>
+            )}
+            {alert.final_step && (
+              <ThemedText type="smallBold">Nobody answered. In a real deployment, emergency services would be contacted now (simulated).</ThemedText>
+            )}
+            {age !== null && <ThemedText type="small" themeColor="textSecondary">{age}</ThemedText>}
             <View style={{ gap: Spacing.two }}>
               {alert.location !== null && (
                 <AppButton label="Find them" onPress={() => { router.push({ pathname: '/find/[id]', params: { id: alert.user_id } }); }} />

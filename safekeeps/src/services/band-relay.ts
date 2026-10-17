@@ -9,12 +9,13 @@ import type { BleManager, Subscription } from 'react-native-ble-plx';
 import { api, fetchNight, type Night } from '@/services/demo-api';
 import { loadSession, type DemoSession } from '@/services/demo-session';
 import {
-  ASK_UUID, BAND_NAME, EVENT_UUID, PING_UUID, SERVICE_UUID, askKey, decodeEvent, encodeByte, shouldPingBand,
-  type BandEvent,
+  ASK_UUID, BAND_NAME, EVENT_UUID, PING_UUID, SERVICE_UUID, askKey, decodeEvent, encodeByte, keepPending, shouldPingBand,
+  type BandEvent, type PendingEvent,
 } from '@/services/band';
 
 const BAND_KEY = 'safekeeps-band';
 const RELAY_SESSION_KEY = 'safekeeps-band-session';
+const PENDING_KEY = 'safekeeps-band-pending';
 // The app's own session is saved with the default "only while unlocked" keychain rule. iOS can relaunch the app
 // for the band while the phone is locked in a pocket, so the relay keeps its own copy readable after first unlock.
 const anytime = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
@@ -36,7 +37,7 @@ async function relaySession() {
 let keptId: string | null = null; // the paired band
 let connected = false;
 let epoch = 0; // bumps on every new keep or forget, so an old reconnect loop stops
-let askedKey: number | null = null;
+let askedKey: string | null = null;
 let pingedAt: number | null = null;
 let status = { paired: false, connected: false };
 const listeners = new Set<() => void>();
@@ -151,30 +152,55 @@ export async function forgetBand() {
   await manager.cancelDeviceConnection(id).catch(() => {}); // also cancels a pending connect
 }
 
-// Same path for every answer. Reads the session itself because no screen may be mounted. Retries for about
-// 10 s like the screens do; errors (including "no night running") are ignored.
-async function sendEvent(type: BandEvent) {
+// One try. Reads the session itself because no screen may be mounted. Any error counts as not delivered.
+async function deliver(type: PendingEvent['type']) {
   const session = await relaySession();
-  if (!session) return;
+  if (!session) return false;
+  return api(session.url, '/night/events', session.token, { type }).then(() => true, () => false);
+}
+
+// Answers that failed for 10 s, kept (also on disk) and tried again on every heartbeat, every foreground night
+// view and at launch, until delivered or too old (keepPending). The same path for every answer.
+let pending: PendingEvent[] = [];
+let flushing = false;
+const savePending = () => SecureStore.setItemAsync(PENDING_KEY, JSON.stringify(pending), anytime).catch(() => {});
+
+async function flushPending() {
+  if (flushing || pending.length === 0) return;
+  flushing = true;
+  try {
+    const sent: PendingEvent[] = [];
+    for (const event of [...pending]) {
+      if (keepPending(event, Date.now()) && await deliver(event.type)) sent.push(event);
+    }
+    // an answer that failed while this ran was added to pending meanwhile and stays
+    pending = pending.filter(event => !sent.includes(event) && keepPending(event, Date.now()));
+    await savePending();
+  } finally {
+    flushing = false;
+  }
+}
+
+// Same path for every answer. Retries for about 10 s like the screens do, then keeps it to try again later.
+async function sendEvent(event: PendingEvent) {
   const start = Date.now();
   do {
-    try {
-      await api(session.url, '/night/events', session.token, { type });
-      return;
-    } catch {
-      await sleep(700);
-    }
+    if (await deliver(event.type)) return;
+    await sleep(700);
   } while (Date.now() - start < 10_000);
+  pending.push(event);
+  await savePending();
 }
 
 async function onEvent(event: BandEvent | null) {
-  if (event === 'ConfirmOk' || event === 'Duress') await sendEvent(event);
+  if (event === 'ConfirmOk' || event === 'Duress') await sendEvent({ type: event, at: Date.now() });
   else if (event === 'heartbeat') await onHeartbeat();
 }
 
 // iOS wakes the app for each heartbeat. Ask the server what is waiting. In the foreground the poll already
 // does this and calls onNight, so skip the extra request.
 async function onHeartbeat() {
+  void flushPending();
   if (AppState.currentState === 'active') return;
   const session = await relaySession();
   if (!session) return;
@@ -188,6 +214,7 @@ function write(uuid: string) {
 
 // Called with every night view the app gets: the foreground poll and the heartbeat fetch.
 export function onNight(night: Night | null) {
+  void flushPending();
   const view = night?.view;
   if (!night || !view || !connected) return;
   const key = askKey(view);
@@ -204,5 +231,10 @@ export function onNight(night: Night | null) {
 
 if (manager) {
   void relaySession(); // refresh the relay's copy on every normal launch
+  SecureStore.getItemAsync(PENDING_KEY, anytime).then(text => {
+    const saved: PendingEvent[] = text ? JSON.parse(text) : [];
+    pending = [...saved, ...pending];
+    void flushPending();
+  }).catch(() => {});
   SecureStore.getItemAsync(BAND_KEY, anytime).then(id => { if (id) void keepConnected(id); }).catch(() => {});
 }

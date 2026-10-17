@@ -22,6 +22,11 @@ const TIERS = [
   { label: 'Tier 2', value: 2 }, { label: 'Tier 3', value: 3 },
 ];
 
+const SHARE = [
+  { label: 'Everyone alerted', value: 'alerted' as const },
+  { label: "Only whoever says I'm on it", value: 'acknowledger' as const },
+];
+
 export default function NightScreen() {
   const state = useSafekeeps();
   const theme = useTheme();
@@ -29,6 +34,8 @@ export default function NightScreen() {
   const [pinAgain, setPinAgain] = useState('');
   const [interval, setInterval] = useState(state.intervalMinutes);
   const [homeBy, setHomeBy] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [shareWith, setShareWith] = useState<'alerted' | 'acknowledger'>('alerted');
   const [setup, setSetup] = useState<Record<string, Setup>>({});
   const [problem, setProblem] = useState<string | null>(null);
   const get = (id: string): Setup => setup[id] ?? { tier: 0, duress: false };
@@ -45,13 +52,16 @@ export default function NightScreen() {
     if (duress.length === 0) return setProblem('Pick at least one duress contact, someone who can be told silently.');
     const clock = parseClock(homeBy);
     if (homeBy.trim() !== '' && !clock) return setProblem('Be home by needs a time like 23:30, or leave it empty.');
+    const ends = parseClock(endsAt);
+    if (endsAt.trim() !== '' && !ends) return setProblem('Night ends at needs a time like 03:00, or leave it empty.');
     setProblem(null);
     // A "no" is fine, the night still runs. A browser prompt can stay unanswered, so on the web we wait 3 s at most.
     const asked = Location.requestForegroundPermissionsAsync().catch(() => null);
     await (Platform.OS === 'web' ? Promise.race([asked, new Promise(done => setTimeout(done, 3000))]) : asked);
-    if (await state.startNight({ pin, tiers, duress_contacts: duress, check_every_minutes: interval,
+    if (await state.startNight({ pin, tiers, duress_contacts: duress, check_every_minutes: interval, share_location_with: shareWith,
       // phone clock time to server clock time, with the offset the state keeps
       ...(clock && { home_by: (nextAt(clock.h, clock.m, Date.now()) + state.serverOffset) / 1000 }),
+      ...(ends && { night_ends_at: (nextAt(ends.h, ends.m, Date.now()) + state.serverOffset) / 1000 }),
     })) {
       state.setIntervalMinutes(interval); // so her "Next check-in in X min" line follows the night
       router.back();
@@ -99,9 +109,12 @@ export default function NightScreen() {
         <Choice label="How often" options={INTERVALS} value={interval} onChange={setInterval} />
         <Field label="Be home by" helper="Optional, for example 23:30" value={homeBy} onChangeText={setHomeBy}
           placeholder="HH:MM" keyboardType="numbers-and-punctuation" autoCorrect={false} editable={!state.busy} maxLength={5} />
+        <Field label="Night ends at" helper="Optional, for example 03:00. The night ends then." value={endsAt} onChangeText={setEndsAt}
+          placeholder="HH:MM" keyboardType="numbers-and-punctuation" autoCorrect={false} editable={!state.busy} maxLength={5} />
         <ThemedText type="small" themeColor="textSecondary">
           While a night runs, this phone sends its location to the server. Your contacts only see it during an alert.
         </ThemedText>
+        <Choice label="Who sees your location during an alert" options={SHARE} value={shareWith} onChange={setShareWith} />
       </SectionCard>
       {(problem ?? state.error) && (
         <ThemedText accessibilityLiveRegion="polite" themeColor="danger">{problem ?? state.error}</ThemedText>
