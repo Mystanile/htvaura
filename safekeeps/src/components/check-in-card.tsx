@@ -205,11 +205,12 @@ function NightCheckIn({ view }: { view: NightView }) {
         <Panel>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.three }}>
             <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{
-              width: 44, height: 44, borderRadius: Radius.pill, borderWidth: 3, borderColor: theme.primary,
+              // the ring is the same for both, so only the fill tells them apart. border is about 2.9:1 on the panel
+              width: 44, height: 44, borderRadius: Radius.pill, borderWidth: 3, borderColor: theme.border,
               alignItems: 'center', justifyContent: 'center',
               backgroundColor: screen === 'ended_true' ? theme.primary : 'transparent',
             }}>
-              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onPrimary : theme.primary }}>✓</ThemedText>
+              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onPrimary : theme.border }}>✓</ThemedText>
             </View>
             <ThemedText type="heading">Alert ended</ThemedText>
           </View>
