@@ -98,7 +98,12 @@ export default function HomeScreen() {
       <SectionCard tone="ink">
         <ThemedText type="smallBold" themeColor="accent">Safekeeping check in :3</ThemedText>
         <CheckInCard />
-        {band.paired && <ThemedText type="small" themeColor="textSecondary">{band.connected ? 'Band connected' : 'Band not connected'}</ThemedText>}
+        {band.paired && (
+          <ThemedText type="small" themeColor="textSecondary">
+            {!band.connected ? 'Band not connected'
+              : !state.night?.view || state.night.view.state === 'ended' ? 'Band connected. Start a night to use it.' : 'Band connected'}
+          </ThemedText>
+        )}
         {(!state.night?.view || state.night.view.state === 'ended') && <NightEntry />}
         {state.lastCheckIn !== null && (
           <ThemedText type="small" themeColor="textSecondary" selectable>Last check-in: {formatCheckIn(state.lastCheckIn)}</ThemedText>

@@ -13,7 +13,6 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useBandSignal } from '@/hooks/use-band-signal';
 import { useTheme } from '@/hooks/use-theme';
 import { locationAgeText } from '@/services/age';
-import { ZONE_TEXT } from '@/services/band';
 import { api } from '@/services/demo-api';
 import { arrowRotation, bearingDegrees, compassWord, distanceMetres, formatDistance, smoothAngle, type LatLng } from '@/services/geo';
 import { useSafekeeps } from '@/state/safekeeps';
@@ -117,11 +116,9 @@ export default function FindScreen() {
                 {band && (
                   <View style={{ gap: Spacing.one }} accessibilityLiveRegion="polite">
                     <ThemedText type="display" style={{ textAlign: 'center' }}>
-                      {band.zone ? ZONE_TEXT[band.zone] : band.lost ? 'No band signal' : 'Looking for the band...'}
+                      {band.near === null ? (band.lost ? 'No band signal' : 'Looking for the band...')
+                        : band.near ? "You're right next to them" : 'Their band is in range'}
                     </ThemedText>
-                    {band.zone && band.trend !== 'steady' && (
-                      <ThemedText type="name" style={{ textAlign: 'center' }}>{band.trend === 'warmer' ? 'Warmer' : 'Colder'}</ThemedText>
-                    )}
                   </View>
                 )}
               </>
@@ -146,7 +143,14 @@ export default function FindScreen() {
       ) : alert.acknowledged_by !== null && alert.acknowledged_by !== state.me?.id ? (
         <ThemedText type="small" themeColor="textSecondary">Another friend is already on it, so pinging is off.</ThemedText>
       ) : (
-        <AppButton label={ping === 'sending' ? 'Pinging...' : 'Ping'} disabled={ping === 'sending'} onPress={() => { void sendPing(); }} />
+        <>
+          <AppButton label={ping === 'sending' ? 'Pinging...' : 'Ping'} disabled={ping === 'sending'} onPress={() => { void sendPing(); }} />
+          {band && (
+            <ThemedText type="small" themeColor="textSecondary">
+              Bluetooth can only tell when you are right beside them. Use Ping to hear them.
+            </ThemedText>
+          )}
+        </>
       )}
       {ping === 'sent' && <ThemedText accessibilityLiveRegion="polite">Ping sent. If it counts, their phone rings.</ThemedText>}
       {problem && <ThemedText accessibilityLiveRegion="polite" themeColor="danger">{problem}</ThemedText>}

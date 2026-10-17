@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { askKey, decodeEvent, encodeByte, keepPending, median, shouldPingBand, trend, zone, type Sample } from './band.ts';
+import { askKey, decodeEvent, encodeByte, keepPending, median, nextNear, noNight, shouldPingBand, type Sample } from './band.ts';
 
 const b64 = (byte: number) => Buffer.from([byte]).toString('base64');
 const at = (t: number, rssi: number): Sample => ({ t, rssi });
@@ -75,37 +75,42 @@ test('median: empty input is null, odd and even counts, last 4 s only', () => {
   assert.equal(median([at(6001, -50)], 10_000), -50);
 });
 
-test('zone boundaries: -55 and -80 are close', () => {
-  assert.equal(zone(-41), 'here');
-  assert.equal(zone(-54), 'here');
-  assert.equal(zone(-55), 'close');
-  assert.equal(zone(-75), 'close');
-  assert.equal(zone(-80), 'close');
-  assert.equal(zone(-81), 'range');
-  assert.equal(zone(-88), 'range');
+test('nextNear: enter only when stronger than -60', () => {
+  assert.equal(nextNear(false, -41), true); // right beside, from the venue table
+  assert.equal(nextNear(false, -59.5), true);
+  assert.equal(nextNear(false, -60), false); // boundary: not stronger
+  assert.equal(nextNear(false, -64), false); // in the gap, stays out
+  assert.equal(nextNear(false, -75), false); // 1 m at the venue is noise
 });
 
-test('trend: warmer, colder, steady', () => {
+test('nextNear: once near, stay until weaker than -68', () => {
+  assert.equal(nextNear(true, -50), true);
+  assert.equal(nextNear(true, -64), true); // in the gap, stays in
+  assert.equal(nextNear(true, -68), true); // boundary: not weaker
+  assert.equal(nextNear(true, -68.5), false);
+  assert.equal(nextNear(true, -82), false);
+});
+
+test('nextNear: no reading resets it', () => {
+  assert.equal(nextNear(true, null), false);
+  assert.equal(nextNear(false, null), false);
+});
+
+test('nextNear on the median: a single strong spike does not enter, a jittery near signal does not leave', () => {
   const now = 10_000;
-  const rising = [at(6500, -80), at(7500, -80), at(8500, -70), at(9500, -70)];
-  assert.equal(trend(rising, now), 'warmer');
-  assert.equal(trend(rising.map(s => at(s.t, -s.rssi - 150)), now), 'colder'); // mirrored: -70 then -80
+  let near = nextNear(false, median([at(7000, -80), at(8000, -78), at(9000, -40)], now)); // median -78
+  assert.equal(near, false);
+  near = nextNear(near, median([at(8000, -42), at(9000, -45), at(9500, -80)], now)); // median -45
+  assert.equal(near, true);
+  near = nextNear(near, median([at(8000, -66), at(9000, -50), at(9500, -67)], now)); // median -66, in the gap
+  assert.equal(near, true);
+  near = nextNear(near, median([at(8000, -75), at(9000, -79), at(9500, -50)], now)); // median -75
+  assert.equal(near, false);
 });
 
-test('trend: 3 dB dead band, 4 dB moves', () => {
-  const now = 10_000;
-  const step = (from: number, to: number) => [at(7000, from), at(9000, to)];
-  assert.equal(trend(step(-70, -67), now), 'steady'); // +3
-  assert.equal(trend(step(-70, -73), now), 'steady'); // -3
-  assert.equal(trend(step(-70, -66), now), 'warmer'); // +4
-  assert.equal(trend(step(-70, -74), now), 'colder'); // -4
-});
-
-test('trend: steady when either half is empty', () => {
-  assert.equal(trend([], 10_000), 'steady');
-  assert.equal(trend([at(9000, -50)], 10_000), 'steady'); // nothing before
-  assert.equal(trend([at(7000, -50)], 10_000), 'steady'); // nothing recent
-  assert.equal(trend([at(5000, -50), at(9000, -40)], 10_000), 'steady'); // before is older than 4 s
+test('noNight: only 404 drops a band event, everything else is retried', () => {
+  assert.equal(noNight(404), true);
+  for (const status of [null, undefined, 400, 401, 409, 422, 500, 503]) assert.equal(noNight(status), false, String(status));
 });
 
 test('literal base64 strings the band sends', () => {
@@ -127,12 +132,4 @@ test('askKey: a deadline of 0 is still a key, a new deadline is a new key', () =
 test('shouldPingBand: a first ping at time 0 handled, then a repeat is ignored', () => {
   assert.equal(shouldPingBand(5, 0, 6), true);
   assert.equal(shouldPingBand(0, 0, 1), false);
-});
-
-test('trend: samples outside both 2 s halves are ignored; boundaries', () => {
-  const now = 10_000;
-  // the sample at exactly now-4000 is out of "before"; the one at exactly now-2000 belongs to "before"
-  assert.equal(trend([at(6000, -50), at(9000, -80)], now), 'steady');
-  assert.equal(trend([at(8000, -80), at(9000, -70)], now), 'warmer');
-  assert.equal(trend([at(8000, -80), at(10_000, -70)], now), 'warmer'); // exactly now is recent
 });

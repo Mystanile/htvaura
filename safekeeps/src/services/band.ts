@@ -55,46 +55,28 @@ export function shouldPingBand(pingAt: number | null | undefined, lastHandled: n
   return now - pingAt <= PING_FRESH_SECONDS;
 }
 
-export type Sample = { t: number; rssi: number }; // t in ms
-export type Zone = 'here' | 'close' | 'range';
-export type Trend = 'warmer' | 'colder' | 'steady';
+// The server answers a band event with 404 when no night is running. Then the event is dropped, not retried
+// or kept. Every other failure is retried. The event type is not an argument, so ok and duress take the same path.
+export const noNight = (status: number | null | undefined) => status === 404;
 
-export const ZONE_TEXT: Record<Zone, string> = {
-  here: "You're right next to them",
-  close: 'Getting close',
-  range: "They're somewhere nearby",
-};
+export type Sample = { t: number; rssi: number }; // t in ms
 
 const WINDOW_MS = 4000;
-const TREND_MS = 2000;
-const DEAD_BAND_DB = 3;
+// Venue measurements (HARDWARE.md): only "right beside" (about -41 dBm) stands out. From 1 m to 20 m it is
+// noise (-75 to -88). So there are two states, with a gap between enter and leave so it does not flicker.
+const NEAR_ENTER_DBM = -60; // stronger than this: right next to them
+const NEAR_LEAVE_DBM = -68; // weaker than this: back to in range
 
-function middle(values: number[]) {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-// Median RSSI of the samples in (from, to]. null if there are none.
-function medianBetween(samples: Sample[], from: number, to: number) {
-  return middle(samples.filter(s => s.t > from && s.t <= to).map(s => s.rssi));
-}
-
-// Median of the last 4 s, never a single reading.
+// Median RSSI of the last 4 s, never a single reading. null if there are none.
 export function median(samples: Sample[], now: number) {
-  return medianBetween(samples, now - WINDOW_MS, now);
+  const values = samples.filter(s => s.t > now - WINDOW_MS && s.t <= now).map(s => s.rssi).sort((a, b) => a - b);
+  if (values.length === 0) return null;
+  const mid = values.length >> 1;
+  return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
 }
 
-export function zone(rssi: number): Zone {
-  return rssi > -55 ? 'here' : rssi >= -80 ? 'close' : 'range';
-}
-
-// Last 2 s against the 2 s before. A change of 3 dB or less counts as steady.
-export function trend(samples: Sample[], now: number): Trend {
-  const recent = medianBetween(samples, now - TREND_MS, now);
-  const before = medianBetween(samples, now - 2 * TREND_MS, now - TREND_MS);
-  if (recent === null || before === null) return 'steady';
-  const change = recent - before;
-  return change > DEAD_BAND_DB ? 'warmer' : change < -DEAD_BAND_DB ? 'colder' : 'steady';
+// Next "right next to them" state from the last one and the 4 s median. No reading resets it.
+export function nextNear(near: boolean, rssi: number | null) {
+  if (rssi === null) return false;
+  return near ? rssi >= NEAR_LEAVE_DBM : rssi > NEAR_ENTER_DBM;
 }

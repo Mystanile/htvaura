@@ -6,10 +6,10 @@ import * as SecureStore from 'expo-secure-store';
 import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import type { BleManager, Subscription } from 'react-native-ble-plx';
 
-import { api, fetchNight, type Night } from '@/services/demo-api';
+import { ApiError, api, fetchNight, type Night } from '@/services/demo-api';
 import { loadSession, type DemoSession } from '@/services/demo-session';
 import {
-  ASK_UUID, BAND_NAME, EVENT_UUID, PING_UUID, SERVICE_UUID, askKey, decodeEvent, encodeByte, keepPending, shouldPingBand,
+  ASK_UUID, BAND_NAME, EVENT_UUID, PING_UUID, SERVICE_UUID, askKey, decodeEvent, encodeByte, keepPending, noNight, shouldPingBand,
   type BandEvent, type PendingEvent,
 } from '@/services/band';
 
@@ -152,11 +152,13 @@ export async function forgetBand() {
   await manager.cancelDeviceConnection(id).catch(() => {}); // also cancels a pending connect
 }
 
-// One try. Reads the session itself because no screen may be mounted. Any error counts as not delivered.
+// One try. Reads the session itself because no screen may be mounted. true means done: delivered, or the
+// server said no night is running (404), so there is nothing to answer. Any other error counts as not delivered.
 async function deliver(type: PendingEvent['type']) {
   const session = await relaySession();
   if (!session) return false;
-  return api(session.url, '/night/events', session.token, { type }).then(() => true, () => false);
+  return api(session.url, '/night/events', session.token, { type })
+    .then(() => true, error => noNight(error instanceof ApiError ? error.status : null));
 }
 
 // Answers that failed for 10 s, kept (also on disk) and tried again on every heartbeat, every foreground night

@@ -32,6 +32,8 @@ export default function NightScreen() {
   const theme = useTheme();
   const [pin, setPin] = useState('');
   const [pinAgain, setPinAgain] = useState('');
+  const [duressPin, setDuressPin] = useState('');
+  const [duressAgain, setDuressAgain] = useState('');
   const [interval, setInterval] = useState(state.intervalMinutes);
   const [homeBy, setHomeBy] = useState('');
   const [endsAt, setEndsAt] = useState('');
@@ -40,11 +42,19 @@ export default function NightScreen() {
   const [problem, setProblem] = useState<string | null>(null);
   const get = (id: string): Setup => setup[id] ?? { tier: 0, duress: false };
   const change = (id: string, patch: Partial<Setup>) => setSetup(prev => ({ ...prev, [id]: { ...get(id), ...patch } }));
+  // Live feedback under the second field, once it has as many digits as the first.
+  const mismatch = (first: string, again: string) => again.length > 0 && again.length >= first.length && again !== first;
+  const pinMismatch = mismatch(pin, pinAgain);
+  const duressMismatch = mismatch(duressPin, duressAgain);
+  const duressSameAsPin = duressPin.length === 4 && duressPin === pin;
 
   async function start() {
     const ids = state.friends.map(friend => friend.id);
     if (!/^\d{4}$/.test(pin)) return setProblem('Your PIN needs to be exactly 4 digits.');
     if (pin !== pinAgain) return setProblem('The two PINs do not match. Try typing them again.');
+    if (!/^\d{4}$/.test(duressPin)) return setProblem('Your duress PIN needs to be exactly 4 digits.');
+    if (duressPin !== duressAgain) return setProblem('The two duress PINs do not match. Try typing them again.');
+    if (duressPin === pin) return setProblem('Your duress PIN must be different from your normal PIN.');
     // ranked list: Tier 1 first, empty tiers skipped
     const tiers = [1, 2, 3].map(tier => ids.filter(id => get(id).tier === tier)).filter(tier => tier.length > 0);
     if (tiers.length === 0) return setProblem('Pick at least one friend for Tier 1, 2 or 3 so someone can help.');
@@ -58,7 +68,7 @@ export default function NightScreen() {
     // A "no" is fine, the night still runs. A browser prompt can stay unanswered, so on the web we wait 3 s at most.
     const asked = Location.requestForegroundPermissionsAsync().catch(() => null);
     await (Platform.OS === 'web' ? Promise.race([asked, new Promise(done => setTimeout(done, 3000))]) : asked);
-    if (await state.startNight({ pin, tiers, duress_contacts: duress, check_every_minutes: interval, share_location_with: shareWith,
+    if (await state.startNight({ pin, duress_pin: duressPin, tiers, duress_contacts: duress, check_every_minutes: interval, share_location_with: shareWith,
       // phone clock time to server clock time, with the offset the state keeps
       ...(clock && { home_by: (nextAt(clock.h, clock.m, Date.now()) + state.serverOffset) / 1000 }),
       ...(ends && { night_ends_at: (nextAt(ends.h, ends.m, Date.now()) + state.serverOffset) / 1000 }),
@@ -83,8 +93,18 @@ export default function NightScreen() {
         </ThemedText>
         <Field label="4-digit PIN" value={pin} onChangeText={setPin} placeholder="4 digits" keyboardType="number-pad"
           secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
-        <Field label="Enter it again" value={pinAgain} onChangeText={setPinAgain} placeholder="Same 4 digits" keyboardType="number-pad"
+        <Field label="Repeat PIN" value={pinAgain} onChangeText={setPinAgain} placeholder="Same 4 digits" keyboardType="number-pad"
           secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
+        {pinMismatch && <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">The PINs do not match</ThemedText>}
+        <Field label="Duress PIN" helper="A second PIN. It looks like a normal cancel but silently alerts your duress contacts."
+          value={duressPin} onChangeText={setDuressPin} placeholder="4 digits" keyboardType="number-pad"
+          secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
+        {duressSameAsPin && (
+          <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">Use a different PIN from your normal PIN</ThemedText>
+        )}
+        <Field label="Repeat duress PIN" value={duressAgain} onChangeText={setDuressAgain} placeholder="Same 4 digits" keyboardType="number-pad"
+          secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
+        {duressMismatch && <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">The PINs do not match</ThemedText>}
       </SectionCard>
       <SectionCard>
         <ThemedText type="heading">Who helps</ThemedText>
