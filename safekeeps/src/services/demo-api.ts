@@ -17,6 +17,7 @@ export type NightView = {
   state: 'armed' | 'asking' | 'waiting' | 'escalating' | 'acknowledged' | 'ended';
   screen: 'armed' | 'asking' | 'alarm' | 'alert_active' | 'thanks' | 'pin_retry' | 'ended_true' | 'ended_fake';
   deadline: number | null; // server Unix seconds, only set while asking or waiting
+  ping_at?: number | null; // server Unix seconds of the last counted ping, null if none
 };
 export type NightAlert = {
   user_id: string; active: boolean;

@@ -1,7 +1,8 @@
 import { Button, Column, Host, Picker, Switch, TextInput, useNativeState } from '@expo/ui';
+import * as Location from 'expo-location';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { ConnectionStatus } from '@/components/connection-status';
@@ -34,6 +35,9 @@ export default function NightScreen() {
     const duress = ids.filter(id => get(id).duress);
     if (duress.length === 0) return setProblem('Pick at least one duress contact, someone who can be told silently.');
     setProblem(null);
+    // A "no" is fine, the night still runs. A browser prompt can stay unanswered, so on the web we wait 3 s at most.
+    const asked = Location.requestForegroundPermissionsAsync().catch(() => null);
+    await (Platform.OS === 'web' ? Promise.race([asked, new Promise(done => setTimeout(done, 3000))]) : asked);
     if (await state.startNight({ pin: pin.value, tiers, duress_contacts: duress, check_every_minutes: interval })) {
       state.setIntervalMinutes(interval); // so her "Next check-in in X min" line follows the night
       router.back();
@@ -91,6 +95,9 @@ export default function NightScreen() {
       <SectionCard>
         <ThemedText type="heading">Check-ins</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">How often should we ask if you are okay?</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          While a night runs, this phone sends its location to the server. Your contacts only see it during an alert.
+        </ThemedText>
         <Host matchContents seedColor={ButtonSeed}>
           <Column spacing={16}>
             <Picker selectedValue={interval} onValueChange={setInterval}>

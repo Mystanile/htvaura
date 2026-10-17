@@ -1,4 +1,5 @@
 import { Button, Column, Host } from '@expo/ui';
+import { router } from 'expo-router';
 import { Linking, Platform, View } from 'react-native';
 
 import { SectionCard } from '@/components/section-card';
@@ -47,6 +48,9 @@ export function AlertsSection() {
             <ThemedText type="small">{holder === null ? 'Nobody is on it yet' : `${holder} ${holder === 'You' ? 'are' : 'is'} on it`}</ThemedText>
             <Host matchContents seedColor={ButtonSeed}>
               <Column spacing={8}>
+                {alert.location !== null && (
+                  <Button label="Find them" onPress={() => { router.push({ pathname: '/find/[id]', params: { id: alert.user_id } }); }} />
+                )}
                 {alert.location !== null && <Button label="Open in Maps" onPress={() => { openMap(alert.location!); }} />}
                 {alert.acknowledged_by === null && (
                   <Button label="I'm on it" disabled={state.busy} onPress={() => { void state.ackAlert(alert.user_id); }} />

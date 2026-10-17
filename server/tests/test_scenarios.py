@@ -281,7 +281,7 @@ def test_7_privacy():
         send(s, LocationUpdate(LAT, LNG), now)
         for who in EVERYONE_ELSE:
             assert view_for(s, who) == INACTIVE, (state, who)
-        assert set(view_for(s, U)) == {"state", "screen", "deadline"}
+        assert set(view_for(s, U)) == {"state", "screen", "deadline", "ping_at"}
 
     # share_location_with = "alerted": every alerted contact sees it, nobody else does.
     s, now, fx = make("escalating", share_location_with="alerted")

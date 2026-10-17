@@ -5,6 +5,7 @@ import { useFonts } from 'expo-font';
 import { AppFont } from '@/constants/theme';
 
 import { ConnectionGate } from '@/components/connection-gate';
+import { NightEffects } from '@/components/night-effects';
 import { SafekeepsProvider } from '@/state/safekeeps';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
@@ -31,8 +32,10 @@ export default function RootLayout() {
           <Stack.Screen name="friends/[id]" options={{ title: 'Friend' }} />
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />
           <Stack.Screen name="night" options={{ title: 'Start a night' }} />
+          <Stack.Screen name="find/[id]" options={{ title: 'Find them' }} />
           <Stack.Screen name="explore" options={{ title: 'Settings' }} />
         </Stack></ConnectionGate>
+        <NightEffects />
       </SafekeepsProvider>
     </ThemeProvider>
   );
