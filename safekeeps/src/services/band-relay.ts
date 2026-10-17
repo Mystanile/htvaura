@@ -119,7 +119,7 @@ async function keepConnected(id: string) {
 // Find the band, remember it, and keep it connected.
 export async function pairBand() {
   if (!manager) throw new Error('Bluetooth is not available in this app build.');
-  if (!(await askBluetoothPermission())) throw new Error('Allow Bluetooth for Safekeeps in your settings.');
+  if (!(await askBluetoothPermission())) throw new Error('Allow Bluetooth for Homebound in your settings.');
   const ble = manager;
   const id = await new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -129,7 +129,7 @@ export async function pairBand() {
     ble.startDeviceScan([SERVICE_UUID], null, (error, device) => {
       if (error) {
         clearTimeout(timer);
-        reject(new Error('Bluetooth is off or not allowed for Safekeeps.'));
+        reject(new Error('Bluetooth is off or not allowed for Homebound.'));
       } else if (device && (device.name === BAND_NAME || device.localName === BAND_NAME)) {
         clearTimeout(timer);
         void ble.stopDeviceScan();
