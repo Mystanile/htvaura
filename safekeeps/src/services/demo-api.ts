@@ -9,6 +9,8 @@ export type Snapshot = {
   me: { id: string; name: string; code: string; lastCheckIn: number | null };
   friends: Friend[];
   incoming: { id: string; name: string; requestedAt: number }[];
+  friendRequests: { id: string; name: string }[];
+  sentRequests: { id: string; name: string }[];
 };
 
 class ApiError extends Error {}

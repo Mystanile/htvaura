@@ -1,5 +1,5 @@
 import { createContext, use, useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { api, fetchState, type Snapshot } from '@/services/demo-api';
 import { loadSession, saveSession, type DemoSession } from '@/services/demo-session';
@@ -50,7 +50,7 @@ function useSafekeepsState() {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
-      if (AppState.currentState !== 'background') await refresh(controller.signal);
+      if (Platform.OS === 'web' || AppState.currentState !== 'background') await refresh(controller.signal);
       if (!controller.signal.aborted) timer = setTimeout(poll, 2500);
     };
     void poll();
@@ -118,10 +118,13 @@ function useSafekeepsState() {
   const minutesRemaining = Math.max(0, Math.ceil(((lastCheckIn ?? startedAt) + intervalMinutes * 60_000 - now) / 60_000));
   return {
     session, me: data?.me, friends: data?.friends ?? [], incoming: data?.incoming ?? [],
+    friendRequests: data?.friendRequests ?? [], sentRequests: data?.sentRequests ?? [],
     hydrating, loading: !!session && !data, error: error ?? connectionError, busy, refresh, startGuest, reconnect,
     lastCheckIn, remindersEnabled, setRemindersEnabled, intervalMinutes, setIntervalMinutes, minutesRemaining,
     recordCheckIn: () => post('/check-ins'),
     addFriend: (code: string, name = '') => post('/friends', { code, name }),
+    acceptFriend: (id: string) => post('/friend-requests/' + encodeURIComponent(id) + '/accept'),
+    declineFriend: (id: string) => post('/friend-requests/' + encodeURIComponent(id) + '/decline'),
     removeFriend: (id: string) => post('/friends/' + encodeURIComponent(id) + '/remove'),
     requestCheckIn: (id: string) => post('/friends/' + encodeURIComponent(id) + '/requests'),
   };

@@ -29,6 +29,10 @@ def connect():
             owner TEXT NOT NULL, friend TEXT NOT NULL, name TEXT NOT NULL,
             PRIMARY KEY(owner, friend)
         );
+        CREATE TABLE IF NOT EXISTS friend_requests (
+            sender TEXT NOT NULL, target TEXT NOT NULL, created_at INTEGER NOT NULL,
+            PRIMARY KEY(sender, target)
+        );
         CREATE TABLE IF NOT EXISTS requests (
             sender TEXT NOT NULL, target TEXT NOT NULL,
             requested_at INTEGER NOT NULL, resolved_at INTEGER,
@@ -66,6 +70,13 @@ def snapshot(db, user):
         WHERE r.target = ? AND r.resolved_at IS NULL ORDER BY r.requested_at DESC
     """, (user["id"],)).fetchall()
     return {
+        "friendRequests": [dict(p) for p in db.execute(
+            "SELECT p.id, p.name FROM friend_requests r JOIN people p ON p.id = r.sender WHERE r.target = ?",
+            (user["id"],)).fetchall()],
+        "sentRequests": [dict(p) for p in db.execute(
+            "SELECT p.id, COALESCE(n.name, p.name) AS name FROM friend_requests r JOIN people p ON p.id = r.target "
+            "LEFT JOIN friend_names n ON n.owner = r.sender AND n.friend = r.target WHERE r.sender = ?",
+            (user["id"],)).fetchall()],
         "me": {"id": user["id"], "name": user["name"], "code": user["code"],
                "lastCheckIn": user["last_check_in"]},
         "friends": [
@@ -120,13 +131,34 @@ def add_friend(body: FriendIn, authorization: str | None = Header(default=None))
             raise HTTPException(404, "No friend has that code. Check it and try again.")
         if other["id"] == user["id"]:
             raise HTTPException(400, "Use the code from the other phone.")
-        db.execute("INSERT OR IGNORE INTO friendships VALUES (?, ?)", (user["id"], other["id"]))
-        db.execute("INSERT OR IGNORE INTO friendships VALUES (?, ?)", (other["id"], user["id"]))
+        if not db.execute("SELECT 1 FROM friendships WHERE owner = ? AND friend = ?", (user["id"], other["id"])).fetchone():
+            db.execute("INSERT OR IGNORE INTO friend_requests VALUES (?, ?, ?)", (user["id"], other["id"], int(time.time() * 1000)))
         if body.name.strip():
             db.execute("""
                 INSERT INTO friend_names VALUES (?, ?, ?)
                 ON CONFLICT(owner, friend) DO UPDATE SET name = excluded.name
             """, (user["id"], other["id"], body.name.strip()))
+        return snapshot(db, user)
+
+
+@router.post("/friend-requests/{sender_id}/accept")
+def accept_friend(sender_id: str, authorization: str | None = Header(default=None)):
+    with connect() as db:
+        user = identity(db, authorization)
+        if not db.execute("SELECT 1 FROM friend_requests WHERE sender = ? AND target = ?", (sender_id, user["id"])).fetchone():
+            raise HTTPException(404, "This friend request is no longer available.")
+        db.execute("INSERT OR IGNORE INTO friendships VALUES (?, ?)", (user["id"], sender_id))
+        db.execute("INSERT OR IGNORE INTO friendships VALUES (?, ?)", (sender_id, user["id"]))
+        db.execute("DELETE FROM friend_requests WHERE (sender = ? AND target = ?) OR (sender = ? AND target = ?)",
+                   (sender_id, user["id"], user["id"], sender_id))
+        return snapshot(db, user)
+
+
+@router.post("/friend-requests/{sender_id}/decline")
+def decline_friend(sender_id: str, authorization: str | None = Header(default=None)):
+    with connect() as db:
+        user = identity(db, authorization)
+        db.execute("DELETE FROM friend_requests WHERE sender = ? AND target = ?", (sender_id, user["id"]))
         return snapshot(db, user)
 
 
@@ -167,4 +199,5 @@ def remove_friend(friend_id: str, authorization: str | None = Header(default=Non
         for table in ("friendships", "friend_names"):
             db.execute(f"DELETE FROM {table} WHERE (owner = ? AND friend = ?) OR (owner = ? AND friend = ?)", pair)
         db.execute("DELETE FROM requests WHERE (sender = ? AND target = ?) OR (sender = ? AND target = ?)", pair)
+        db.execute("DELETE FROM friend_requests WHERE (sender = ? AND target = ?) OR (sender = ? AND target = ?)", pair)
         return snapshot(db, user)

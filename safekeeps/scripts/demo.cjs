@@ -48,7 +48,7 @@ async function main() {
 
   const apiUrl = 'http://' + address.address + ':8000';
   if (await available(8000)) {
-    const backend = launch(python, ['-m', 'uvicorn', 'kaze.app:app', '--host', '0.0.0.0', '--port', '8000'], { cwd: serverRoot });
+    const backend = launch(python, ['-m', 'uvicorn', 'kaze.app:app', '--host', '0.0.0.0', '--port', '8000', '--reload', '--reload-dir', 'kaze'], { cwd: serverRoot });
     backend.on('exit', code => { if (code) shutdown(code); });
   }
   let ready = false;
@@ -56,7 +56,9 @@ async function main() {
     try {
       const response = await fetch('http://127.0.0.1:8000/openapi.json', { signal: AbortSignal.timeout(1000) });
       const spec = await response.json();
-      if (!spec.paths?.['/safekeeps/guests']) throw new Error('Port 8000 is running an older or different server. Stop it and run npm run demo again.');
+      if (!spec.paths?.['/safekeeps/friend-requests/{sender_id}/accept'] || !spec.components?.schemas?.FriendIn?.properties?.name) {
+        throw new Error('Port 8000 is running an older or different server without friend request support. Stop it and run npm run demo again.');
+      }
       ready = true;
       break;
     } catch (error) {

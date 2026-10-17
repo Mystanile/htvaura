@@ -71,6 +71,21 @@ export default function HomeScreen() {
       </SectionCard>
       <SurfaceThemeContext value={{ ...theme, ...FriendsColors }}>
       <SectionCard>
+      {state.friendRequests.length > 0 && <ThemedText type="heading">Friend requests</ThemedText>}
+      {state.friendRequests.map(request => (
+        <View key={request.id} style={{ gap: Spacing.two }}>
+          <ThemedText type="name">{request.name} wants to add you</ThemedText>
+          <Host matchContents seedColor={ButtonSeed}>
+            <Column spacing={8}>
+              <Button label="Accept" disabled={state.busy} onPress={() => { void state.acceptFriend(request.id); }} />
+              <Button label="Decline" disabled={state.busy} onPress={() => { void state.declineFriend(request.id); }} />
+            </Column>
+          </Host>
+        </View>
+      ))}
+      {state.sentRequests.map(request => (
+        <ThemedText key={request.id} accessibilityLiveRegion="polite">Request sent to {request.name} · Awaiting acceptance</ThemedText>
+      ))}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <ThemedText type="heading">Friends</ThemedText>
         <ThemedText themeColor="textSecondary">{state.friends.length}</ThemedText>
@@ -107,14 +122,14 @@ export default function HomeScreen() {
       </SurfaceThemeContext>
       <SectionCard dark>
         <ThemedText type="heading">Add a friend</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">Use their code and give them a name you recognise.</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">Enter their code to send a friend request. They will appear once they accept.</ThemedText>
         <Host matchContents seedColor={ButtonSeed}>
           <Column spacing={12}>
             <TextInput ref={codeInput} value={code} placeholder="Friend code"
               autoCapitalize="characters" autoCorrect={false} editable={!state.busy} maxLength={32} />
             <TextInput ref={nameInput} value={name} placeholder="Name (optional)"
               autoCapitalize="words" editable={!state.busy} maxLength={40} />
-            <Button label={state.busy ? 'Saving...' : 'Add friend'} disabled={state.busy}
+            <Button label={state.busy ? 'Sending...' : 'Send friend request'} disabled={state.busy}
               onPress={() => { void addFriend(); }} />
           </Column>
         </Host>
