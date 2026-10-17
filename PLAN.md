@@ -17,7 +17,7 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 1.6 Fix the two open findings from the third review, and add periodic check-ins to the loop
 - [x] 2.0 Server bridge for safekeeps (me), review findings fixed, see "Where we stopped"
 - [x] 2.1, 2.3, 2.4 Safekeeps app screens, built on branch `checkin-screens` while the teammate slept. Waiting for her review in the pull request. Tested in a web browser with two tabs, not yet on a real iPhone.
-- [ ] 2.5 Triggers: periodic and "ask a friend" work. Home-by time is not built.
+- [x] 2.5 Triggers: periodic, "ask a friend" and "be home by" work. Home-by: server `home_by` plus an optional field in Start a night. Tested in automated tests only (server tests, `home-by.test.ts`), not on a phone.
 - [x] 3.1 Demo panel (`server/kaze/panel.py`, `server/panel/index.html`, `server/tests/test_panel.py`). Not yet tried on real phones.
 - [x] 4.1 to 4.2 Find them: server ping on `main`, app on branch `find-them` (pull request into `checkin-screens`). Tested in a web browser with a faked location. The compass arrow, real GPS, and the ping sound need a phone. See decisions 10 and 11.
 - [x] 5.1 iPhone Release build works (iPhone 15 Pro).
@@ -67,8 +67,7 @@ Next steps, in order:
 1. Done: phase 4, find them. The app side waits for the teammate's review in its pull request, and its phone test waits for the Xcode build.
 2. Phase 5 on the user's Mac: 5.1 works on one iPhone (see "iPhone build" above). Install it on the second iPhone the same way. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
 3. (was step 1) Fix what breaks on the real phones.
-4. Task 2.5: the home-by-time trigger.
-5. Before judging: update `README.md` and `DEMO_NOTES.md` (Demonstrated, Simulated, Assumed).
+4. Before judging: update `README.md` and `DEMO_NOTES.md` (Demonstrated, Simulated, Assumed).
 
 ## History of earlier stops
 
@@ -341,7 +340,7 @@ A teammate owns `safekeeps/` and tasks 2.1 to 2.5. Do not edit anything in `safe
 - 2.2 (teammate) Groups: her friend codes cover this. Nothing new.
 - 2.3 (teammate) Check-in screen from `view.state` and `view.screen`: the gestures from decision 1, countdown, "Thanks!", PIN cancel with filled vs outlined check.
 - 2.4 (teammate) Responder screen from the `alerts` list: response card, "I'm on it", resolve.
-- 2.5 (teammate) Triggers: periodic now runs on the server. "Ask a friend" is the manual trigger. Home-by time comes later. Separation comes from the demo panel only.
+- 2.5 (teammate) Triggers: periodic now runs on the server. "Ask a friend" is the manual trigger. Home-by time is done (a `home_by` server time on the night). Separation comes from the demo panel only.
 
 Phase 3: demo panel (`/panel` served by FastAPI)
 - 3.1 Done. A one-file web page at `/panel`. It polls `GET /demo/state` every second and shows every night: front state, screen, countdown, connected badge, next periodic check, location, and every alert (hidden ones too, marked). Each night has buttons for Trigger (manual, periodic, separation, home_by), Disconnect or Reconnect, and a sample location. The night card shows the last ping time. The top bar has skip buttons (+15 s, +30 s, +60 s, +15 min) and a reset with an in-page confirm. A privacy table per night shows what `view_for` gives each person. A scenario guide lists the 7 KAZE scenarios as steps. Endpoints: `GET /panel`, `GET /demo/state`, `POST /demo/event` (Trigger, Disconnect, Reconnect, LocationUpdate for any session, Safekeeps ones too), `POST /demo/skip`, `POST /demo/reset`. If `KAZE_DEMO_KEY` is set, the four data routes need it as the header `X-Demo-Key` (not in the URL, so it stays out of logs). The page asks for the key. Safekeeps nights count as connected, since phones poll. `POST /safekeeps/night` takes `share_location_with`. Reset leaves the Safekeeps SQLite profiles alone. "Contact ignores" needs no button: nobody taps "I'm on it" and time skips ahead. "Separate friend" is Trigger "separation".

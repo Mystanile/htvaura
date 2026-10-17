@@ -18,6 +18,7 @@ export type NightView = {
   screen: 'armed' | 'asking' | 'alarm' | 'alert_active' | 'thanks' | 'pin_retry' | 'ended_true' | 'ended_fake';
   deadline: number | null; // server Unix seconds, only set while asking or waiting
   ping_at?: number | null; // server Unix seconds of the last counted ping, null if none
+  home_by?: number; // server Unix seconds, only in the user's own view while a home-by check has not started
 };
 export type NightAlert = {
   user_id: string; active: boolean;
@@ -31,6 +32,7 @@ export type NightConfig = {
   pin: string; tiers: string[][]; duress_contacts: string[];
   check_every_minutes?: number; ask_seconds?: number; grace_seconds?: number; ack_seconds?: number;
   night_ends_at?: number; // server Unix seconds
+  home_by?: number; // server Unix seconds
 };
 
 class ApiError extends Error {}

@@ -137,6 +137,7 @@ Fields:
 | `grace_seconds` | no, default 15 | How long the loud alarm runs before contacts are alerted. |
 | `ack_seconds` | no, default 20 | How long a tier has to tap "I'm on it" before the next tier is alerted. |
 | `night_ends_at` | no | Server Unix time when the night ends. See section 9. |
+| `home_by` | no | Server Unix time. A "be home by" check starts then, once per night. It is a normal check: silence escalates it with kind `home_by`. If another check is running at that time, it starts when the phone is armed again. It never starts after the night ended. Example: `"home_by": 1792236000`. |
 
 Response (200). The `view` is the user's own view (section 5):
 
@@ -391,6 +392,7 @@ The user left the group. Remove them from the group list.
 | `state` | `armed`, `asking`, `waiting`, `escalating`, `acknowledged`, or `ended`. |
 | `screen` | What to show. See section 7. |
 | `deadline` | A server Unix time in `asking` and `waiting`. Otherwise `null`. |
+| `home_by` | Only when the night has a `home_by` check that has not started yet. The server time it will start. The key is left out otherwise, and never appears in a contact's view. |
 
 The user's view always looks like the view of a user with no hidden trouble. The server does this on purpose, so a person who watches the screen learns nothing. The app does not need to know about it. Just render `state` and `screen` as the view says. The same is true for the WebSocket messages. See section 7 for what the screens look like.
 
@@ -683,6 +685,7 @@ Start a night for me. The group is all my accepted friends. Every contact must b
 | `grace_seconds` | Optional. Time of the louder `alarm` screen. Default 15. |
 | `ack_seconds` | Optional. Time a contact has to tap "I'm on it" before the next tier. Default 20. |
 | `night_ends_at` | Optional. A server Unix time. Get it from the `now` of `GET /safekeeps/night`. Add the length of the night. |
+| `home_by` | Optional. A server Unix time for a "be home by" check. The check starts then, once per night, and silence escalates it with kind `home_by`. Example: `{"pin": "4821", "tiers": [["7b21d0a4"]], "duress_contacts": ["50c6a9d8"], "home_by": 1792236000}`. The user's own view has a `home_by` key until the check starts. |
 
 Answer, `200`:
 

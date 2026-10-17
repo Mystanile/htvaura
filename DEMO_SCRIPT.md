@@ -41,6 +41,7 @@ Say: "Most safety apps need you to press a button. The people who need help most
 2. The wearer's phone shows "Are you okay?" with a countdown. The band buzzes once and blinks.
 3. The wearer taps the band 3 times.
 4. The phone shows "Thanks!". The panel goes back to armed. Nobody is alerted.
+5. A check can also come from a "be home by" time. Set it in Start a night. At that time the phone asks "Are you okay?" the same way. The panel shows "Home-by check" until it fires.
 
 Say: "Every trigger is a check first. A trigger can be a timer, a friend asking, or being late home. A false alarm costs three taps, not a panic."
 

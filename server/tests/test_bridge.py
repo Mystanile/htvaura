@@ -1,4 +1,6 @@
 """The Safekeeps bridge over HTTP: her tokens and friends drive the check-in loop."""
+import json
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -178,6 +180,28 @@ def test_periodic_check_fires_and_escalates_with_no_polling(client):
     client.post("/demo/skip", json={"seconds": 50})
     seen = alerts(client, b)
     assert [x["kind"] for x in seen] == ["periodic"]
+
+
+def test_home_by_check_fires_and_escalates_with_no_polling(client):
+    (alice, a), (bob, b) = people(client, "Alice", "Bob")
+    t = client.get(NIGHT, headers=a).json()["now"]
+    start(client, a, [[bob["id"]]], [bob["id"]], home_by=t + 60)
+    assert client.get(NIGHT, headers=a).json()["view"]["home_by"] == t + 60
+    client.post("/demo/skip", json={"seconds": 61})
+    view = client.get(NIGHT, headers=a).json()["view"]
+    assert view["state"] == "asking" and "home_by" not in view
+    client.post("/demo/skip", json={"seconds": 50})
+    assert [x["kind"] for x in alerts(client, b)] == ["home_by"]
+    assert "home_by" not in alerts(client, b)[0]
+
+
+def test_a_bad_home_by_is_a_422(client):
+    (alice, a), (bob, b) = people(client, "Alice", "Bob")
+    for bad in ("23:30", float("nan")):
+        body = {"pin": "1234", "tiers": [[bob["id"]]], "duress_contacts": [bob["id"]], "home_by": bad}
+        assert client.post(NIGHT, headers=a | {"Content-Type": "application/json"}, content=json.dumps(body)).status_code == 422, bad
+    body["home_by"] = 1e12
+    assert client.post(NIGHT, headers=a | {"Content-Type": "application/json"}, content=json.dumps(body)).status_code == 200  # same route, a good value
 
 
 def test_alerts_never_shows_a_duress_alert_to_a_friend_who_is_not_a_duress_contact(client):

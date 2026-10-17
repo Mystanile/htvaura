@@ -6,6 +6,7 @@ import { Field } from '@/components/form';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { clockText } from '@/services/home-by';
 import { createGestureDecoder, type GestureResult } from '@/services/gesture';
 import type { NightView } from '@/services/demo-api';
 import { useSafekeeps } from '@/state/safekeeps';
@@ -142,6 +143,9 @@ function NightCheckIn({ view }: { view: NightView }) {
           {/* the server checks on its own schedule during a night, so her local countdown does not apply */}
           <ThemedText themeColor="textSecondary">{"We'll check in on you during the night"}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">Tap 3 times quickly to check in</ThemedText>
+          {view.home_by != null && (
+            <ThemedText type="small" themeColor="textSecondary">Home-by check at {clockText(view.home_by * 1000 - state.serverOffset)}</ThemedText>
+          )}
           <AppButton variant="quiet" label="Cancel an alert" onPress={() => setPinOpen(open => !open)} />
           {retryArmed && <ThemedText accessibilityLiveRegion="polite" style={{ color: theme.danger }}>Incorrect PIN, try again</ThemedText>}
           {(pinOpen || retryArmed) && <PinEntry onSent={pinSent} />}
