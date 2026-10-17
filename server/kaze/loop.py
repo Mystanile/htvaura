@@ -28,6 +28,7 @@ class Config:
     ask_seconds: float = 30
     grace_seconds: float = 15
     ack_seconds: float = 20
+    ack_hold_seconds: float = 120  # a taken alert goes back out if nobody ends it in this time (demo value)
     night_ends_at: float | None = None
     home_by: float | None = None  # server clock time: one check starts then, once per night
     check_every_seconds: float | None = None  # a periodic check starts this long after the front is armed
@@ -44,7 +45,11 @@ class Alert:
     state: str = "escalating"  # escalating acknowledged resolved duress
     hidden: bool = False
     location: tuple[float, float] | None = None  # the last position while this alert runs
+    location_at: float | None = None  # when `location` was last updated
     pin: str = ""  # the PIN of the night that raised it: only this PIN ends it later
+    stale_ack_by: str | None = None  # took the alert but did not end it in ack_hold_seconds
+    rounds: int = 0  # re-alert rounds sent after the last tier
+    final_step: bool = False  # SIMULATED: emergency services would be contacted now
 
 
 @dataclass
@@ -58,11 +63,13 @@ class Session:
     check_kind: str | None = None  # why the current check started
     next_check: float | None = None  # when the front is armed: the time of the next periodic check
     home_by_done: bool = False  # the home_by check has started
+    pin_ended: bool = False  # a PIN showed an end screen. Until the next check every PIN shows it again
     front_alert: Alert | None = None  # the user's own alert, while escalating or acknowledged
     # the alerts
     alerts: list[Alert] = field(default_factory=list)
     connected: bool = True
     location: tuple[float, float] | None = None  # the front's last position, cleared when the front ends
+    location_at: float | None = None  # when `location` was last updated
     ping_at: float | None = None  # when a contact last pinged the front alert, cleared when the front ends
 
 
@@ -155,15 +162,23 @@ def _night_over(s: Session, now: float) -> bool:
     return end is not None and now > end
 
 
+REALERT_GAPS = (60, 120, 300)  # seconds between re-alert rounds after the last tier, then 300 for good
+FINAL_STEP_ROUNDS = 3  # re-alert rounds in a row nobody took before the simulated final step
+
+
 def _alert_next_tier(s: Session, a: Alert, now: float) -> list[Effect]:
-    """Alert the next tier. After the last tier, re-alert every contact. Restart the ack timer."""
+    """Alert the next tier. After the last tier, re-alert every contact, with longer gaps each round."""
     n = a.tier_index + 1
     if n < len(a.tiers):
         a.tier_index = n
         pairs = [(c, n + 1) for c in a.tiers[n]]
+        a.deadline = now + s.config.ack_seconds
     else:
         pairs = [(c, i + 1) for i, g in enumerate(a.tiers) for c in g]
-    a.deadline = now + s.config.ack_seconds
+        if a.rounds >= FINAL_STEP_ROUNDS:
+            a.final_step = True  # ponytail: a flag only, a real product would call a dispatcher here
+        a.deadline = now + REALERT_GAPS[min(a.rounds, len(REALERT_GAPS) - 1)]
+        a.rounds += 1
     effects = []
     for contact, tier in pairs:
         if contact not in a.alerted:
@@ -194,14 +209,14 @@ def _resolve(s: Session, alerts: list[Alert]) -> list[Effect]:
     for a in alerts:
         a.state = "resolved"
         a.deadline = None
-        a.location = None
+        a.location = a.location_at = None
     return effects
 
 
 def _end_front(s: Session) -> None:
     """The front acts as if its alert is over. The alert itself is not touched."""
     s.wrong_pins = 0
-    s.location = None
+    s.location = s.location_at = None
     s.ping_at = None
     if s.front_alert:
         s.front_alert = None
@@ -214,6 +229,7 @@ def _on_trigger(s, e, now):
     if s.state != "armed":
         return []
     s.state = "asking"
+    s.pin_ended = False
     s.check_kind = e.kind
     s.deadline = now + s.config.ask_seconds
     s.screen = "asking"
@@ -224,7 +240,8 @@ def _front_ok(s: Session, now: float) -> list[Effect] | None:
     """The user says they are okay. None if the front does not take it."""
     if s.state not in ("armed", "asking", "waiting"):
         return None
-    _arm(s, now)
+    if s.state != "armed":  # an ok while armed must not push the next periodic check back
+        _arm(s, now)
     s.deadline = None
     s.check_kind = None
     return [_to_user(s, "thanks")]
@@ -241,7 +258,8 @@ def _on_duress(s, e, now):
     tiers = [[c] for c in s.config.duress_contacts]
     # one open duress alert at a time. One that someone already took does not count.
     if not any(a.state == "duress" and not a.acknowledged_by and a.tiers == tiers for a in _active(s)):
-        a = Alert(kind="duress", tiers=tiers, state="duress", hidden=True, location=s.location, pin=s.config.pin)
+        a = Alert(kind="duress", tiers=tiers, state="duress", hidden=True, location=s.location,
+                  location_at=s.location_at, pin=s.config.pin)
         s.alerts.append(a)
         effects += _alert_next_tier(s, a, now)  # tier 1 = duress contact 1 only
     return effects
@@ -256,7 +274,10 @@ def _on_user_resolve(s, e):
     if e.pin == s.config.pin:
         effects = [_to_user(s, "ended_true")]
         _end_front(s)
+        s.pin_ended = True
         return effects + _resolve(s, mine)
+    if s.pin_ended and s.front_alert is None:  # no more guesses: a wrong PIN looks like the right one
+        return [_to_user(s, "ended_fake")] + _resolve(s, mine)
     s.wrong_pins += 1
     if s.wrong_pins == 1:
         return [_to_user(s, "pin_retry")] + _resolve(s, mine)
@@ -264,15 +285,16 @@ def _on_user_resolve(s, e):
     if s.front_alert:
         s.front_alert.hidden = True  # it keeps escalating, but the front acts as if it ended
     _end_front(s)
+    s.pin_ended = True
     return effects + _resolve(s, mine) + _told(s, _active(s), "wrong_pin_warning")
 
 
 def _on_leave(s, e, now):
-    if s.state not in ("armed", "asking", "waiting", "resolved"):
-        return []  # in an alert the user must cancel with the PIN first
+    if s.state not in ("armed", "resolved"):
+        return []  # a check must be answered, and an alert cancelled with the PIN, before leaving
     s.state = "ended"
     s.deadline = None
-    s.location = None  # the ended front keeps no position
+    s.location = s.location_at = None  # the ended front keeps no position
     return _left_effects(s)
 
 
@@ -288,14 +310,15 @@ def _tick_front(s, now) -> list[Effect]:
     if s.state == "waiting" and due:
         s.state = "escalating"
         s.deadline = None
-        s.front_alert = Alert(kind=s.check_kind, tiers=s.config.tiers, location=s.location, pin=s.config.pin)
+        s.front_alert = Alert(kind=s.check_kind, tiers=s.config.tiers, location=s.location,
+                              location_at=s.location_at, pin=s.config.pin)
         s.alerts.append(s.front_alert)
         s.check_kind = None
         effects.append(_to_user(s, "alert_active"))
         effects += _alert_next_tier(s, s.front_alert, now)
     elif s.state in ("armed", "resolved") and _night_over(s, now):
         s.state = "ended"
-        s.location = None
+        s.location = s.location_at = None
         effects += _left_effects(s)
     elif s.state == "armed" and s.config.home_by is not None and not s.home_by_done and now >= s.config.home_by:
         s.home_by_done = True  # a check that runs now delays this one: the front is not armed
@@ -313,6 +336,11 @@ def _on_tick(s, e, now):
     effects = _tick_front(s, now)
     for a in _active(s):
         if a.deadline is not None and now >= a.deadline:
+            if a.acknowledged_by:  # taken but not ended in time: it goes back out. Alert fields only.
+                a.stale_ack_by, a.acknowledged_by = a.acknowledged_by, None
+                if a.state == "acknowledged":
+                    a.state = "escalating"
+                effects.append(Effect(a.stale_ack_by, "ack_stale", {"user_id": s.config.user_id}))
             effects += _alert_next_tier(s, a, now)
     return effects
 
@@ -332,7 +360,9 @@ def _on_ack(s, e, now):
     effects = []
     for t in targets:  # the front alert is taken whenever this contact may take it
         t.acknowledged_by = e.contact_id
-        t.deadline = None
+        t.stale_ack_by = None
+        t.rounds = 0  # the final step counts only rounds nobody took, so a take starts the count again
+        t.deadline = now + s.config.ack_hold_seconds
         if t.state == "escalating":
             t.state = "acknowledged"
         if t is f:
@@ -397,9 +427,9 @@ def _on_reconnect(s, e, now):
 def _on_location(s, e, now):
     here = (e.lat, e.lng)
     if s.state != "ended":
-        s.location = here  # an ended front keeps no position
+        s.location, s.location_at = here, now  # an ended front keeps no position
     for a in _active(s):
-        a.location = here
+        a.location, a.location_at = here, now
     return []
 
 
@@ -437,7 +467,7 @@ def view_for(session: Session, viewer_id: str) -> dict:
     a = _viewed(s, viewer_id)
     if a is None:
         return {"user_id": c.user_id, "active": False}
-    sees_location = c.share_location_with == "alerted" or viewer_id == a.acknowledged_by
+    sees_location = (c.share_location_with == "alerted" or viewer_id == a.acknowledged_by) and a.location is not None
     return {
         "user_id": c.user_id,
         "active": True,
@@ -445,4 +475,7 @@ def view_for(session: Session, viewer_id: str) -> dict:
         "card": card_for(a.kind),
         "acknowledged_by": a.acknowledged_by,
         "location": a.location if sees_location else None,
+        "location_at": a.location_at if sees_location else None,
+        "stale_ack_by": a.stale_ack_by,
+        "final_step": a.final_step,
     }

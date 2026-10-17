@@ -7,7 +7,7 @@ from helpers import (
 )
 from kaze.cards import card_for
 from kaze.loop import (
-    Ack, ConfirmOk, Disconnect, Duress, LocationUpdate, Reconnect, Resolve, Trigger, view_for,
+    Ack, ConfirmOk, Disconnect, Duress, LocationUpdate, Reconnect, Resolve, Tick, Trigger, view_for,
 )
 
 LAT, LNG = 43.65, -79.38
@@ -166,20 +166,44 @@ def test_5_unacknowledged_alert():
     ack_fx = send(s, Ack("b"), now)
     assert s.state == "acknowledged"
     assert alert(s).acknowledged_by == "b"
-    assert alert(s).deadline is None
+    assert alert(s).deadline == now + 120  # ack_hold_seconds: b must end it by then
     assert recipients(ack_fx, "owner") == {"a", "c"}
     for e in to(ack_fx, "a", "owner") + to(ack_fx, "c", "owner"):
         assert e.data == {"user_id": "u", "acknowledged_by": "b"}
     assert to(ack_fx, "b") == []
     assert recipients(others(ack_fx)) == {"a", "c"}
 
-    # Acknowledged means the escalation stops for good.
-    now, later = advance(s, now, 300)
+    # Acknowledged means the escalation stops while b has it.
+    now, later = advance(s, now, 119)
     assert s.state == "acknowledged"
     assert others(later) == []
     assert to(later, "d") == []
     assert view_for(s, "b")["acknowledged_by"] == "b"
     assert view_for(s, "a")["acknowledged_by"] == "b"
+
+
+def test_5_acknowledger_who_does_not_end_it_hands_the_alert_on():
+    """b taps "I'm on it" and then does nothing. After ack_hold_seconds the next tier is alerted,
+    b is nudged, and everyone sees that b did not follow through. d then takes it and ends it."""
+    s, now, _ = make("escalating", ack_hold_seconds=60)
+    now, _ = advance_until(s, now, lambda s: "b" in alert(s).alerted, limit=ACK + 3)
+    send(s, Ack("b"), now)
+    now, fx = advance(s, now, 59)
+    assert fx == []
+    now, fx = advance(s, now, 1)
+    assert flat(to(fx, "b")) == [("b", "ack_stale", {"user_id": U})]
+    assert recipients(fx, "alert") == {"d"}
+    assert to(fx, U) == []
+    a = alert(s)
+    assert (a.state, a.acknowledged_by, a.stale_ack_by) == ("escalating", None, "b")
+    for who in ["a", "b", "c", "d"]:
+        v = view_for(s, who)
+        assert v["stale_ack_by"] == "b" and v["acknowledged_by"] is None
+    assert send(s, Resolve("b"), now) == [], "b no longer holds it"
+    send(s, Ack("d"), now)
+    assert view_for(s, "a")["stale_ack_by"] is None
+    send(s, Resolve("d"), now)
+    assert active(s) == [] and view_for(s, U)["screen"] == "ended_true"
 
 
 # ---------- 6. False alarm ----------
@@ -238,34 +262,36 @@ def test_6_wrong_pin_fake_ending():
     assert s.screen == "pin_retry"
     assert {w: view_for(s, w) for w in EVERYONE_ELSE} == views_before
 
-    for _ in range(2):  # the counter starts over after a fake end, so it takes 2 wrong PINs each time
-        fx = send(s, Resolve(U, "9999"), now)
-        if _ == 0:
-            assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_fake"})]
-        else:  # first wrong PIN of the next round: only a retry, nobody told
-            assert flat(fx) == [(U, "screen", {"screen": "pin_retry"})]
-            fx = send(s, Resolve(U, "9999"), now)
-            assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_fake"})]
-        assert recipients(others(fx), "wrong_pin_warning") == set(alerted)
-        assert recipients(others(fx)) == set(alerted)
-        for e in others(fx):
-            assert e.data["user_id"] == "u"
-        # The front acts as if the alert ended. The alert itself is still escalating.
-        assert s.screen == "ended_fake"
-        assert s.wrong_pins == 0
-        assert alert(s).state == "escalating" and alert(s).hidden is True
-        # The watcher sees a calm armed screen; contacts still see a live alert.
-        assert view_for(s, U)["state"] == "armed"
-        for who in alerted:
-            assert view_for(s, who)["active"] is True
+    fx = send(s, Resolve(U, "9999"), now)
+    assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_fake"})]
+    assert recipients(others(fx), "wrong_pin_warning") == set(alerted)
+    assert recipients(others(fx)) == set(alerted)
+    for e in others(fx):
+        assert e.data["user_id"] == "u"
+    # The front acts as if the alert ended. The alert itself is still escalating.
+    assert s.screen == "ended_fake"
+    assert s.wrong_pins == 0
+    assert alert(s).state == "escalating" and alert(s).hidden is True
+    # The watcher sees a calm armed screen; contacts still see a live alert.
+    assert view_for(s, U)["state"] == "armed"
+    for who in alerted:
+        assert view_for(s, who)["active"] is True
+
+    # No more guessing: every later wrong PIN looks like an end again and tells nobody.
+    for guess in ["1111", "2222", "3333", "0000", "9999"]:
+        now += 1
+        send(s, Tick(), now)
+        assert flat(send(s, Resolve(U, guess), now)) == [(U, "screen", {"screen": "ended_fake"})]
+        assert alert(s).state == "escalating" and view_for(s, U)["state"] == "armed"
 
     # The alert really keeps going: next tier still gets alerted.
     now, f = advance_until(s, now, lambda s: "d" in alert(s).alerted, limit=ACK + 3)
     assert len(to(f, "d", "alert")) == 1
     assert alert(s).state == "escalating"
 
-    # The true PIN still works afterwards.
-    send(s, Resolve(U, PIN), now)
+    # Only the right PIN (or a contact) ends the hidden alert. It looks the same as the guesses.
+    fx = send(s, Resolve(U, PIN), now)
+    assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_true"})]
     assert active(s) == []
     assert s.screen == "ended_true"
     assert s.wrong_pins == 0

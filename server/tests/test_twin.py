@@ -172,6 +172,7 @@ def run_seed(seed):
         "night_ends_at": rng.choice([None, None, rng.uniform(100, 900)]),
         "check_every_seconds": rng.choice([None, None, rng.uniform(20, 200)]),
         "home_by": rng.choice([None, None, rng.uniform(20, 400)]),
+        "ack_hold_seconds": rng.choice([120, rng.uniform(0, 60), rng.uniform(5, 200)]),  # taken alerts go stale
         # sometimes a contact is in both the tiers and duress_contacts
         "duress_contacts": rng.choice([["x", "y"], ["x", "y"], ["x", "a"], ["d", "y"], ["b", "x"]]),
     }
@@ -179,7 +180,7 @@ def run_seed(seed):
     kind = rng.choice(["duress", "fake"])
     p.watch = kind == "duress"
     make_at = rng.randrange(0, 25)
-    seen = {"hidden": False, "carried": False, "front_after": False}
+    seen = {"hidden": False, "carried": False, "front_after": False, "leave_in_check": False, "stale": False}
     for i in range(STEPS):
         if not seen["hidden"] and i >= make_at:
             seen["hidden"] = make_hidden(rng, p, kind)
@@ -197,8 +198,12 @@ def run_seed(seed):
             seen["carried"] |= bool(carried)
             continue
         event, seconds = user_event(rng, p, leave=0.05 if seen["hidden"] else 0.005)
+        if p.hidden.state in ("asking", "waiting") and rng.random() < 0.1:
+            event, seconds = Leave(), 0  # a captor tries to leave during a check: refused for both
         p.now += seconds
-        p.send(event)
+        seen["leave_in_check"] |= isinstance(event, Leave) and p.hidden.state in ("asking", "waiting")
+        fx = p.send(event)
+        seen["stale"] |= any(e.kind == "ack_stale" for e in fx)
         if seen["hidden"] and p.hidden.front_alert is not None:
             seen["front_after"] = True
     return seen
@@ -210,6 +215,8 @@ def test_random_twins_cannot_be_told_apart():
     assert sum(r["hidden"] for r in runs) > SEEDS * 0.8
     assert sum(r["carried"] for r in runs) > 100
     assert sum(r["front_after"] for r in runs) > 100
+    assert sum(r["leave_in_check"] for r in runs) > 100
+    assert sum(r["stale"] for r in runs) > 50
 
 
 # ---------- the four reviewed tells, as explicit cases ----------
@@ -362,3 +369,34 @@ def test_shared_contacts_ack_and_resolve_after_a_fake_end_look_the_same_to_a_tie
     p.send(Resolve("x"))
     assert view_for(p.hidden, "a") == INACTIVE
 
+
+
+def test_n6_pin_guesses_after_an_end_never_show_a_retry():
+    """After a fake end (or a true one, in the twin) every PIN looks like an end. A captor learns nothing
+    from more guesses, and only the right PIN ends the hidden alert."""
+    p = fake_end_pair()
+    for guess in ["1111", "0000", "4321", "9999"]:
+        p.tick(1)
+        fx = p.send(Resolve(U, guess))
+        assert norm(flat(to(fx, U))) == [[U, "screen", {"screen": "ended_true"}]]
+    assert active(p.hidden)
+    p.send(Resolve(U, PIN))
+    assert active(p.hidden) == []
+
+
+def test_n7_leave_during_a_check_is_refused_for_both():
+    p = duress_pair()
+    p.send(Trigger("manual"))
+    for state in ("asking", "waiting"):
+        if state == "waiting":
+            p.ticks(31)
+        assert p.hidden.state == state
+        assert p.send(Leave()) == []
+        assert p.hidden.state == p.honest.state == state
+
+
+def test_n8_a_stale_ack_on_a_hidden_alert_looks_the_same_to_the_user():
+    p = duress_pair(ack_hold_seconds=30)
+    p.send(Ack("x"))
+    p.ticks(31)
+    assert alert(p.hidden).stale_ack_by == "x"

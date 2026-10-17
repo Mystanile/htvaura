@@ -619,3 +619,39 @@ def test_location_sent_all_night_is_seen_only_during_an_alert_and_cleared_after_
     client.post(f"/safekeeps/alerts/{alice['id']}/resolve", headers=b)
     assert alerts(client, b) == []
     assert sessions[alice["id"]].location is None and all(x.location is None for x in sessions[alice["id"]].alerts)
+
+
+def test_contact_view_has_location_time_stale_ack_and_final_step(client):
+    (alice, a), (bob, b), (carol, c), (dave, d) = people(client, "Alice", "Bob", "Carol", "Dave")
+    assert start(client, a, [[bob["id"]], [dave["id"]]], [carol["id"]], ack_hold_seconds=30).status_code == 200
+    uid = alice["id"]
+    assert sessions[uid].config.ack_hold_seconds == 30
+    client.post(f"/safekeeps/friends/{uid}/requests", headers=b, json={})
+    client.post("/demo/skip", json={"seconds": 50})
+    [v] = alerts(client, b)
+    assert (v["location"], v["location_at"], v["stale_ack_by"], v["final_step"]) == (None, None, None, False)
+    client.post(NIGHT + "/events", headers=a, json={"type": "LocationUpdate", "lat": 43.7, "lng": -79.2})
+    night = client.get(NIGHT, headers=b).json()
+    assert night["alerts"][0]["location_at"] == pytest.approx(night["now"], abs=2)
+    client.post(f"/safekeeps/alerts/{uid}/ack", headers=b)
+    client.post("/demo/skip", json={"seconds": 31})  # Bob took it and did not end it: Dave gets it
+    assert [x["stale_ack_by"] for x in alerts(client, d)] == [bob["id"]]
+    assert alerts(client, b)[0]["acknowledged_by"] is None
+    for _ in range(4):  # one re-alert round per skip, the 4th is the simulated final step
+        client.post("/demo/skip", json={"seconds": 400})
+    assert alerts(client, d)[0]["final_step"] is True
+    assert set(client.get(NIGHT, headers=a).json()["view"]) == {"state", "screen", "deadline", "ping_at"}
+
+
+@pytest.mark.parametrize("value", ["NaN", "1e999", "-1"])
+def test_ack_hold_seconds_must_be_a_real_time(client, value):
+    (alice, a), (bob, _) = people(client, "Alice", "Bob")
+    content = '{"pin": "1234", "tiers": [["%s"]], "duress_contacts": ["%s"], "ack_hold_seconds": %s}' % (
+        bob["id"], bob["id"], value)
+    r = client.post(NIGHT, headers=a | {"content-type": "application/json"}, content=content)
+    assert r.status_code == 422 and alice["id"] not in sessions
+    user = client.post("/users", json={"name": "u"}).json()["user_id"]
+    other = client.post("/users", json={"name": "c"}).json()["user_id"]
+    content = '{"user_id": "%s", "pin": "1", "tiers": [["%s"]], "duress_contacts": ["%s"], "ack_hold_seconds": %s}' % (
+        user, other, other, value)
+    assert client.post("/sessions", content=content, headers={"content-type": "application/json"}).status_code == 422

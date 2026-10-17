@@ -119,7 +119,8 @@ Request:
   "share_location_with": "alerted",
   "ask_seconds": 30,
   "grace_seconds": 15,
-  "ack_seconds": 20
+  "ack_seconds": 20,
+  "ack_hold_seconds": 120
 }
 ```
 
@@ -136,6 +137,7 @@ Fields:
 | `ask_seconds` | no, default 30 | How long the user has to tap "I'm okay". |
 | `grace_seconds` | no, default 15 | How long the loud alarm runs before contacts are alerted. |
 | `ack_seconds` | no, default 20 | How long a tier has to tap "I'm on it" before the next tier is alerted. |
+| `ack_hold_seconds` | no, default 120 | How long a contact who tapped "I'm on it" has to resolve the alert. If they do not, the alert goes back out (section 8, "Taken but not resolved"). 120 is a demo value. A real product would use about 10 minutes. A number of 0 or more. NaN and infinity give 422. |
 | `night_ends_at` | no | Server Unix time when the night ends. See section 9. |
 | `home_by` | no | Server Unix time. A "be home by" check starts then, once per night. It is a normal check: silence escalates it with kind `home_by`. If another check is running at that time, it starts when the phone is armed again. It never starts after the night ended. Example: `"home_by": 1792236000`. |
 
@@ -219,7 +221,7 @@ GET /alerts?viewer=092ca050
 ```
 
 ```json
-{"alerts": [{"user_id": "eaee84e6", "active": true, "kind": "manual", "card": {"title": "Asked for a check and did not answer", "do": ["Call or text them now", "Go to their location if you can"], "dont": ["Do not ignore this alert"]}, "acknowledged_by": null, "location": [43.6532, -79.3832]}]}
+{"alerts": [{"user_id": "eaee84e6", "active": true, "kind": "manual", "card": {"title": "Asked for a check and did not answer", "do": ["Call or text them now", "Go to their location if you can", "Stay with them once you find them", "If they are drowsy, lay them on their side", "Call emergency services if you cannot wake them or their breathing seems off"], "dont": ["Do not ignore this alert", "Do not leave them alone", "Do not let them leave with someone they just met"]}, "acknowledged_by": null, "location": [43.6532, -79.3832], "location_at": 1792204790.5, "stale_ack_by": null, "final_step": false}]}
 ```
 
 When nothing is active for this viewer:
@@ -278,7 +280,7 @@ Things that happen on connect and close:
 | `ping` | The user | A contact pinged the visible alert. Play a loud sound and flash. `data.at` is the server time. |
 | `owner` | The other alerted contacts | Someone else tapped "I'm on it". |
 | `resolved` | Every alerted contact | The alert is over. |
-| `wrong_pin_warning` | Every alerted contact | The user entered a wrong PIN twice or more. |
+| `wrong_pin_warning` | Every alerted contact | The user entered a second wrong PIN in a row (the fake end). Later wrong PINs send nothing. |
 | `left` | Every group member | The user left the group. |
 
 #### check (to the user)
@@ -317,15 +319,17 @@ Arrives when this contact must act. Show the card and an "I'm on it" button. `ti
     "kind": "home_by",
     "card": {
       "title": "Did not get home on time",
-      "do": ["Call or text them now", "If no answer, go to their last known spot", "Call emergency services if you cannot reach them"],
-      "dont": ["Do not assume they are just late"]
+      "do": ["Call or text them now", "If no answer, go to their last known spot", "Stay with them once you find them", "If they are drowsy, lay them on their side", "Call emergency services if you cannot wake them or their breathing seems off"],
+      "dont": ["Do not assume they are just late", "Do not leave them alone", "Do not let them leave with someone they just met"]
     },
     "tier": 1
   }
 }
 ```
 
-A contact can get `alert` more than once. After the last tier, the server alerts everyone again and restarts the ack timer. Show the same card, do not stack screens.
+A contact can get `alert` more than once. After the last tier, the server alerts everyone again. The first of these rounds comes `ack_seconds` after the last tier. The gaps after that grow: 60, 120, then 300 seconds for every later round. After 3 rounds in a row that nobody took, the alert's `final_step` turns `true` (section 5). An "I'm on it" starts that count again. Show the same card, do not stack screens.
+
+Every card has the same help for when the contact finds the person: "Stay with them once you find them", "If they are drowsy, lay them on their side", and "Call emergency services if you cannot wake them or their breathing seems off". The "don't" list adds "Do not leave them alone" and "Do not let them leave with someone they just met". The cards never say what is wrong with the person. They say only what to do.
 
 A duress alert looks the same, with `"kind": "duress"` and this card:
 
@@ -337,8 +341,8 @@ A duress alert looks the same, with `"kind": "duress"` and this card:
     "kind": "duress",
     "card": {
       "title": "Silent alert: they may be in danger",
-      "do": ["Tap 'I'm on it' so others know you have this", "Go there with another person", "Call emergency services if you think they are in danger"],
-      "dont": ["Do not call their phone", "Do not text to ask if they are okay", "Do not go there alone"]
+      "do": ["Tap 'I'm on it' so others know you have this", "Go there with another person", "Call emergency services if you think they are in danger", "Stay with them once you find them", "If they are drowsy, lay them on their side", "Call emergency services if you cannot wake them or their breathing seems off"],
+      "dont": ["Do not call their phone", "Do not text to ask if they are okay", "Do not go there alone", "Do not leave them alone", "Do not let them leave with someone they just met"]
     },
     "tier": 1
   }
@@ -363,10 +367,18 @@ The alert is over. Close the alert screen and stop any location display.
 
 #### wrong_pin_warning (to every alerted contact)
 
-Arrives each time the user enters a wrong PIN from the second attempt on. Show "Someone tried to cancel with a wrong PIN." The alert is still running.
+Arrives when the user enters the second wrong PIN in an alert (the one that gives `ended_fake`). Show "Someone tried to cancel with a wrong PIN." The alert is still running. Later wrong PINs send nothing more (section 6).
 
 ```json
 {"kind": "wrong_pin_warning", "data": {"user_id": "3f9a1c2e"}}
+```
+
+#### ack_stale (to the contact who tapped "I'm on it")
+
+Arrives when this contact tapped "I'm on it" but did not resolve the alert within `ack_hold_seconds`. The alert went back out to the next tier, or to everyone after the last tier. Show "You said you were on it. The alert went to others too. Tap I'm on it again if you are still helping."
+
+```json
+{"kind": "ack_stale", "data": {"user_id": "3f9a1c2e"}}
 ```
 
 #### left (to every group member)
@@ -472,15 +484,21 @@ When the server alerted the viewer and the alert is live:
   "kind": "home_by",
   "card": {
     "title": "Did not get home on time",
-    "do": ["Call or text them now", "If no answer, go to their last known spot", "Call emergency services if you cannot reach them"],
-    "dont": ["Do not assume they are just late"]
+    "do": ["Call or text them now", "If no answer, go to their last known spot", "Stay with them once you find them", "If they are drowsy, lay them on their side", "Call emergency services if you cannot wake them or their breathing seems off"],
+    "dont": ["Do not assume they are just late", "Do not leave them alone", "Do not let them leave with someone they just met"]
   },
   "acknowledged_by": "c40e88b1",
-  "location": [43.6532, -79.3832]
+  "location": [43.6532, -79.3832],
+  "location_at": 1792204790.5,
+  "stale_ack_by": null,
+  "final_step": false
 }
 ```
 
-- `acknowledged_by` is `null` until a contact taps "I'm on it".
+- `acknowledged_by` is `null` until a contact taps "I'm on it". It goes back to `null` if that contact does not resolve the alert within `ack_hold_seconds`.
+- `location_at` is the server time of the last location update, or `null` when `location` is `null`. Show the age: "updated 3 min ago" is `now - location_at` with `now` from the server.
+- `stale_ack_by` is the id of the contact who tapped "I'm on it" but did not resolve in time, or `null`. Show "Cara said she was on it but has not resolved it." A new "I'm on it" from anyone sets it back to `null`.
+- `final_step` is `true` once every tier was alerted and 3 more rounds in a row went by with nobody tapping "I'm on it". An "I'm on it" that goes stale does not count toward it. It is SIMULATED: show "Emergency services would be contacted now (SIMULATED)". Nothing is called. It never goes back to `false` for this alert.
 - `location` is `[lat, lng]` or `null`. It is `null` when nobody has sent a location yet. It is also `null` when the user chose `"acknowledger"` and this viewer is not the one who tapped "I'm on it".
 - The user's phone sends its location about every 30 seconds all night (decision 10). The server keeps it but shows it to contacts only during an active alert. After a resolve, the server clears it.
 
@@ -543,10 +561,12 @@ A contact resolves. Leave out `pin`:
 Who can do what:
 
 - A contact who is alerted by more than one alert acts on the one on their screen. That is the duress alert first, else the newest. An alert that another contact already took comes last. `Ack` and `Resolve` change only that alert.
-- `Ack` works only for a contact the server alerted. In `duress`, only the first tap counts. Any later `Ack` is ignored.
+- `Ack` works only for a contact the server alerted. In `duress`, only the first tap counts while that contact holds it. After the hold runs out (`ack_hold_seconds`), any duress contact can tap again.
 - `Resolve` by the user needs the right PIN. A missing PIN counts as a wrong PIN. The PIN must be a JSON string. A `by` of `null` is ignored. The user can send the PIN in every state except `ended`, where it is ignored. When no alert runs, it only changes `screen` to `pin_retry`, `ended_fake`, or `ended_true`.
+- After any end screen from a PIN (`ended_true` or `ended_fake`), there is no more `pin_retry` until the next check starts. Every wrong PIN shows `ended_fake` again and tells nobody. The right PIN shows `ended_true`. So a person who forces more guesses learns nothing from the screen. The right PIN, or a contact, still ends a hidden alert. Example: in an alert, `0000` gives `pin_retry`, `9999` gives `ended_fake`, then `1111` gives `ended_fake` again, not `pin_retry`.
 - `Resolve` by a contact works only if that contact tapped "I'm on it" first. In duress, any duress contact can resolve it, even one who was not alerted yet.
-- `Leave` is ignored while the view says `escalating` or `acknowledged`, even at `pin_retry`. The user must cancel with the PIN first. At other times it works. If a hidden alert runs (duress, or after `ended_fake`), it works too, and the alert keeps running. Group members get `left`. After `Leave` the PIN is ignored until the next night.
+- `Leave` is ignored while the view says `asking`, `waiting`, `escalating` or `acknowledged`, even at `pin_retry`. A check must be answered first, and an alert must be cancelled with the PIN first. So a person who takes the phone cannot stop a check by leaving. At other times (`armed`) it works. If a hidden alert runs (duress, or after `ended_fake`), it works too, and the alert keeps running. Group members get `left`. After `Leave` the PIN is ignored until the next night.
+- `ConfirmOk` and `Duress` while `armed` show `thanks` but do not move the next periodic check later. Only an answer to a running check (`asking` or `waiting`) plans the next periodic check from now. 
 
 ## 7. User screens
 
@@ -561,13 +581,13 @@ The user's phone shows one screen at a time. The `screen` field in the view and 
 | `thanks` | "Thanks!" for a moment, then the armed screen. | `screen` message after a tap on "I'm okay". Also after the duress gesture. |
 | `pin_retry` | "Incorrect PIN, try again." A new PIN entry. | The first wrong PIN. Nothing else changed. |
 | `ended_true` | "Alert ended" with a filled check mark. | The correct PIN (also when no alert runs), or a contact resolved the user's own alert. |
-| `ended_fake` | "Alert ended" with an outlined check mark. | The second wrong PIN in a row. The alert, if there is one, is still running. |
+| `ended_fake` | "Alert ended" with an outlined check mark. | The second wrong PIN in a row, and every wrong PIN after any end screen until the next check. The alert, if there is one, is still running. |
 
 Important points for the screens:
 
 - `thanks` is the same after a tap and after the duress gesture. Do not show any difference.
 - Draw the check mark in `ended_true` filled and in `ended_fake` outlined. The difference must be small. Only the user should know what it means. Make everything else on the two screens identical.
-- After `ended_fake`, keep showing it. Do not let the user see that the alert continues. The user can try the PIN again. A correct PIN later gives `ended_true`.
+- After `ended_fake`, keep showing it. Do not let the user see that the alert continues. The user can try the PIN again. A wrong PIN gives `ended_fake` again (never `pin_retry`, see section 6). A correct PIN later gives `ended_true`.
 - The flow is the same during any alert, whether it is a duress alert or a fake end. A new check shows `asking`, then `alarm`, then `alert_active`. A tap on "I'm okay" shows `thanks`. The app never needs a special case.
 - `pin_retry` and `ended_fake` can happen during a duress alert too.
 - The server sends no message to end `thanks` or `ended_true`. Show `thanks` for about 2 seconds, then show `armed` on the app's own timer. Show `ended_true` for a few seconds, then do the same. After a resolve, the view already says `state` is `armed`, but `screen` stays `ended_true` until the next event. So the app's own timer is the thing that returns to `armed`.
@@ -617,12 +637,26 @@ Names: Alice is the user (`3f9a1c2e`). Ben is tier 1 (`7b21d0a4`). Cara is tier 
 
 1. An alert is running. Alice sends `{"type": "Resolve", "by": "3f9a1c2e", "pin": "0000"}`.
 2. Her socket gets `screen` with `pin_retry`. Nobody else gets anything.
-3. She sends a wrong PIN again. Her socket gets `screen` with `ended_fake`. Every alerted contact gets `wrong_pin_warning`. The alert keeps running. The counter starts over, so the next wrong PIN shows `pin_retry` again.
+3. She sends a wrong PIN again. Her socket gets `screen` with `ended_fake`. Every alerted contact gets `wrong_pin_warning`. The alert keeps running. Every later wrong PIN shows `ended_fake` again and nobody is told. `pin_retry` comes back only in the next check.
 4. She sends the right PIN. Her socket gets `ended_true`. Contacts get `resolved`.
+
+### Taken but not resolved
+
+1. Cara taps "I'm on it" at time T. Her alert gets a hold of `ack_hold_seconds` (default 120).
+2. Cara does not resolve it by T + 120. Cara's socket gets `{"kind": "ack_stale", "data": {"user_id": "3f9a1c2e"}}`.
+3. The alert goes back to escalating. The next tier gets `alert` (after the last tier, everyone does). Every alerted contact's view shows `"acknowledged_by": null, "stale_ack_by": "c40e88b1"`.
+4. Alice's own view does not change. It still says `acknowledged`. A duress alert does the same for its duress contacts only.
+5. Anyone alerted, Cara too, can tap "I'm on it" again. That sets `stale_ack_by` back to `null` and starts a new hold.
+
+### Nobody answers at all
+
+1. Every tier was alerted and nobody tapped "I'm on it".
+2. Everyone is alerted again after `ack_seconds`, then after 60, 120 and 300 seconds, then every 300 seconds.
+3. When the round after the third one is due, `final_step` turns `true` in every contact's view. The demo panel shows "Final step reached: emergency services would be contacted now (SIMULATED)". Nothing real is called.
 
 ### Leaving
 
-Alice sends `{"type": "Leave"}` while armed, asking, or waiting. Every group member gets `{"kind": "left", "data": {"user_id": "3f9a1c2e"}}`. Her view shows `state` of `ended`.
+Alice sends `{"type": "Leave"}` while armed. Every group member gets `{"kind": "left", "data": {"user_id": "3f9a1c2e"}}`. Her view shows `state` of `ended`.
 
 ### Reconnecting
 
@@ -642,7 +676,7 @@ Alice sends `{"type": "Leave"}` while armed, asking, or waiting. Every group mem
 - **Setting `night_ends_at`.** It uses the server clock. Call `GET /time` and add the length of the night: `now + hours * 3600`. Do not use the phone clock. The `/demo/skip` button shifts the server clock past it.
 - **Names.** No WebSocket message carries a name. `GET /groups/{code}` returns names for group members. Contacts outside the group need their ids and names shared by some other route, for example a QR code or a typed code. Keep an id-to-name map on the phone.
 - **Missed messages.** The server does not queue messages. A contact whose socket dropped should call `GET /alerts?viewer=<me>` when the app opens and after every reconnect. It lists every alert for this contact. For the user, call `GET /sessions/<me>/view?viewer=<me>`.
-- **Screen after leave.** After `Leave` in `asking`, the view can show `state` of `ended` with `screen` of `asking`. Check `state` first. If it is `ended`, show the ended state.
+- **Screen after leave.** After `Leave`, the view can show `state` of `ended` with an old `screen` such as `thanks`. Check `state` first. If it is `ended`, show the ended state. `Leave` during a check is ignored, so hide the Leave button on the check screen.
 - **Do not special-case the user's alerts.** The user's view follows the normal flow in every alert, so render `state` and `screen` and nothing else. Do not try to work out from the view whether an alert is real or hidden. It cannot be done, and that is the point.
 - **A resolved hidden alert is silent.** If a duress contact resolves the alert, the user's phone gets no message. This is on purpose.
 - **Errors for ignored events.** Ignored events (like a stray `ConfirmOk`) still return 200 `{"ok": true}`. The server does not tell you it ignored them.
@@ -684,6 +718,7 @@ Start a night for me. The group is all my accepted friends. Every contact must b
 | `ask_seconds` | Optional. Time to answer a check. Default 30. |
 | `grace_seconds` | Optional. Time of the louder `alarm` screen. Default 15. |
 | `ack_seconds` | Optional. Time a contact has to tap "I'm on it" before the next tier. Default 20. |
+| `ack_hold_seconds` | Optional. Time a contact who tapped "I'm on it" has to resolve before the alert goes back out. Default 120 (demo value, about 10 minutes in a real product). NaN, infinity and negative numbers give 422. |
 | `night_ends_at` | Optional. A server Unix time. Get it from the `now` of `GET /safekeeps/night`. Add the length of the night. |
 | `home_by` | Optional. A server Unix time for a "be home by" check. The check starts then, once per night, and silence escalates it with kind `home_by`. Example: `{"pin": "4821", "tiers": [["7b21d0a4"]], "duress_contacts": ["50c6a9d8"], "home_by": 1792236000}`. The user's own view has a `home_by` key until the check starts. |
 
@@ -734,11 +769,14 @@ An alert from `alerts`:
   "kind": "manual",
   "card": {
     "title": "Asked for a check and did not answer",
-    "do": ["Call or text them now", "Go to their location if you can"],
-    "dont": ["Do not ignore this alert"]
+    "do": ["Call or text them now", "Go to their location if you can", "Stay with them once you find them", "If they are drowsy, lay them on their side", "Call emergency services if you cannot wake them or their breathing seems off"],
+    "dont": ["Do not ignore this alert", "Do not leave them alone", "Do not let them leave with someone they just met"]
   },
   "acknowledged_by": null,
-  "location": [43.6532, -79.3832]
+  "location": [43.6532, -79.3832],
+  "location_at": 1792229950.0,
+  "stale_ack_by": null,
+  "final_step": false
 }
 ```
 
@@ -846,7 +884,7 @@ Otherwise render by `state` and `screen`. Decide by `state` first. If `state` is
 | `armed` | `thanks` | "Thanks!" for about 2 seconds, then the app shows `armed` on its own timer. |
 | `armed` | `pin_retry` | "Incorrect PIN, try again." A new PIN entry. |
 | `armed` | `ended_true` | "Alert ended" with a filled check mark. Show it for a few seconds, then the app shows `armed` on its own timer. |
-| `armed` | `ended_fake` | "Alert ended" with an outlined check mark. Everything else is the same as `ended_true`. Keep showing it. The user can still try the PIN. |
+| `armed` | `ended_fake` | "Alert ended" with an outlined check mark. Everything else is the same as `ended_true`. Keep showing it. The user can still try the PIN. A wrong PIN shows `ended_fake` again, never `pin_retry`, until the next check. |
 | `ended` | any | The night is over. Show the setup screen after a moment. |
 
 Keep these rules:
@@ -892,7 +930,9 @@ Show a responder screen for each item. Use the first item if there are several.
 - If `acknowledged_by` is `null`, show a button "I'm on it". It calls `POST /safekeeps/alerts/{user_id}/ack`.
 - If `acknowledged_by` is my id, hide that button and show a "Resolve" button. It calls `POST /safekeeps/alerts/{user_id}/resolve`. In a `duress` alert show "Resolve" from the start, because any duress contact can resolve it.
 - If `acknowledged_by` is another id, show "Someone else is on it" and hide the button.
-- If `location` is not `null`, show it. Use a GPS arrow, a map link, or both. If it is `null`, show "No location yet". It is `null` until the user's phone has sent a `LocationUpdate`.
+- If `location` is not `null`, show it. Use a GPS arrow, a map link, or both. If it is `null`, show "No location yet". It is `null` until the user's phone has sent a `LocationUpdate`. Show its age from `location_at`: "updated N min ago", with `now` from the same poll.
+- If `stale_ack_by` is not `null`, show "<name> said they were on it but has not resolved it" and show "I'm on it" again.
+- If `final_step` is `true`, show "Emergency services would be contacted now (SIMULATED)".
 - When the alert is gone from `alerts` at the next poll, close the screen. That means someone resolved it.
 - In a `duress` alert show the card text as it is. The card tells the contact not to call or text the person.
 

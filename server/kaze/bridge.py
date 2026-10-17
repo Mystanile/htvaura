@@ -43,6 +43,7 @@ class NightIn(BaseModel):
     ask_seconds: Seconds = 30
     grace_seconds: Seconds = 15
     ack_seconds: Seconds = 20
+    ack_hold_seconds: Seconds = 120
     night_ends_at: Annotated[float, Field(allow_inf_nan=False)] | None = None
     home_by: Annotated[float, Field(allow_inf_nan=False)] | None = None
     share_location_with: str = "alerted"  # or "acknowledger"
