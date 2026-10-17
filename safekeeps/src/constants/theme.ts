@@ -7,22 +7,37 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
-export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#2f2d44',
-    backgroundElement: '#e2e2e2',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-  },
+const Palette = {
+  text: '#162224',
+  background: '#f8ffe8',
+  backgroundElement: '#FFFFFF',
+  backgroundSelected: '#E3EECF',
+  textSecondary: '#56604C',
+  accent: '#4D651C',
+  accentSoft: '#E5F0CC',
+  onAccent: '#FFFFFF',
+  border: '#D6E2C4',
+  primary: '#B1CF58',
+  primaryPressed: '#9AB744',
+  primaryDisabled: '#D3DCC0',
+  onPrimary: '#162224',
 } as const;
+
+// Keep the requested brand palette in both system appearance modes.
+export const Colors = { light: Palette, dark: Palette } as const;
+export const CardColors = {
+  text: '#f8ffe8', textSecondary: '#C4CEBD',
+  backgroundElement: '#162224', backgroundSelected: '#243638',
+  border: '#162224', accent: '#B1CF58', accentSoft: '#304137',
+} as const;
+export const AppFont = 'Righteous';
+
+export const FriendsColors = {
+  backgroundElement: '#9ebd64', backgroundSelected: '#90AD59',
+  text: '#162224', textSecondary: '#162224', accent: '#162224',
+  border: '#9ebd64',
+} as const;
+
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
@@ -63,3 +78,6 @@ export const Spacing = {
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
+
+export const Radius = { card: 20, control: 12, avatar: 16 } as const;
+export const ButtonSeed = '#657F25';

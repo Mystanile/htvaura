@@ -25,6 +25,10 @@ def connect():
         CREATE TABLE IF NOT EXISTS friendships (
             owner TEXT NOT NULL, friend TEXT NOT NULL, PRIMARY KEY(owner, friend)
         );
+        CREATE TABLE IF NOT EXISTS friend_names (
+            owner TEXT NOT NULL, friend TEXT NOT NULL, name TEXT NOT NULL,
+            PRIMARY KEY(owner, friend)
+        );
         CREATE TABLE IF NOT EXISTS requests (
             sender TEXT NOT NULL, target TEXT NOT NULL,
             requested_at INTEGER NOT NULL, resolved_at INTEGER,
@@ -48,15 +52,17 @@ def identity(db, authorization):
 
 def snapshot(db, user):
     friends = db.execute("""
-        SELECT p.id, p.name, p.last_check_in,
+        SELECT p.id, COALESCE(n.name, p.name) AS name, p.last_check_in,
                r.requested_at, r.resolved_at
         FROM friendships f JOIN people p ON p.id = f.friend
+        LEFT JOIN friend_names n ON n.owner = f.owner AND n.friend = f.friend
         LEFT JOIN requests r ON r.sender = f.owner AND r.target = f.friend
-        WHERE f.owner = ? ORDER BY p.name COLLATE NOCASE
+        WHERE f.owner = ? ORDER BY name COLLATE NOCASE
     """, (user["id"],)).fetchall()
     incoming = db.execute("""
-        SELECT p.id, p.name, r.requested_at
+        SELECT p.id, COALESCE(n.name, p.name) AS name, r.requested_at
         FROM requests r JOIN people p ON p.id = r.sender
+        LEFT JOIN friend_names n ON n.owner = r.target AND n.friend = r.sender
         WHERE r.target = ? AND r.resolved_at IS NULL ORDER BY r.requested_at DESC
     """, (user["id"],)).fetchall()
     return {
@@ -80,6 +86,7 @@ class ProfileIn(BaseModel):
 
 class FriendIn(BaseModel):
     code: str = Field(min_length=1, max_length=32)
+    name: str = Field(default="", max_length=40)
 
 
 @router.post("/profiles")
@@ -115,6 +122,11 @@ def add_friend(body: FriendIn, authorization: str | None = Header(default=None))
             raise HTTPException(400, "Use the code from the other phone.")
         db.execute("INSERT OR IGNORE INTO friendships VALUES (?, ?)", (user["id"], other["id"]))
         db.execute("INSERT OR IGNORE INTO friendships VALUES (?, ?)", (other["id"], user["id"]))
+        if body.name.strip():
+            db.execute("""
+                INSERT INTO friend_names VALUES (?, ?, ?)
+                ON CONFLICT(owner, friend) DO UPDATE SET name = excluded.name
+            """, (user["id"], other["id"], body.name.strip()))
         return snapshot(db, user)
 
 
@@ -145,3 +157,14 @@ def request_check_in(friend_id: str, authorization: str | None = Header(default=
 def create_guest():
     """No credentials required; each device receives its own saved guest session."""
     return create_profile(ProfileIn(name="Guest " + secrets.token_hex(2).upper()))
+
+
+@router.post("/friends/{friend_id}/remove")
+def remove_friend(friend_id: str, authorization: str | None = Header(default=None)):
+    with connect() as db:
+        user = identity(db, authorization)
+        pair = (user["id"], friend_id, friend_id, user["id"])
+        for table in ("friendships", "friend_names"):
+            db.execute(f"DELETE FROM {table} WHERE (owner = ? AND friend = ?) OR (owner = ? AND friend = ?)", pair)
+        db.execute("DELETE FROM requests WHERE (sender = ? AND target = ?) OR (sender = ? AND target = ?)", pair)
+        return snapshot(db, user)

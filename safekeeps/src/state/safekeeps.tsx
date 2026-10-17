@@ -121,7 +121,8 @@ function useSafekeepsState() {
     hydrating, loading: !!session && !data, error: error ?? connectionError, busy, refresh, startGuest, reconnect,
     lastCheckIn, remindersEnabled, setRemindersEnabled, intervalMinutes, setIntervalMinutes, minutesRemaining,
     recordCheckIn: () => post('/check-ins'),
-    addFriend: (code: string) => post('/friends', { code }),
+    addFriend: (code: string, name = '') => post('/friends', { code, name }),
+    removeFriend: (id: string) => post('/friends/' + encodeURIComponent(id) + '/remove'),
     requestCheckIn: (id: string) => post('/friends/' + encodeURIComponent(id) + '/requests'),
   };
 }

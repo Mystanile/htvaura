@@ -83,3 +83,44 @@ def test_guest_laptop_and_phone_without_sign_in(client):
     assert friend["lastCheckIn"] is not None
     assert friend["resolvedAt"] is not None
 
+
+def test_friend_nickname_is_private_persistent_and_used_for_requests(client):
+    alice, a = profile(client, "Alice")
+    bob, b = profile(client, "Bob")
+    result = client.post("/safekeeps/friends", headers=a,
+                         json={"code": bob["code"], "name": "  Bobby  "})
+    assert result.status_code == 200
+    assert result.json()["friends"][0]["name"] == "Bobby"
+    assert client.get("/safekeeps/state", headers=b).json()["me"]["name"] == "Bob"
+    assert client.get("/safekeeps/state", headers=b).json()["friends"][0]["name"] == "Alice"
+    with TestClient(app) as reopened:
+        assert reopened.get("/safekeeps/state", headers=a).json()["friends"][0]["name"] == "Bobby"
+    client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={})
+    assert client.get("/safekeeps/state", headers=a).json()["incoming"][0]["name"] == "Bobby"
+    # A blank optional name preserves the saved nickname when re-adding a friend.
+    client.post("/safekeeps/friends", headers=a, json={"code": bob["code"], "name": " "})
+    assert client.get("/safekeeps/state", headers=a).json()["friends"][0]["name"] == "Bobby"
+    client.post("/safekeeps/friends", headers=a, json={"code": bob["code"], "name": "Robert"})
+    assert client.get("/safekeeps/state", headers=a).json()["friends"][0]["name"] == "Robert"
+
+
+def test_remove_friend_clears_both_lists_and_requests_and_allows_readding(client):
+    alice, a = profile(client, "Alice")
+    bob, b = profile(client, "Bob")
+    _, outsider = profile(client, "Other")
+    client.post("/safekeeps/friends", headers=a, json={"code": bob["code"], "name": "Bobby"})
+    client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={})
+    path = f"/safekeeps/friends/{bob['id']}/remove"
+    assert client.post(path, json={}).status_code == 401
+    client.post(path, headers=outsider, json={})
+    assert len(client.get("/safekeeps/state", headers=a).json()["friends"]) == 1
+    assert client.post(path, headers=a, json={}).json()["friends"] == []
+    assert client.get("/safekeeps/state", headers=a).json()["incoming"] == []
+    with TestClient(app) as reopened:
+        assert reopened.get("/safekeeps/state", headers=b).json()["friends"] == []
+    assert client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={}).status_code == 403
+    assert client.post(path, headers=a, json={}).status_code == 200
+    restored = client.post("/safekeeps/friends", headers=a, json={"code": bob["code"]}).json()["friends"][0]
+    assert restored["name"] == "Bob"
+    assert restored["requestedAt"] is None
+
