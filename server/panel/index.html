@@ -197,6 +197,7 @@ function nightCard(s) {
     </div>
     <div class="row">
       <span>Next periodic check: ${countdown(s.next_check)}</span>
+      ${s.home_by != null && !s.home_by_done ? `<span>Home-by check: ${countdown(s.home_by)}</span>` : ""}
       <span>Location: ${place(s.location)}</span>
       <span>Last ping: ${s.ping_at == null ? "none" : Math.round(serverNow - s.ping_at) + " s ago"}</span>
     </div>

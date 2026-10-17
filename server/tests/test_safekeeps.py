@@ -133,6 +133,23 @@ def test_accept_friend_saves_private_name_and_validates_before_accepting(client)
     assert client.get('/safekeeps/state', headers=b).json()['incoming'][0]['name'] == 'Alice'
 
 
+def test_rename_friend_who_added_me(client):
+    alice, a = profile(client, "Alice")
+    bob, b = profile(client, "Bob")
+    _, outsider = profile(client, "Other")
+    client.post("/safekeeps/friends", headers=a, json={"code": bob["code"]})
+    accept(client, a, b)
+    path = f"/safekeeps/friends/{alice['id']}/name"
+    assert client.post(path, json={"name": "Al"}).status_code == 401
+    assert client.post(path, headers=outsider, json={"name": "Al"}).status_code == 403
+    assert client.post(path, headers=b, json={"name": "x" * 41}).status_code == 422
+    assert client.post(path, headers=b, json={"name": "  Al  "}).json()["friends"][0]["name"] == "Al"
+    assert client.get("/safekeeps/state", headers=b).json()["friends"][0]["name"] == "Al"
+    assert client.get("/safekeeps/state", headers=a).json()["friends"][0]["name"] == "Bob"
+    assert client.post(path, headers=b, json={"name": "Ally"}).json()["friends"][0]["name"] == "Ally"
+    assert client.post(path, headers=b, json={"name": " "}).json()["friends"][0]["name"] == "Alice"
+
+
 def test_remove_friend_clears_both_lists_and_requests_and_allows_readding(client):
     alice, a = profile(client, "Alice")
     bob, b = profile(client, "Bob")

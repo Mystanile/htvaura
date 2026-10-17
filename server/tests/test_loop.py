@@ -945,6 +945,70 @@ def test_periodic_check_does_not_fire_after_the_night_ended():
     assert s.state == "ended"
 
 
+# ---------- be home by (home_by) ----------
+
+HOME_BY = 100
+
+
+def test_home_by_check_fires_at_the_time_and_not_before():
+    s, now = start(home_by=HOME_BY)
+    assert view_for(s, U)["home_by"] == HOME_BY
+    now, fx = advance(s, now, HOME_BY - 1)
+    assert s.state == "armed" and fx == []
+    now, fx = advance(s, now, 1)
+    assert s.state == "asking"
+    assert flat(fx) == [(U, "check", {"kind": "home_by", "deadline": now + ASK})]
+    assert "home_by" not in view_for(s, U)  # fired: the card line goes away
+
+
+def test_ignored_home_by_check_alerts_with_the_home_by_card():
+    s, now = start(home_by=HOME_BY)
+    now, _ = advance(s, now, HOME_BY)
+    now, fx = advance_until(s, now, lambda s: s.state == "escalating", limit=ASK + GRACE + 3)
+    assert alert(s).kind == "home_by"
+    assert view_for(s, "a")["kind"] == "home_by"
+    assert view_for(s, "a")["card"]["title"] == "Did not get home on time"
+
+
+def test_home_by_fires_once_per_night():
+    s, now = start(home_by=HOME_BY)
+    now, _ = advance(s, now, HOME_BY)
+    send(s, ConfirmOk(), now)
+    now, fx = advance(s, now, 500)
+    assert s.state == "armed" and fx == []
+
+
+def test_home_by_waits_for_a_running_check_and_fires_after():
+    s, now = start(home_by=HOME_BY)
+    send(s, Trigger("manual"), HOME_BY - 10)  # a check is running when home_by comes
+    now, _ = advance(s, HOME_BY - 10, 20)
+    assert s.state == "asking" and s.check_kind == "manual"
+    send(s, ConfirmOk(), now)
+    now, fx = advance(s, now, 1)
+    assert s.state == "asking" and flat(fx)[0][2]["kind"] == "home_by"
+
+
+def test_home_by_never_fires_after_the_night_ended():
+    s, now = start(home_by=HOME_BY, night_ends_at=HOME_BY - 10)
+    now, _ = advance(s, now, HOME_BY + 5)
+    assert s.state == "ended" and s.check_kind is None and not s.home_by_done
+
+
+def test_home_by_does_not_fire_again_after_a_resolved_alert_goes_back_to_armed():
+    s, now = start(home_by=HOME_BY)
+    now, _ = advance(s, now, HOME_BY)
+    now, _ = advance_until(s, now, lambda s: s.state == "escalating", limit=ASK + GRACE + 3)
+    send(s, Resolve(U, PIN), now)
+    now, fx = advance(s, now, 300)
+    assert s.state == "armed" and to(fx, U, "check") == []
+
+
+def test_home_by_is_not_in_a_contacts_view():
+    s, now = start(home_by=HOME_BY)
+    for who in EVERYONE_ELSE:
+        assert view_for(s, who) == INACTIVE
+
+
 # ---------- ping (decision 11) ----------
 
 def ping(s, who, now):

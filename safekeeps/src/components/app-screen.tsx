@@ -27,6 +27,8 @@ export function AppScreen({ children, topInset = false, header }: PropsWithChild
     <ScrollView
       style={{ flex: 1 }}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      automaticallyAdjustKeyboardInsets
       contentInsetAdjustmentBehavior={header ? 'never' : 'automatic'}
       contentContainerStyle={{
         padding: 16, paddingBottom: 24 + insets.bottom,

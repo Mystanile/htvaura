@@ -3,14 +3,14 @@
  * https://docs.expo.dev/guides/color-schemes/
  */
 
-import { Colors } from '@/constants/theme';
+import { Colors, type Theme } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { createContext, use } from 'react';
 
-type Theme = { [Key in keyof typeof Colors.light]: string };
 export const SurfaceThemeContext = createContext<Theme | null>(null);
 
-export function useTheme() {
+// A SectionCard puts its own colors in the context, so anything inside reads a matching text, field and button set.
+export function useTheme(): Theme {
   const scheme = useColorScheme();
   const surface = use(SurfaceThemeContext);
   const theme = scheme === 'dark' ? 'dark' : 'light';

@@ -29,6 +29,7 @@ class Config:
     grace_seconds: float = 15
     ack_seconds: float = 20
     night_ends_at: float | None = None
+    home_by: float | None = None  # server clock time: one check starts then, once per night
     check_every_seconds: float | None = None  # a periodic check starts this long after the front is armed
 
 
@@ -56,6 +57,7 @@ class Session:
     wrong_pins: int = 0
     check_kind: str | None = None  # why the current check started
     next_check: float | None = None  # when the front is armed: the time of the next periodic check
+    home_by_done: bool = False  # the home_by check has started
     front_alert: Alert | None = None  # the user's own alert, while escalating or acknowledged
     # the alerts
     alerts: list[Alert] = field(default_factory=list)
@@ -295,6 +297,9 @@ def _tick_front(s, now) -> list[Effect]:
         s.state = "ended"
         s.location = None
         effects += _left_effects(s)
+    elif s.state == "armed" and s.config.home_by is not None and not s.home_by_done and now >= s.config.home_by:
+        s.home_by_done = True  # a check that runs now delays this one: the front is not armed
+        effects += _on_trigger(s, Trigger("home_by"), now)
     elif s.state == "armed" and s.next_check is not None and now >= s.next_check:
         effects += _on_trigger(s, Trigger("periodic"), now)
     elif s.state == "resolved":
@@ -425,7 +430,10 @@ def view_for(session: Session, viewer_id: str) -> dict:
     if viewer_id == c.user_id:  # the front only
         state = "armed" if s.state == "resolved" else s.state
         deadline = s.deadline if s.state in ("asking", "waiting") else None
-        return {"state": state, "screen": s.screen, "deadline": deadline, "ping_at": s.ping_at}
+        view = {"state": state, "screen": s.screen, "deadline": deadline, "ping_at": s.ping_at}
+        if c.home_by is not None and not s.home_by_done:
+            view["home_by"] = c.home_by  # only in the user's own view, and only while the check waits
+        return view
     a = _viewed(s, viewer_id)
     if a is None:
         return {"user_id": c.user_id, "active": False}

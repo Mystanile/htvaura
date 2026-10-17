@@ -102,6 +102,10 @@ class FriendIn(BaseModel):
     name: str = Field(default="", max_length=40)
 
 
+class NameIn(BaseModel):
+    name: str = Field(default="", max_length=40)
+
+
 class AcceptFriendIn(BaseModel):
     name: str = Field(default="", max_length=40)
 
@@ -222,4 +226,22 @@ def remove_friend(friend_id: str, authorization: str | None = Header(default=Non
             db.execute(f"DELETE FROM {table} WHERE (owner = ? AND friend = ?) OR (owner = ? AND friend = ?)", pair)
         db.execute("DELETE FROM requests WHERE (sender = ? AND target = ?) OR (sender = ? AND target = ?)", pair)
         db.execute("DELETE FROM friend_requests WHERE (sender = ? AND target = ?) OR (sender = ? AND target = ?)", pair)
+        return snapshot(db, user)
+
+
+@router.post("/friends/{friend_id}/name")
+def rename_friend(friend_id: str, body: NameIn, authorization: str | None = Header(default=None)):
+    """Set or clear my private name for a friend, whoever sent the request."""
+    with connect() as db:
+        user = identity(db, authorization)
+        if not db.execute("SELECT 1 FROM friendships WHERE owner = ? AND friend = ?", (user["id"], friend_id)).fetchone():
+            raise HTTPException(403, "You can only rename your friends.")
+        name = body.name.strip()
+        if name:
+            db.execute("""
+                INSERT INTO friend_names VALUES (?, ?, ?)
+                ON CONFLICT(owner, friend) DO UPDATE SET name = excluded.name
+            """, (user["id"], friend_id, name))
+        else:
+            db.execute("DELETE FROM friend_names WHERE owner = ? AND friend = ?", (user["id"], friend_id))
         return snapshot(db, user)

@@ -1,14 +1,17 @@
 import type { PropsWithChildren } from 'react';
 import { View } from 'react-native';
 import { Artwork, PixelArt } from '@/components/pixel-art';
+import { Tones, type Tone } from '@/constants/theme';
+import { SurfaceThemeContext } from '@/hooks/use-theme';
 
-export function SectionCard({ children, friends = false }: PropsWithChildren<{
-  accent?: boolean; dark?: boolean; friends?: boolean;
-}>) {
+export function SectionCard({ children, tone = 'plain' }: PropsWithChildren<{ tone?: Tone }>) {
+  const friends = tone === 'green';
   return (
-    <View style={{ padding: 20, paddingTop: friends ? 22 : 34, paddingBottom: 24, gap: 16 }}>
-      <PixelArt source={friends ? Artwork.friends : Artwork.section} />
-      {children}
-    </View>
+    <SurfaceThemeContext value={Tones.light[tone]}>
+      <View style={{ padding: 20, paddingTop: friends ? 22 : 34, paddingBottom: 24, gap: 16 }}>
+        <PixelArt source={friends ? Artwork.friends : Artwork.section} />
+        {children}
+      </View>
+    </SurfaceThemeContext>
   );
 }
