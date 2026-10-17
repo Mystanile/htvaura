@@ -64,9 +64,9 @@ Branch `ntfy` (newest work, 2026-10-17 evening):
 - One live push to ntfy.sh worked from a scratch server. Delivery to a real phone is not tested.
 - Retest of 6.12 and 6.13 over HTTP on a scratch server: the duress PIN and the duress gesture pass in all five front states. The phone gets the same answer as for the real PIN or an ok.
 - The Find them simulation is stable at 4 or more readings a second. Open bugs, not fixed:
-  - One reading can enter "right next to them" (`band.ts:71`).
+  - Fixed in `3d3dac9`: one reading could enter "right next to them". Now it needs 3 readings in the 4 s window. The simulation showed no return to that state while walking away. False ones at the venue's 1 m level dropped from 38 to 3 in 100 runs at 0.5 readings a second.
   - A failed Bluetooth scan never restarts (`use-band-signal.ts:28`).
-  - `HARDWARE.md:111-113` describes the 30 s separation rule as built. It is not built.
+  - Fixed in the docs: `HARDWARE.md` now says the 30 s separation rule is design only.
 - Open design question for the user: after an end, PIN guesses are unlimited. The filled or outlined check shows which PIN is real, and the real PIN ends a duress alert (`loop.py:281`).
 - An LLM council graded the project at about 60 of 100. Its top must-haves:
   1. Run everything from one checkout.
@@ -77,6 +77,7 @@ Branch `ntfy` (newest work, 2026-10-17 evening):
   6. Make a 5-minute demo story.
   7. Make three slides.
   8. Record a backup video.
+- Done on 2026-10-17 evening (not demo work): the band.ts fix, the false or stale lines in DEMO_NOTES, HARDWARE.md and CODE_TOUR, and the limits added to DEMO_NOTES "What assumptions the concept relies upon". Still to do, with the demo: DEMO_SCRIPT lines (`:97` contact ranking, `:83`, `:193`) and must-haves 1, 2, 5 to 8.
 
 Judging branch:
 - Worktree `~/Desktop/kaze-judge`, branch `judging`. It holds the 6.x items above, all committed (6.12 in `de2aedf`, 6.13 in `a100f73`). Pull request #8 (`judging` into `main`) is open. `judging` also has the teammate's UI overhaul from `main` (`9f13b4e`). It also has the pixel home sprites (`348c740`) and the check mark fix (`a75e86b`).

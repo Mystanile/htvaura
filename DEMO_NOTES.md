@@ -4,12 +4,12 @@ This file sorts the prototype into the four groups that the KAZE brief asks for.
 
 ## What the prototype actually demonstrates
 
-These items run in the prototype and pass automated tests: 273 server tests and 57 app node tests.
+These items run in the prototype and pass automated tests: 300 server tests and 58 app node tests.
 
 On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware and app from branch `home-by`, 2026-10-17):
 
 - Pairing the band in Settings, and "Band connected" on Home.
-- Band ok (3 taps) and duress (hold 1 s, 2 taps) reach the server and look the same on the phone.
+- Band ok (3 taps) reaches the server. Band duress (hold 1 s, 2 taps) also reaches the server, but in the two-person retest the duress contact got nothing. The likely causes are fixed and pass over HTTP in every state. The retest on phones is pending (see "Hardware test results").
 - A check makes the band ask. A friend's Ping makes the phone ring and the band flash.
 - Heartbeat: with the phone screen off, the band asked about 12 s after a check started.
 - State restoration: the app was stopped from the Mac. iOS relaunched it in the background about 12 s later with nobody touching the phone, and a band answer reached the server with the screen off.
@@ -60,6 +60,14 @@ Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most 
 - When the phone is locked, an ask or a ping reaches the band up to 20 s late. The heartbeat wakes the app only every 20 s.
 - The demo band uses BLE only. On the Uno R4 WiFi, BLE and Wi-Fi share one radio chip, so we did not build a direct band-to-server path over Wi-Fi.
 - iOS background limits still let the check-in reach the user.
+- On a phone alone, the check reaches the user only while the app is open. In the background the app does not poll, and push goes to contacts only. With the band, the heartbeat wakes the app, so the check reaches a phone in a pocket. A real build sends the check through APNs.
+- Time to help: in the worst case, a person becomes unable to answer just after a check. Help starts after one check interval plus the ask and grace times. With a 15 min interval and the demo timers, that is about 16 min. A shorter interval shortens it.
+- A hold on the band or the screen with no taps after it counts as "I'm okay", so a cut-off gesture never looks odd. A fumbled duress gesture sends no alert.
+- PIN guesses after an end screen are not limited and tell nobody. The filled check (right PIN or duress PIN) and the outlined check (wrong PIN) are a cue for the user. A watcher who knows the cue can try PINs until the filled check shows. The right PIN also ends a duress alert raised under it. The design assumes the watcher does not know the cue.
+- Misuse: any contact or group member in a night can start a check with "ask a friend", with no limit on how often. If the user stays silent, the alert shares their location with the alerted contacts. A real build needs a limit and a log of who asked.
+- Contacts are not asked to accept their role. They accepted a friend request, but they are not told that they are a tier contact or a duress contact.
+- The two Find them band states need several readings a second. The real iOS scan rate is not measured. With one reading a second or fewer, the state can still flip at the edge.
+- If the Bluetooth scan on Find them fails once, it does not restart. The screen stays at "No band signal" until the user leaves the screen and opens it again.
 - GPS is accurate to 5 to 10 m outdoors only.
 - Nobody can read another person's session without a token. On the Safekeeps path every call has a per-user token, and the old phase 1 endpoints refuse the ids of Safekeeps phones. On the demo-panel path (ids from `POST /users`) there is no auth. A person who holds such a phone and knows a contact's id can read a hidden alert. `POST /demo/reset` and `POST /demo/skip` have no auth either, unless `KAZE_DEMO_KEY` is set, and they affect every night. A real build needs real auth on those.
 - The demo runs through a cloudflared tunnel over HTTPS, so the event names (`ConfirmOk` and `Duress`) are encrypted on the network. Only the length of the request body differs. A real build pads the two bodies to the same size.

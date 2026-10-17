@@ -583,7 +583,7 @@ export function onNight(night: Night | null) {
 
 ## 6. How we know it works
 
-### Server: 273 tests, all pass (2.7 s)
+### Server: 300 tests, all pass (2.8 s)
 
 Run:
 
@@ -591,7 +591,7 @@ Run:
 cd ~/Desktop/kaze-judge/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q
 ```
 
-Result on 2026-10-17: `273 passed, 1 warning in 2.67s`.
+Result on 2026-10-17 (branch `ntfy`): `300 passed, 1 warning in 2.85s`.
 
 | File | Tests | What it proves |
 |---|---|---|
@@ -663,7 +663,7 @@ Honest note: these hardware tests ran on the earlier firmware and app from branc
 
 ### Test counts to quote
 
-The `judging` branch has 273 server tests and 57 app node tests. `main` has 224 and 53, because the judging fixes are not merged yet. Quote the branch you demo.
+The `ntfy` branch has 300 server tests and 58 app node tests. `main` has 224 and 53, because the judging fixes are not merged yet. Quote the branch you demo.
 
 ## 7. Likely questions and answers
 
@@ -807,7 +807,7 @@ A leftover copy of the Expo starter template from the teammate's first app commi
 ## 8. If you get stuck
 
 1. Open `server/kaze/loop.py` at `step` (line 451) and follow the handler for that event in `_HANDLERS` (line 436).
-2. Run the server tests: `cd ~/Desktop/kaze-judge/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q` and say "273 pass in under 3 seconds".
+2. Run the server tests: `cd ~/Desktop/kaze-judge/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q` and say "300 pass in under 3 seconds".
 3. Run one scenario by name: add `-k test_3_duress` (or any scenario name from section 6) to the same command.
 4. Show the panel at `/panel`: the hidden alert row and the privacy table come from the same `view_for` the phones use (`panel.py:34-50`).
 5. Say "I do not know that detail, but here is where it lives". Then open the file from section 5 and read the comment above the function.
