@@ -113,13 +113,14 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 | State restoration | Stop the app from the Mac, tap the band. Pass or fail | Pass. Relaunched in about 12 s, answer reached the server with the screen off | 2026-10-17 |
 | Battery drain per hour, 20 s heartbeat | Phone and band battery percent per hour |  |  |
 | Hotter and colder, three zones | Two iPhones and the band. Walk away and back | Fail: not accurate past 1 m. Walking away sometimes showed a closer state. Replaced by two states, retest pending | 2026-10-17 |
-| Duress PIN from "Cancel an alert" | Type the duress PIN on the phone | Fail: the duress contact got nothing. The build had no duress PIN. Now built, retest pending | 2026-10-17 |
+| Duress PIN from "Cancel an alert" | Type the duress PIN on the phone | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the phone showed the same filled "Alert ended" as the real PIN, the duress contact got the alert, the tier contact saw nothing new | 2026-10-17 |
 | Band duress gesture | Hold 1 s, 2 taps on the band | Fail: the duress contact got nothing. Two possible causes, both fixed: the server ignored the gesture while the user's own alert ran, and a band paired with no night gets its answers refused (Home now says so). Retest during an alert and with no alert | 2026-10-17 |
-| Scaled alerts | Tier 1 does not answer, tier 2 gets the alert | Not tested |  |
+| Scaled alerts | Tier 1 does not answer, tier 2 gets the alert | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): tier 2 got the alert after tier 1 did not take it | 2026-10-17 |
 | Band signal at 0.5 m | State shown |  |  |
 | Band signal at 2 m | State shown |  |  |
 | Band signal at 5 m | State shown |  |  |
 | Advertising while connected | A second phone sees KAZE-Band. Pass or fail | Pass | 2026-10-17 |
+| New text colours and VoiceOver | Look at every screen. VoiceOver on: three double-taps on Check in | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the text reads well in the teammate's colours, the outlined check shows, VoiceOver reads the button and hint, three double-taps check in and it says "Thanks!" | 2026-10-17 |
 
 ### Built, but checked only by automated tests
 
