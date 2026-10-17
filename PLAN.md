@@ -51,7 +51,7 @@ A new session continues from this section. Read it first, then the Status list a
 
 Judging branch (newest work):
 - Worktree `~/Desktop/kaze-judge`, branch `judging`. It holds the 6.x items above. The plan is a pull request into `home-by`. The lead reviews and commits it.
-- The user runs the hardware test from `~/Desktop/kaze-band` at the same time. After the test, fill in the "Hardware test results" table in `DEMO_NOTES.md`, and update the "HARDWARE TEST PENDING" line in `DEMO_SCRIPT.md`.
+- Hardware test on 2026-10-17 (branch `home-by` build and firmware): pairing, band ok and duress, ask, ping, heartbeat (about 12 s), state restoration and advertising while connected all pass. Results are in `DEMO_NOTES.md`. Still to test: hotter and colder (needs a second native phone), battery drain, and the latest firmware and app from `judging`.
 - Ideas from the judging review that are not done:
   - Push to contacts through ntfy (needs the user's approval, it is not in this plan).
   - Slides.
