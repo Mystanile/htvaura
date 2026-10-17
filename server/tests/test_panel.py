@@ -69,6 +69,9 @@ def test_events_drive_a_safekeeps_session(client):
     assert client.get(NIGHT, headers=a).json()["view"]["state"] == "escalating"
     seen = client.get(NIGHT, headers=b).json()["alerts"]
     assert seen[0]["user_id"] == uid and seen[0]["location"] == [43.78, -79.18]
+    client.post(f"/safekeeps/alerts/{uid}/ping", headers=b)
+    row = next(r for r in client.get("/demo/state").json()["sessions"] if r["user_id"] == uid)
+    assert row["ping_at"] is not None
 
 
 def test_other_events_and_bad_input_are_refused(client):

@@ -11,7 +11,7 @@ from helpers import (
 from kaze.cards import card_for
 from kaze.loop import (
     new_session,
-    Ack, ConfirmOk, Disconnect, Duress, Leave, LocationUpdate, Reconnect, Resolve, Tick,
+    Ack, ConfirmOk, Disconnect, Duress, Leave, LocationUpdate, Ping, Reconnect, Resolve, Tick,
     Trigger, view_for,
 )
 
@@ -304,6 +304,17 @@ def test_leave_before_alert_ends_session_and_tells_group_only(state):
     now, later = advance(s, now, 200)
     assert s.state == "ended"
     assert others(later) == []
+
+
+def test_leave_clears_the_front_location_and_a_late_update_does_not_bring_it_back():
+    s, now, _ = make("armed")
+    send(s, LocationUpdate(LAT, LNG), now)
+    assert s.location == (LAT, LNG)
+    send(s, Leave(), now)
+    assert s.state == "ended"
+    assert s.location is None
+    send(s, LocationUpdate(LAT, LNG), now)
+    assert s.location is None
 
 
 def test_leave_during_duress_keeps_alert_running_silently():
@@ -607,7 +618,7 @@ def test_hidden_alert_keeps_escalating_after_leave(kind):
     assert alert(s).state != "resolved"
     assert view_for(s, later_contact)["active"] is True
     assert_ignored(s, Resolve(U, PIN), now)  # the front is ended, so the PIN does nothing
-    assert view_for(s, U) == {"state": "ended", "screen": s.screen, "deadline": None}
+    assert view_for(s, U) == {"state": "ended", "screen": s.screen, "deadline": None, "ping_at": None}
 
 
 @pytest.mark.parametrize("kind", KINDS)
@@ -627,7 +638,7 @@ def test_new_session_carries_hidden_alert_and_pin_resolves_it():
     send(s, Leave(), now)
     n = new_session(make_config(pin="9876"), now, carry=s)
     assert n.state == "armed" and n.alerts == s.alerts and n.location is None
-    assert view_for(n, U) == {"state": "armed", "screen": "armed", "deadline": None}
+    assert view_for(n, U) == {"state": "armed", "screen": "armed", "deadline": None, "ping_at": None}
     assert view_for(n, "x")["location"] == (LAT, LNG)
     now, later = advance(n, now, 120)  # it keeps escalating in the new session
     assert recipients(later, "alert") == {"x", "y"}
@@ -932,3 +943,66 @@ def test_periodic_check_does_not_fire_after_the_night_ended():
     s, now = start(check_every_seconds=EVERY, night_ends_at=EVERY - 10)
     now, _ = advance(s, now, EVERY + 5)
     assert s.state == "ended"
+
+
+# ---------- ping (decision 11) ----------
+
+def ping(s, who, now):
+    """Ping as `who`. Returns (the user's ping effects, ping_at)."""
+    return to(send(s, Ping(who), now), U, "ping"), view_for(s, U)["ping_at"]
+
+
+@pytest.mark.parametrize("state", ["escalating", "acknowledged"])
+def test_ping_counts_for_an_alerted_tier_contact_on_a_visible_alert(state):
+    s, now, _ = make(state)
+    fx, at = ping(s, "a", now + 3)
+    assert flat(fx) == [(U, "ping", {"at": now + 3})] and at == now + 3
+    fx, at = ping(s, "a", now + 9)
+    assert at == now + 9 and len(fx) == 1  # a later ping moves the time
+
+
+def test_ping_is_ignored_with_no_alert():
+    for state in ("armed", "asking", "waiting", "resolved"):
+        s, now, _ = make(state)
+        assert ping(s, "a", now) == ([], None), state
+
+
+def test_ping_is_ignored_for_a_contact_who_was_not_alerted():
+    s, now, _ = make("escalating")  # only tier 1 (a) is alerted
+    for who in ("b", "d", "x", "g1", "stranger", None):
+        assert ping(s, who, now) == ([], None), who
+
+
+def test_ping_is_ignored_once_another_contact_took_the_alert():
+    s, now, _ = make("escalating", tiers=[["a", "b"]])
+    send(s, Ack("a"), now)
+    assert ping(s, "b", now) == ([], None)
+    assert ping(s, "a", now)[1] == now
+
+
+def test_ping_is_ignored_for_a_duress_alert_and_for_a_duress_only_contact():
+    s, now, _ = make("duress")
+    assert view_for(s, "x")["kind"] == "duress"
+    assert ping(s, "x", now) == ([], None)
+    s, now, _ = make("escalating")  # an unrelated duress contact on a visible alert
+    send(s, Duress(), now)
+    assert ping(s, "x", now) == ([], None)
+
+
+def test_ping_is_ignored_for_a_fake_ended_alert():
+    s, now, _ = make("escalating")
+    send(s, Resolve(U, "0000"), now)
+    send(s, Resolve(U, "0000"), now)
+    assert alert(s).hidden and view_for(s, "a")["active"]
+    assert ping(s, "a", now) == ([], None)
+
+
+def test_ping_time_is_cleared_when_the_front_alert_ends():
+    s, now, _ = make("acknowledged")
+    ping(s, "a", now)
+    send(s, Resolve("a"), now)
+    assert view_for(s, U)["ping_at"] is None
+    s, now, _ = make("escalating")
+    ping(s, "a", now)
+    send(s, Resolve(U, PIN), now)
+    assert view_for(s, U)["ping_at"] is None

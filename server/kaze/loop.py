@@ -61,6 +61,7 @@ class Session:
     alerts: list[Alert] = field(default_factory=list)
     connected: bool = True
     location: tuple[float, float] | None = None  # the front's last position, cleared when the front ends
+    ping_at: float | None = None  # when a contact last pinged the front alert, cleared when the front ends
 
 
 @dataclass
@@ -86,6 +87,10 @@ class Tick: pass
 
 @dataclass
 class Ack:
+    contact_id: str
+
+@dataclass
+class Ping:
     contact_id: str
 
 @dataclass
@@ -195,6 +200,7 @@ def _end_front(s: Session) -> None:
     """The front acts as if its alert is over. The alert itself is not touched."""
     s.wrong_pins = 0
     s.location = None
+    s.ping_at = None
     if s.front_alert:
         s.front_alert = None
         s.state = "resolved"
@@ -264,6 +270,7 @@ def _on_leave(s, e, now):
         return []  # in an alert the user must cancel with the PIN first
     s.state = "ended"
     s.deadline = None
+    s.location = None  # the ended front keeps no position
     return _left_effects(s)
 
 
@@ -286,6 +293,7 @@ def _tick_front(s, now) -> list[Effect]:
         effects += _alert_next_tier(s, s.front_alert, now)
     elif s.state in ("armed", "resolved") and _night_over(s, now):
         s.state = "ended"
+        s.location = None
         effects += _left_effects(s)
     elif s.state == "armed" and s.next_check is not None and now >= s.next_check:
         effects += _on_trigger(s, Trigger("periodic"), now)
@@ -326,6 +334,18 @@ def _on_ack(s, e, now):
             s.state = "acknowledged"
         effects += [Effect(c, "owner", data) for c in t.alerted if c != e.contact_id]
     return effects
+
+
+def _on_ping(s, e, now):
+    """A contact makes the user's phone ring. Only the visible front alert counts, never a hidden one:
+    a ringing phone would show a duress alert to a watcher. Reads front fields only."""
+    f = s.front_alert
+    if f is None or f.hidden or s.state not in ("escalating", "acknowledged"):
+        return []
+    if e.contact_id not in f.alerted or f.acknowledged_by not in (None, e.contact_id):
+        return []
+    s.ping_at = now
+    return [Effect(s.config.user_id, "ping", {"at": now})]
 
 
 def _may_resolve(a: Alert, contact: str) -> bool:
@@ -370,9 +390,11 @@ def _on_reconnect(s, e, now):
 
 
 def _on_location(s, e, now):
-    s.location = (e.lat, e.lng)
+    here = (e.lat, e.lng)
+    if s.state != "ended":
+        s.location = here  # an ended front keeps no position
     for a in _active(s):
-        a.location = s.location
+        a.location = here
     return []
 
 
@@ -382,6 +404,7 @@ _HANDLERS = {
     Duress: _on_duress,
     Tick: _on_tick,
     Ack: _on_ack,
+    Ping: _on_ping,
     Resolve: _on_resolve,
     Disconnect: _on_disconnect,
     Reconnect: _on_reconnect,
@@ -402,7 +425,7 @@ def view_for(session: Session, viewer_id: str) -> dict:
     if viewer_id == c.user_id:  # the front only
         state = "armed" if s.state == "resolved" else s.state
         deadline = s.deadline if s.state in ("asking", "waiting") else None
-        return {"state": state, "screen": s.screen, "deadline": deadline}
+        return {"state": state, "screen": s.screen, "deadline": deadline, "ping_at": s.ping_at}
     a = _viewed(s, viewer_id)
     if a is None:
         return {"user_id": c.user_id, "active": False}

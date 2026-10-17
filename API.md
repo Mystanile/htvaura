@@ -141,7 +141,7 @@ Fields:
 Response (200). The `view` is the user's own view (section 5):
 
 ```json
-{"user_id": "3f9a1c2e", "view": {"state": "armed", "screen": "armed", "deadline": null}}
+{"user_id": "3f9a1c2e", "view": {"state": "armed", "screen": "armed", "deadline": null, "ping_at": null}}
 ```
 
 Errors:
@@ -196,7 +196,7 @@ GET /sessions/3f9a1c2e/view?viewer=3f9a1c2e
 ```
 
 ```json
-{"state": "asking", "screen": "asking", "deadline": 1792204403.849629}
+{"state": "asking", "screen": "asking", "deadline": 1792204403.849629, "ping_at": null}
 ```
 
 Errors: 404 if the user has no session. The `viewer` parameter is required. A missing one gives 422.
@@ -274,6 +274,7 @@ Things that happen on connect and close:
 | `alarm` | The user | The ask time ran out. Play the loud alarm. |
 | `screen` | The user | Change the screen to `data.screen`. |
 | `alert` | A contact | The contact is being alerted. Show the response card. |
+| `ping` | The user | A contact pinged the visible alert. Play a loud sound and flash. `data.at` is the server time. |
 | `owner` | The other alerted contacts | Someone else tapped "I'm on it". |
 | `resolved` | Every alerted contact | The alert is over. |
 | `wrong_pin_warning` | Every alerted contact | The user entered a wrong PIN twice or more. |
@@ -382,7 +383,7 @@ The user left the group. Remove them from the group list.
 ### For the user (viewer equals user_id)
 
 ```json
-{"state": "asking", "screen": "asking", "deadline": 1792204403.849629}
+{"state": "asking", "screen": "asking", "deadline": 1792204403.849629, "ping_at": null}
 ```
 
 | Field | Meaning |
@@ -395,42 +396,43 @@ The user's view always looks like the view of a user with no hidden trouble. The
 
 What this means in practice:
 
+- `ping_at` is the server time of the last ping that counted, or `null`. A contact can ping only the visible alert (decision 11). Hidden alerts never set it, so it cannot show that one exists. It goes back to `null` when the front alert ends.
 - After the duress gesture, the view is the same as after a normal tap on "I'm okay". The word "duress" never appears.
 
 ```json
-{"state": "armed", "screen": "thanks", "deadline": null}
+{"state": "armed", "screen": "thanks", "deadline": null, "ping_at": null}
 ```
 
 - After a fake end (second wrong PIN), `state` is `armed` and `screen` is `ended_fake`, while the alert still runs.
 
 ```json
-{"state": "armed", "screen": "ended_fake", "deadline": null}
+{"state": "armed", "screen": "ended_fake", "deadline": null, "ping_at": null}
 ```
 
 - After a real resolve by the user with the PIN, `state` is `armed` and `screen` is `ended_true`.
 
 ```json
-{"state": "armed", "screen": "ended_true", "deadline": null}
+{"state": "armed", "screen": "ended_true", "deadline": null, "ping_at": null}
 ```
 
 - A trigger works the same way whether or not a hidden alert runs. The user sees the normal `asking`, `alarm`, and `alert_active` screens. If the user does not answer, the normal contacts are alerted too. Here is the view during a check:
 
 ```json
-{"state": "asking", "screen": "asking", "deadline": 1792204873.217752}
+{"state": "asking", "screen": "asking", "deadline": 1792204873.217752, "ping_at": null}
 ```
 
 ```json
-{"state": "waiting", "screen": "alarm", "deadline": 1792204888.217752}
+{"state": "waiting", "screen": "alarm", "deadline": 1792204888.217752, "ping_at": null}
 ```
 
 ```json
-{"state": "escalating", "screen": "alert_active", "deadline": null}
+{"state": "escalating", "screen": "alert_active", "deadline": null, "ping_at": null}
 ```
 
 - After a user leaves, `state` is `ended`. This is also true when the user leaves during duress. The alert keeps running in the background.
 
 ```json
-{"state": "ended", "screen": "thanks", "deadline": null}
+{"state": "ended", "screen": "thanks", "deadline": null, "ping_at": null}
 ```
 
 - If a contact resolves an alert that was hidden, the user's phone gets no message and the view does not change. The user keeps the screen they had. Only the user's own correct PIN gives `ended_true`. That PIN also ends every hidden alert.
@@ -438,15 +440,15 @@ What this means in practice:
 Other examples:
 
 ```json
-{"state": "waiting", "screen": "alarm", "deadline": 1792204418.85213}
+{"state": "waiting", "screen": "alarm", "deadline": 1792204418.85213, "ping_at": null}
 ```
 
 ```json
-{"state": "escalating", "screen": "alert_active", "deadline": null}
+{"state": "escalating", "screen": "alert_active", "deadline": null, "ping_at": null}
 ```
 
 ```json
-{"state": "acknowledged", "screen": "alert_active", "deadline": null}
+{"state": "acknowledged", "screen": "alert_active", "deadline": null, "ping_at": null}
 ```
 
 ### For anyone else (a contact or a group member)
@@ -478,7 +480,7 @@ When the server alerted the viewer and the alert is live:
 
 - `acknowledged_by` is `null` until a contact taps "I'm on it".
 - `location` is `[lat, lng]` or `null`. It is `null` when nobody has sent a location yet. It is also `null` when the user chose `"acknowledger"` and this viewer is not the one who tapped "I'm on it".
-- Location exists only during an active alert. After a resolve, the server clears it.
+- The user's phone sends its location about every 30 seconds all night (decision 10). The server keeps it but shows it to contacts only during an active alert. After a resolve, the server clears it.
 
 ## 6. Events the app sends
 
@@ -491,7 +493,8 @@ Send these with `POST /sessions/{user_id}/events`. Put the event name in `type`.
 | `Duress` | none | The user | The hidden gesture (hold 1 s, then 2 quick taps). Send it at any time. Where it has no effect, the server ignores it. |
 | `Ack` | `contact_id` | A contact | "I'm on it". Send your own id as `contact_id`. |
 | `Resolve` | `by`, `pin` (user only) | The user or a contact | End the alert. |
-| `LocationUpdate` | `lat`, `lng` | The user | Store the user's location. Send it often during a night. |
+| `Ping` | `contact_id` | A contact | Make the user's phone ring and flash. Counts only on the visible alert, see section 10. |
+| `LocationUpdate` | `lat`, `lng` | The user | Store the user's location. Send it about every 30 seconds during a night. |
 | `Leave` | none | The user | Leave the group silently. |
 | `Disconnect` | none | Not needed | The server sends it for you when the last socket closes. |
 | `Reconnect` | none | Not needed | The server sends it for you when a socket opens. |
@@ -645,7 +648,7 @@ Alice sends `{"type": "Leave"}` while armed, asking, or waiting. Every group mem
 
 ## 10. Safekeeps bridge
 
-This section is for the Safekeeps app in `safekeeps/`. The bridge links her profiles and friends (SQLite, Bearer token) to the check-in loop. It adds five endpoints under `/safekeeps`. The app does not use a WebSocket. It polls.
+This section is for the Safekeeps app in `safekeeps/`. The bridge links her profiles and friends (SQLite, Bearer token) to the check-in loop. It adds six endpoints under `/safekeeps`. The app does not use a WebSocket. It polls.
 
 The examples below come from real calls to the server. The ids here are shortened to 8 characters. Real ids have 32 characters. In all examples Alice is the user (`3f9a1c2e`). Ben is her tier 1 contact (`7b21d0a4`). Fia is her private duress contact (`50c6a9d8`). All three are accepted friends.
 
@@ -684,7 +687,7 @@ Start a night for me. The group is all my accepted friends. Every contact must b
 Answer, `200`:
 
 ```json
-{"user_id": "3f9a1c2e", "view": {"state": "armed", "screen": "armed", "deadline": null}}
+{"user_id": "3f9a1c2e", "view": {"state": "armed", "screen": "armed", "deadline": null, "ping_at": null}}
 ```
 
 Errors:
@@ -706,7 +709,7 @@ Poll this. It returns my own state and the alerts I should act on.
 ```json
 {
   "now": 1792229956.162278,
-  "view": {"state": "armed", "screen": "armed", "deadline": null},
+  "view": {"state": "armed", "screen": "armed", "deadline": null, "ping_at": null},
   "alerts": []
 }
 ```
@@ -747,7 +750,7 @@ Send one of my own events to my night. The body is the event. Put the name in `t
 | `ConfirmOk` | none | One tap on "I'm okay". |
 | `Duress` | none | The hidden gesture. |
 | `Resolve` | `pin` (a string) | Cancel the alert with my PIN. |
-| `LocationUpdate` | `lat`, `lng` | My place. Send it every 5 to 10 seconds during a night. |
+| `LocationUpdate` | `lat`, `lng` | My place. The app sends it about every 30 seconds during a night (decision 10), while it is open. |
 | `Leave` | none | Leave the night silently. |
 
 ```json
@@ -789,13 +792,25 @@ POST /safekeeps/alerts/3f9a1c2e/ack
 
 Next poll, `acknowledged_by` in that alert is my id. The owner's other contacts stop seeing the button (see the table below).
 
+### POST /safekeeps/alerts/{owner_id}/ping
+
+I am a contact. Make the phone of `owner_id` ring loudly and flash, so I can find them. No body. Answer: `{"ok": true}`.
+
+```
+POST /safekeeps/alerts/3f9a1c2e/ping
+```
+
+It counts only if I am allowed on the owner's visible alert. That means the alert is the one their own screen shows (state `escalating` or `acknowledged`), I was alerted by it, and no other contact took it. A hidden alert can never be pinged (decision 11), so a duress alert or an alert after `ended_fake` ignores it. A duress-only contact cannot ping. Ping is ignored in every other case. The answer is always `200` with `{"ok": true}`, like ack and resolve, so it tells nothing about any night. The same two rules apply: `400` for my own id, and `401` for a bad token.
+
+When it counts, the owner's view gets `ping_at`, the server time of the last counted ping. The owner's app compares it with the last value it saw. When it is new, the app plays the sound and the flash. `ping_at` is `null` until a ping counts, and it goes back to `null` when the alert ends. It is part of the owner's own view in section 5, so it is in `GET /safekeeps/night` too. It depends only on the visible alert, so a user with a hidden alert gets the same `ping_at` as a user with none.
+
 ### POST /safekeeps/alerts/{owner_id}/resolve
 
 I am a contact. End the alert about `owner_id`. No body. Answer: `{"ok": true}`.
 
 The loop decides if this counts. It counts only if I tapped "I'm on it" first. In a duress alert any duress contact can resolve it. If it does not count, the answer is still `200` and nothing changes. The next poll shows the truth.
 
-Both alert endpoints give the same answer, `200` with `{"ok": true}`, whether or not `owner_id` exists, has a night, or lists me as a contact. So the answer tells nothing about any night. Only a missing or bad token gives `401`. They give `400` if `owner_id` is my own id: use `/safekeeps/night/events` for my own night. If I am not a contact of that night, the action is ignored.
+All three alert endpoints give the same answer, `200` with `{"ok": true}`, whether or not `owner_id` exists, has a night, or lists me as a contact. So the answer tells nothing about any night. Only a missing or bad token gives `401`. They give `400` if `owner_id` is my own id: use `/safekeeps/night/events` for my own night. If I am not a contact of that night, the action is ignored.
 
 ### The polling loop
 
@@ -886,7 +901,7 @@ Alice starts a night. Ben asks her to check in. She does not answer.
 
 1. Alice: `POST /safekeeps/night`. Answer: view `armed`.
 2. Ben: `POST /safekeeps/friends/3f9a1c2e/requests`. The `friends` entry for Alice gets a `requestedAt`.
-3. Alice: `GET /safekeeps/night`. Answer: `{"now": 1792229956.16, "view": {"state": "asking", "screen": "asking", "deadline": 1792229986.16}, "alerts": []}`.
+3. Alice: `GET /safekeeps/night`. Answer: `{"now": 1792229956.16, "view": {"state": "asking", "screen": "asking", "deadline": 1792229986.16, "ping_at": null}, "alerts": []}`.
 4. Alice does nothing. After 30 seconds the view is `waiting` and `alarm`. After 15 more seconds it is `escalating` and `alert_active`.
 5. Ben: `GET /safekeeps/night`. Answer: `view` is `null` and `alerts` has the alert about Alice.
 6. Ben: `POST /safekeeps/alerts/3f9a1c2e/ack`. Alice's view becomes `acknowledged`. Ben's alert has `acknowledged_by` set to Ben.
@@ -894,7 +909,7 @@ Alice starts a night. Ben asks her to check in. She does not answer.
 
 A duress flow:
 
-1. Alice: `POST /safekeeps/night/events` with `{"type": "Duress"}`. Her view is `{"state": "armed", "screen": "thanks", "deadline": null}`, the same as after an ok.
+1. Alice: `POST /safekeeps/night/events` with `{"type": "Duress"}`. Her view is `{"state": "armed", "screen": "thanks", "deadline": null, "ping_at": null}`, the same as after an ok.
 2. Fia: `GET /safekeeps/night`. `alerts` has an item with `kind` set to `duress` and `card.title` of `Silent alert: they may be in danger`.
 3. Ben: `GET /safekeeps/night`. `alerts` is `[]`. He is not a duress contact, so he sees nothing.
 4. If Fia does not tap "I'm on it" within `ack_seconds`, the next duress contact is alerted.

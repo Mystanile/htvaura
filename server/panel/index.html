@@ -198,6 +198,7 @@ function nightCard(s) {
     <div class="row">
       <span>Next periodic check: ${countdown(s.next_check)}</span>
       <span>Location: ${place(s.location)}</span>
+      <span>Last ping: ${s.ping_at == null ? "none" : Math.round(serverNow - s.ping_at) + " s ago"}</span>
     </div>
     <div class="row muted">
       <span>Tiers: ${esc(c.tiers.map((t, i) => (i + 1) + " " + t.join(" + ")).join(" then "))}</span>

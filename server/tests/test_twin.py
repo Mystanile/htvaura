@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from helpers import INACTIVE, PIN, U, active, alert, flat, make_config, to
 from kaze.app import app
 from kaze.loop import (
-    Ack, ConfirmOk, Disconnect, Duress, Leave, LocationUpdate, Reconnect, Resolve, Tick, Trigger,
+    Ack, ConfirmOk, Disconnect, Duress, Leave, LocationUpdate, Ping, Reconnect, Resolve, Tick, Trigger,
     new_session, step, view_for,
 )
 
@@ -132,7 +132,9 @@ def user_event(rng, p, leave=0.05):
         who = rng.choice(seeing) if seeing else who
     if shared_contacts(p.hidden) and rng.random() < 0.5:  # a contact in both lists acts a lot
         who = rng.choice(shared_contacts(p.hidden))
-    if r < 0.93:
+    if r < 0.89:
+        return Ping(who), 0
+    if r < 0.94:
         return Ack(who), 0
     return Resolve(who), 0
 
@@ -217,7 +219,7 @@ def test_n1_pin_retry_in_an_alert_looks_the_same():
     p.tick(100)
     assert view_for(p.hidden, U)["state"] == "escalating"
     p.send(Resolve(U, "0000"))
-    assert view_for(p.hidden, U) == {"state": "escalating", "screen": "pin_retry", "deadline": None}
+    assert view_for(p.hidden, U) == {"state": "escalating", "screen": "pin_retry", "deadline": None, "ping_at": None}
     assert p.send(Trigger("periodic")) == []
     p.send(Leave())  # ignored in an alert, for both
 
