@@ -7,13 +7,31 @@ import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import type { BleManager, Subscription } from 'react-native-ble-plx';
 
 import { api, fetchNight, type Night } from '@/services/demo-api';
-import { loadSession } from '@/services/demo-session';
+import { loadSession, type DemoSession } from '@/services/demo-session';
 import {
   ASK_UUID, BAND_NAME, EVENT_UUID, PING_UUID, SERVICE_UUID, askKey, decodeEvent, encodeByte, shouldPingBand,
   type BandEvent,
 } from '@/services/band';
 
 const BAND_KEY = 'safekeeps-band';
+const RELAY_SESSION_KEY = 'safekeeps-band-session';
+// The app's own session is saved with the default "only while unlocked" keychain rule. iOS can relaunch the app
+// for the band while the phone is locked in a pocket, so the relay keeps its own copy readable after first unlock.
+const anytime = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
+let session: DemoSession | null = null;
+
+async function relaySession() {
+  const app = await loadSession().catch(() => null); // fails while locked
+  if (app) {
+    if (JSON.stringify(app) !== JSON.stringify(session)) {
+      void SecureStore.setItemAsync(RELAY_SESSION_KEY, JSON.stringify(app), anytime).catch(() => {});
+    }
+    return (session = app);
+  }
+  if (session) return session;
+  const copy = await SecureStore.getItemAsync(RELAY_SESSION_KEY, anytime).catch(() => null);
+  return (session = copy ? JSON.parse(copy) : null);
+}
 
 let keptId: string | null = null; // the paired band
 let connected = false;
@@ -117,7 +135,7 @@ export async function pairBand() {
       }
     }).catch(error => { clearTimeout(timer); reject(error); });
   });
-  await SecureStore.setItemAsync(BAND_KEY, id);
+  await SecureStore.setItemAsync(BAND_KEY, id, anytime);
   void keepConnected(id);
 }
 
@@ -129,14 +147,14 @@ export async function forgetBand() {
   epoch++;
   askedKey = null;
   publish();
-  await SecureStore.deleteItemAsync(BAND_KEY);
+  await SecureStore.deleteItemAsync(BAND_KEY, anytime);
   await manager.cancelDeviceConnection(id).catch(() => {}); // also cancels a pending connect
 }
 
 // Same path for every answer. Reads the session itself because no screen may be mounted. Retries for about
 // 10 s like the screens do; errors (including "no night running") are ignored.
 async function sendEvent(type: BandEvent) {
-  const session = await loadSession().catch(() => null);
+  const session = await relaySession();
   if (!session) return;
   const start = Date.now();
   do {
@@ -158,7 +176,7 @@ async function onEvent(event: BandEvent | null) {
 // does this and calls onNight, so skip the extra request.
 async function onHeartbeat() {
   if (AppState.currentState === 'active') return;
-  const session = await loadSession().catch(() => null);
+  const session = await relaySession();
   if (!session) return;
   onNight(await fetchNight(session).catch(() => null));
 }
@@ -185,5 +203,6 @@ export function onNight(night: Night | null) {
 }
 
 if (manager) {
-  SecureStore.getItemAsync(BAND_KEY).then(id => { if (id) void keepConnected(id); }).catch(() => {});
+  void relaySession(); // refresh the relay's copy on every normal launch
+  SecureStore.getItemAsync(BAND_KEY, anytime).then(id => { if (id) void keepConnected(id); }).catch(() => {});
 }
