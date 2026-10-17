@@ -1,98 +1,49 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button, Host } from '@expo/ui';
+import { Link } from 'expo-router';
+import { Pressable, View } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
+import { AppScreen } from '@/components/app-screen';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+import { formatCheckIn, useSafekeeps } from '@/state/safekeeps';
 
 export default function HomeScreen() {
+  const state = useSafekeeps();
+
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
+    <AppScreen>
+      <View style={{ gap: 8 }}>
+        <ThemedText type="smallBold">Your check-in</ThemedText>
+        <ThemedText selectable>
+          {state.lastCheckIn === null ? 'You have not checked in yet.' : `Last check-in: ${formatCheckIn(state.lastCheckIn)}`}
         </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        <ThemedText>
+          {!state.remindersEnabled ? 'Reminders off' : state.minutesRemaining === 0
+            ? 'Time to check in' : `Next check-in in ${state.minutesRemaining} min`}
+        </ThemedText>
+        <Host matchContents seedColor="#ffdedf">
+          <Button label="Check-in" onPress={state.recordCheckIn} />
+        </Host>
+      </View>
+      <ThemedText type="smallBold">Friends</ThemedText>
+      {state.friends.length === 0 && <ThemedText>No friends added yet.</ThemedText>}
+      {state.friends.map(friend => (
+        <Link key={friend.id} href={{ pathname: '/friends/[id]', params: { id: friend.id } }} asChild>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`View ${friend.name}`}
+            style={{ paddingVertical: 12, gap: 4 }}>
+            <ThemedText type="smallBold">{friend.name}</ThemedText>
+            <ThemedText>{friend.proximity}</ThemedText>
+            <ThemedText type="small">{formatCheckIn(friend.lastCheckIn)}</ThemedText>
+            {friend.requestedAt !== null && <ThemedText type="small">Check-in request recorded</ThemedText>}
+          </Pressable>
+        </Link>
+      ))}
+      <Link href="/settings" accessibilityRole="link">
+        <ThemedText>Settings &amp; device</ThemedText>
+      </Link>
+    </AppScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
-});
