@@ -45,9 +45,16 @@ Rules from the user for this repo:
 
 Not tested yet: the app on real iPhones (vibration, real taps), and the panel on real phones. Both wait for the Xcode build.
 
+iPhone build (task 5.1, works on 2026-10-17 on one iPhone 15 Pro):
+- One time on the Mac: Xcode signed in with an Apple ID, `brew install cocoapods`. The Signing team is set in Xcode (Personal Team). The bundle id is `com.mystanile.safekeeps` in `safekeeps/app.json`.
+- One time per phone: plug in, Trust This Computer, turn on Developer Mode (Settings, Privacy & Security), and after the first install trust the developer (Settings, General, VPN & Device Management).
+- Build and install: `cd ~/Desktop/kaze-app/safekeeps && CI=1 EXPO_PUBLIC_API_URL=<tunnel address> npx expo run:ios --device <UDID> --configuration Release --no-bundler`. Get the UDID from `xcrun devicectl list devices`. Release mode puts the JavaScript inside the app, because the venue Wi-Fi blocks the phone from the Mac. Every code change needs a rebuild. If the tunnel address changes, enter the new one in the app's Settings under Connection, no rebuild needed.
+- `ios/` is generated and ignored by git. If `npx expo prebuild` runs again, it rewrites the `ios` and `android` npm scripts in `package.json`. Put them back, because the teammate uses Expo Go.
+- A free Apple ID install expires after 7 days.
+
 Next steps, in order:
 1. Done: phase 4, find them. The app side waits for the teammate's review in its pull request, and its phone test waits for the Xcode build.
-2. Phase 5 on the user's Mac: a development build of the teammate's app in Xcode (5.1). Install it on both iPhones over a cable. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
+2. Phase 5 on the user's Mac: 5.1 works on one iPhone (see "iPhone build" above). Install it on the second iPhone the same way. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
 3. (was step 1) Fix what breaks on the real phones.
 4. Task 2.5: the home-by-time trigger.
 5. Before judging: update `README.md` and `DEMO_NOTES.md` (Demonstrated, Simulated, Assumed).
