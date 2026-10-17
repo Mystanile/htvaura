@@ -114,6 +114,25 @@ def test_friend_nickname_is_private_persistent_and_used_for_requests(client):
     assert client.get("/safekeeps/state", headers=a).json()["friends"][0]["name"] == "Robert"
 
 
+def test_accept_friend_saves_private_name_and_validates_before_accepting(client):
+    alice, a = profile(client, "Guest ABCD")
+    bob, b = profile(client, "Bob")
+    client.post('/safekeeps/friends', headers=a, json={'code': bob['code'], 'name': 'Bobby'})
+    path = f"/safekeeps/friend-requests/{alice['id']}/accept"
+    assert client.post(path, headers=b, json={'name': 'x' * 41}).status_code == 422
+    assert len(client.get('/safekeeps/state', headers=b).json()['friendRequests']) == 1
+    response = client.post(path, headers=b, json={'name': '  Alice  '})
+    assert response.status_code == 200
+    assert response.json()['friends'][0]['name'] == 'Alice'
+    assert response.json()['friendRequests'] == []
+    assert client.get('/safekeeps/state', headers=a).json()['me']['name'] == 'Guest ABCD'
+    assert client.get('/safekeeps/state', headers=a).json()['friends'][0]['name'] == 'Bobby'
+    with TestClient(app) as reopened:
+        assert reopened.get('/safekeeps/state', headers=b).json()['friends'][0]['name'] == 'Alice'
+    client.post(f"/safekeeps/friends/{bob['id']}/requests", headers=a, json={})
+    assert client.get('/safekeeps/state', headers=b).json()['incoming'][0]['name'] == 'Alice'
+
+
 def test_rename_friend_who_added_me(client):
     alice, a = profile(client, "Alice")
     bob, b = profile(client, "Bob")
