@@ -13,6 +13,25 @@ export type Snapshot = {
   sentRequests: { id: string; name: string }[];
 };
 
+export type NightView = {
+  state: 'armed' | 'asking' | 'waiting' | 'escalating' | 'acknowledged' | 'ended';
+  screen: 'armed' | 'asking' | 'alarm' | 'alert_active' | 'thanks' | 'pin_retry' | 'ended_true' | 'ended_fake';
+  deadline: number | null; // server Unix seconds, only set while asking or waiting
+};
+export type NightAlert = {
+  user_id: string; active: boolean;
+  kind: 'manual' | 'periodic' | 'home_by' | 'separation' | 'duress';
+  card: { title: string; do: string[]; dont: string[] };
+  acknowledged_by: string | null;
+  location: [number, number] | null;
+};
+export type Night = { now: number; view: NightView | null; alerts: NightAlert[] };
+export type NightConfig = {
+  pin: string; tiers: string[][]; duress_contacts: string[];
+  check_every_minutes?: number; ask_seconds?: number; grace_seconds?: number; ack_seconds?: number;
+  night_ends_at?: number; // server Unix seconds
+};
+
 class ApiError extends Error {}
 
 export async function api<T>(
@@ -48,4 +67,8 @@ export async function api<T>(
 
 export function fetchState(session: DemoSession, signal?: AbortSignal) {
   return api<Snapshot>(session.url, '/state', session.token, undefined, signal);
+}
+
+export function fetchNight(session: DemoSession, signal?: AbortSignal) {
+  return api<Night>(session.url, '/night', session.token, undefined, signal);
 }

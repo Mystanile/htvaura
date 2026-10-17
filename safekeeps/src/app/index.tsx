@@ -3,8 +3,12 @@ import { useRef } from 'react';
 import { Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
+import { AlertBanner } from '@/components/alert-banner';
+import { AlertsSection } from '@/components/alerts-section';
 import { AppScreen } from '@/components/app-screen';
+import { CheckInCard } from '@/components/check-in-card';
 import { ConnectionStatus } from '@/components/connection-status';
+import { NightEntry } from '@/components/night-entry';
 import { SectionCard } from '@/components/section-card';
 import { SettingsButton } from '@/components/settings-button';
 import { ThemedText } from '@/components/themed-text';
@@ -13,6 +17,7 @@ import { SurfaceThemeContext, useTheme } from '@/hooks/use-theme';
 import { formatCheckIn, useSafekeeps } from '@/state/safekeeps';
 
 export default function HomeScreen() {
+  'use no memo'; // @expo/ui web TextInput only redraws when this screen re-renders, the compiler would skip that
   const state = useSafekeeps();
   const theme = useTheme();
   const code = useNativeState('');
@@ -34,28 +39,13 @@ export default function HomeScreen() {
         <SettingsButton />
       </View>
     }>
+      <AlertBanner />
       <ConnectionStatus />
+      <AlertsSection />
       <SectionCard dark>
         <ThemedText type="smallBold" themeColor="accent">Safekeeping check in :3</ThemedText>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="CHECK IN !!"
-          accessibilityState={{ disabled: state.busy, busy: state.busy }}
-          disabled={state.busy}
-          onPress={() => { void state.recordCheckIn(); }}
-          style={({ pressed }) => ({
-            minHeight: 112, padding: Spacing.four, borderRadius: Radius.card,
-            borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: state.busy ? theme.primaryDisabled : pressed ? theme.primaryPressed : theme.primary,
-          })}>
-          <ThemedText style={{ fontSize: 32, lineHeight: 40, fontWeight: '700', color: theme.onPrimary }}>
-            {state.busy ? 'Saving...' : 'Check In'}
-          </ThemedText>
-        </Pressable>
-        <ThemedText themeColor="textSecondary">
-          {!state.remindersEnabled ? 'Reminders off' : state.minutesRemaining === 0
-            ? 'Time to check in' : `Next check-in in ${state.minutesRemaining} min`}
-        </ThemedText>
+        <CheckInCard />
+        {(!state.night?.view || state.night.view.state === 'ended') && <NightEntry />}
         {state.lastCheckIn !== null && (
           <ThemedText type="small" selectable>Last check-in: {formatCheckIn(state.lastCheckIn)}</ThemedText>
         )}

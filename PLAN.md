@@ -16,7 +16,8 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 1.5 Hidden-alert refactor: the session is a front plus alerts, see Phase 1 interface
 - [x] 1.6 Fix the two open findings from the third review, and add periodic check-ins to the loop
 - [x] 2.0 Server bridge for safekeeps (me), review findings fixed, see "Where we stopped"
-- [ ] 2.1 to 2.5 Safekeeps app screens (teammate)
+- [x] 2.1, 2.3, 2.4 Safekeeps app screens, built on branch `checkin-screens` while the teammate slept. Waiting for her review in the pull request. Tested in a web browser with two tabs, not yet on a real iPhone.
+- [ ] 2.5 Triggers: periodic and "ask a friend" work. Home-by time is not built.
 - [ ] 3.1 Demo panel
 - [ ] 4.1 to 4.2 Find them
 - [ ] 5.1 to 5.4 BLE band

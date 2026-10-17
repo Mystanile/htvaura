@@ -1,12 +1,14 @@
 import { createContext, use, useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { api, fetchState, type Snapshot } from '@/services/demo-api';
+import { api, fetchNight, fetchState, type Night, type NightConfig, type Snapshot } from '@/services/demo-api';
 import { loadSession, saveSession, type DemoSession } from '@/services/demo-session';
 
 function useSafekeepsState() {
   const [session, setSession] = useState<DemoSession | null>(null);
   const [data, setData] = useState<Snapshot | null>(null);
+  const [night, setNight] = useState<Night | null>(null);
+  const [serverOffset, setServerOffset] = useState(0);
   const [hydrating, setHydrating] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -31,19 +33,26 @@ function useSafekeepsState() {
     return () => clearInterval(timer);
   }, []);
 
+  // serverOffset = server clock minus phone clock, so screens can show countdowns from view.deadline
+  const applyNight = useCallback((next: Night) => {
+    setNight(next);
+    setServerOffset(next.now * 1000 - Date.now());
+  }, []);
+
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!session || lock.current) return;
     const currentVersion = version.current;
     try {
-      const next = await fetchState(session, signal);
+      const [next, nextNight] = await Promise.all([fetchState(session, signal), fetchNight(session, signal)]);
       if (!signal?.aborted && currentVersion === version.current) {
         setData(next);
+        applyNight(nextNight);
         setConnectionError(null);
       }
     } catch (e) {
       if (!signal?.aborted && currentVersion === version.current) setConnectionError((e as Error).message);
     }
-  }, [session]);
+  }, [session, applyNight]);
 
   useEffect(() => {
     if (!session) return;
@@ -114,6 +123,29 @@ function useSafekeepsState() {
     });
   }
 
+  // Night actions: send the request, then reload both /state and /night.
+  async function postNight(path: string, body: object = {}) {
+    return mutate(async () => {
+      if (!session) throw new Error('Create a profile first.');
+      await api<{ ok?: boolean }>(session.url, path, session.token, body);
+      const [next, nextNight] = await Promise.all([fetchState(session), fetchNight(session)]);
+      setData(next);
+      applyNight(nextNight);
+      setNow(Date.now());
+    });
+  }
+
+  // A finished gesture is never dropped: if the send fails (busy lock, network), try again about every
+  // 700 ms for about 10 s. Lives here so it keeps going if the screen is left.
+  async function sendNightEventRetry(type: string) {
+    const start = Date.now(); // a time budget, not a try count: a hanging request can take 8 s or more
+    do {
+      if (await postNight('/night/events', { type })) return true;
+      await new Promise(resolve => setTimeout(resolve, 700));
+    } while (Date.now() - start < 10_000);
+    return false;
+  }
+
   const lastCheckIn = data?.me.lastCheckIn ?? null;
   const minutesRemaining = Math.max(0, Math.ceil(((lastCheckIn ?? startedAt) + intervalMinutes * 60_000 - now) / 60_000));
   return {
@@ -121,6 +153,12 @@ function useSafekeepsState() {
     friendRequests: data?.friendRequests ?? [], sentRequests: data?.sentRequests ?? [],
     hydrating, loading: !!session && !data, error: error ?? connectionError, busy, refresh, startGuest, reconnect,
     lastCheckIn, remindersEnabled, setRemindersEnabled, intervalMinutes, setIntervalMinutes, minutesRemaining,
+    night, serverOffset,
+    startNight: (config: NightConfig) => postNight('/night', config),
+    sendNightEvent: (type: string, extra: object = {}) => postNight('/night/events', { type, ...extra }),
+    sendNightEventRetry,
+    ackAlert: (ownerId: string) => postNight('/alerts/' + encodeURIComponent(ownerId) + '/ack'),
+    resolveAlert: (ownerId: string) => postNight('/alerts/' + encodeURIComponent(ownerId) + '/resolve'),
     recordCheckIn: () => post('/check-ins'),
     addFriend: (code: string, name = '') => post('/friends', { code, name }),
     acceptFriend: (id: string) => post('/friend-requests/' + encodeURIComponent(id) + '/accept'),

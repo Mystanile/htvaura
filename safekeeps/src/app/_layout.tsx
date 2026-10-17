@@ -30,6 +30,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ title: 'Safekeeps', headerShown: false }} />
           <Stack.Screen name="friends/[id]" options={{ title: 'Friend' }} />
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+          <Stack.Screen name="night" options={{ title: 'Start a night' }} />
           <Stack.Screen name="explore" options={{ title: 'Settings' }} />
         </Stack></ConnectionGate>
       </SafekeepsProvider>
