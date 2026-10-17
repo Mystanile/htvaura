@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from 'react';
 import { View } from 'react-native';
-import { Artwork, PixelArt } from '@/components/pixel-art';
+import { Artwork, PixelFrame } from '@/components/pixel-art';
 import { Tones, type Tone } from '@/constants/theme';
 import { SurfaceThemeContext } from '@/hooks/use-theme';
 
@@ -9,7 +9,7 @@ export function SectionCard({ children, tone = 'plain' }: PropsWithChildren<{ to
   return (
     <SurfaceThemeContext value={Tones.light[tone]}>
       <View style={{ padding: 20, paddingTop: friends ? 22 : 34, paddingBottom: 24, gap: 16 }}>
-        <PixelArt source={friends ? Artwork.friends : Artwork.section} />
+        <PixelFrame sprite={friends ? Artwork.friends : Artwork.section} />
         {children}
       </View>
     </SurfaceThemeContext>

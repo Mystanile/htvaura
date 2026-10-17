@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { Pressable, Vibration, View } from 'react-native';
 
-import { Artwork, PixelArt } from '@/components/pixel-art';
+import { Artwork, PixelFrame } from '@/components/pixel-art';
 import { AppButton } from '@/components/app-button';
 import { Field } from '@/components/form';
 import { ThemedText } from '@/components/themed-text';
@@ -40,7 +40,7 @@ function PlainCheckIn() {
           opacity: state.busy ? 0.6 : pressed ? 0.8 : 1,
           transform: [{ scale: pressed && !state.busy ? 0.98 : 1 }],
         })}>
-        <PixelArt source={Artwork.checkIn} />
+        <PixelFrame sprite={Artwork.checkIn} />
         <ThemedText type="display" style={{ color: state.busy ? theme.textSecondary : theme.onPrimary }}>
           {state.busy ? 'Saving...' : 'Check In'}
         </ThemedText>
@@ -137,7 +137,7 @@ function NightCheckIn({ view }: { view: NightView }) {
             borderWidth: loud ? 4 : 0, borderColor: theme.primary,
             transform: [{ scale: pressed ? 0.98 : 1 }],
           })}>
-          <PixelArt source={Artwork.checkIn} />
+          <PixelFrame sprite={Artwork.checkIn} />
           <ThemedText type="display" style={{ textAlign: 'center', color: theme.onPrimary }}>
             {screen === 'armed' ? 'Check In' : loud ? 'Please answer now!' : 'Are you okay?'}
           </ThemedText>

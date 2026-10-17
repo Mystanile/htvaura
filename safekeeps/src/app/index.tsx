@@ -5,7 +5,7 @@ import { Pressable, View } from 'react-native';
 import { AlertBanner } from '@/components/alert-banner';
 import { AlertsSection } from '@/components/alerts-section';
 import { AppButton } from '@/components/app-button';
-import { Artwork, PixelArt } from '@/components/pixel-art';
+import { Artwork, PixelFrame } from '@/components/pixel-art';
 import { AppScreen } from '@/components/app-screen';
 import { CheckInCard } from '@/components/check-in-card';
 import { ConnectionStatus } from '@/components/connection-status';
@@ -50,8 +50,9 @@ export default function HomeScreen() {
 
   return (
     <AppScreen header={
-      <View style={{ minHeight: 72, paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three }}>
-        <PixelArt source={Artwork.header} />
+      <View style={{ width: '100%', maxWidth: Artwork.header.width, height: Artwork.header.height, alignSelf: 'center',
+        paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three }}>
+        <PixelFrame sprite={Artwork.header} />
         <ThemedText type="heading" accessibilityRole="header" style={{ flex: 1, fontSize: 28 }}>HOMEBOUND</ThemedText>
         <SettingsButton />
       </View>
@@ -96,8 +97,8 @@ export default function HomeScreen() {
           const friend = state.friends[index];
           if (!friend) return (
             <View key={`empty-${index}`} accessible accessibilityLabel="Empty friend slot"
-              style={{ width: '48%', flexGrow: 1, aspectRatio: 100 / 36, minHeight: 70, alignItems: 'center', justifyContent: 'center' }}>
-              <PixelArt source={Artwork.empty} />
+              style={{ width: '48%', flexGrow: 1, minHeight: 70, alignItems: 'center', justifyContent: 'center' }}>
+              <PixelFrame sprite={Artwork.empty} />
               <ThemedText type="name" style={{ color: '#FFFCF0' }}>EMPTY</ThemedText>
             </View>
           );
@@ -110,10 +111,10 @@ export default function HomeScreen() {
             <Link href={{ pathname: '/friends/[id]', params: { id: friend.id } }} asChild>
               <Pressable accessibilityRole="link" accessibilityLabel={`View ${friend.name}, ${status}`}
                 style={{
-                  width: '100%', minHeight: 70, aspectRatio: 100 / 36,
+                  width: '100%', minHeight: 70,
                   paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center',
                 }}>
-                <PixelArt source={present ? Artwork.present : Artwork.away} />
+                <PixelFrame sprite={present ? Artwork.present : Artwork.away} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <ThemedText type="name" numberOfLines={1} style={{ flex: 1, fontSize: 17, lineHeight: 24, color: present ? '#52653B' : '#712F2D' }}>{friend.name}</ThemedText>
                   <ThemedText style={{ fontSize: 9, color: present ? '#52653B' : '#712F2D' }}>CHECK IN?</ThemedText>
