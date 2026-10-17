@@ -22,14 +22,20 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 4.1 to 4.2 Find them: server ping on `main`, app on branch `find-them` (pull request into `checkin-screens`). Tested in a web browser with a faked location. The compass arrow, real GPS, and the ping sound need a phone. See decisions 10 and 11.
 - [ ] 5.1 to 5.4 BLE band
 
-## Handoff: start here (2026-10-17, about 09:00)
+## Handoff: start here (2026-10-17, afternoon)
 
 A new session continues from this section. Read it first, then the Status list above.
 
 Where the code is:
 - `main` has the server: loop, bridge, demo panel. 213 server tests pass (`cd server && .venv/bin/pytest -q`).
 - Branch `checkin-screens` has the teammate's app with tasks 2.1, 2.3, 2.4 added, plus `main` merged in. Pull request #1 (https://github.com/Mystanile/htvaura/pull/1) is open and waits for the teammate's review. Do not merge it without the user.
-- A second checkout of that branch is at `~/Desktop/kaze-app` (git worktree), with `node_modules` installed. Run the demo from there.
+- Branch `find-them` (pull request #2, into `checkin-screens`) adds find them and ping.
+- Branch `test-fixes` (pull request #3, into `find-them`) fixes the first phone test: Find them hides the arrow below about 30 m because indoor GPS is off by 20 to 50 m, "Open in Maps" is a picker (Apple Maps, Google Maps, Waze), and you can rename a friend who added you (`POST /safekeeps/friends/{friend_id}/name`). 214 server tests pass.
+- Two redesigns to compare, both from `test-fixes`, both with a real dark theme and labeled inputs, both without new native packages:
+  - `ui-refine` (pull request #4, worktree `~/Desktop/kaze-refine`) keeps the teammate's brand: her greens, Righteous, her wording.
+  - `ui-fresh` (pull request #5, worktree `~/Desktop/kaze-fresh`) is a new look: slate and cobalt, Figtree.
+  The user and the teammate pick one. Merge that one and close the other. Do not pick for them.
+- `~/Desktop/kaze-app` is a git worktree on `test-fixes`, with `node_modules` installed. The server runs from there. Each worktree needs `safekeeps/expo-env.d.ts` (ignored by git, made by Expo) for `tsc`. Copy it from `kaze-app` if it is missing.
 - `Hardware/kaze_band/kaze_band.ino` has uncommitted changes by the user in the main folder. Do not commit or touch them.
 
 How the demo runs (these processes die when the session that started them ends, so check and restart them):
@@ -53,6 +59,7 @@ iPhone build (task 5.1, works on 2026-10-17 on one iPhone 15 Pro):
 - A free Apple ID install expires after 7 days.
 
 Next steps, in order:
+0. Install `ui-refine` and `ui-fresh` on the iPhone 15 Pro one at a time (same bundle id, so each install replaces the other) with the build command in "iPhone build", run from `~/Desktop/kaze-refine/safekeeps` or `~/Desktop/kaze-fresh/safekeeps`. The user compares them and picks one.
 1. Done: phase 4, find them. The app side waits for the teammate's review in its pull request, and its phone test waits for the Xcode build.
 2. Phase 5 on the user's Mac: 5.1 works on one iPhone (see "iPhone build" above). Install it on the second iPhone the same way. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
 3. (was step 1) Fix what breaks on the real phones.
