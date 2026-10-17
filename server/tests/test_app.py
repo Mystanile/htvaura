@@ -291,3 +291,21 @@ def test_too_many_contacts_are_a_400(client):
     assert start_night(client, user, contact, tiers=[[contact]] * 50).status_code == 400  # 50 + 1 duress
     assert start_night(client, user, contact, tiers=[[contact]] * 49).status_code == 200
 
+
+
+def test_one_bad_session_does_not_stop_the_other_countdowns(client, monkeypatch):
+    from kaze import loop
+    bad, user, contact = make_user(client, "bad"), make_user(client, "u"), make_user(client, "c")
+    start_night(client, bad, contact)  # first in the dict, so it ticks first
+    start_night(client, user, contact)
+    client.post(f"/sessions/{user}/events", json={"type": "Trigger", "kind": "manual"})
+    real = loop.step
+
+    def step(s, event, t):
+        if s.config.user_id == bad:
+            raise RuntimeError("bad session")
+        return real(s, event, t)
+
+    monkeypatch.setattr(loop, "step", step)
+    assert client.post("/demo/skip", json={"seconds": 50}).status_code == 200
+    assert client.get(f"/sessions/{user}/view", params={"viewer": user}).json()["state"] == "escalating"

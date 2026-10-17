@@ -1,4 +1,4 @@
-"""KAZE server: REST + WebSocket around loop.step. In-memory store, no auth.
+"""KAZE server: REST + WebSocket around loop.step. In-memory store saved to KAZE_STATE each second, no auth.
 
 All state changes go through `run`, which calls loop.step and pushes the effects.
 """
@@ -8,10 +8,12 @@ import json
 import logging
 import math
 import os
+import pickle
 import secrets
 import time
 import traceback
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -90,23 +92,79 @@ async def run(user_id: str, event) -> None:
     await push(effects)
 
 
+async def tick_all() -> None:
+    for uid in list(sessions):
+        try:
+            await run(uid, loop.Tick())
+        except Exception:
+            traceback.print_exc()  # one bad session must not stop the other countdowns
+
+
+def state_path() -> Path:
+    return Path(os.environ.get("KAZE_STATE", Path(__file__).resolve().parents[1] / "kaze_state.pickle"))
+
+
+_saved: tuple | None = None  # (path, bytes) last written, so an unchanged state is not written again
+
+
+def save() -> None:
+    """Write the live state to KAZE_STATE so a restart mid-alert carries on. Sockets are not saved.
+
+    Called once a second by the ticker, never inside a user's request: a write that only some
+    events cause (a duress makes a hidden alert) would make those answers a little slower."""
+    global _saved
+    try:
+        path = state_path()
+        data = pickle.dumps({"users": users, "groups": groups, "sessions": sessions, "offset": offset})
+        if (path, data) == _saved:
+            return
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, path)  # atomic: a crash mid-write leaves the old file whole
+        _saved = (path, data)
+    except Exception:
+        traceback.print_exc()  # a sync route changing a dict mid-pickle, or a full disk: try again next second
+
+
+def load() -> None:
+    """Read the state save() wrote, if there is one. A bad file is logged and the server starts empty."""
+    global offset
+    path = state_path()
+    if not path.exists():
+        return
+    users.clear(), groups.clear(), sessions.clear()  # cleared in place: the bridge and panel hold these dicts
+    offset = 0.0
+    try:
+        state = pickle.loads(path.read_bytes())  # ponytail: trusts the file, it is the server's own
+        users.update(state["users"])
+        groups.update(state["groups"])
+        sessions.update(state["sessions"])
+        offset = float(state["offset"])
+    except Exception:
+        logging.getLogger("uvicorn.error").exception("could not load %s, starting empty", path)
+        users.clear(), groups.clear(), sessions.clear()
+        offset = 0.0
+        return
+    for uid, s in sessions.items():
+        s.connected = is_profile(uid)  # no socket survives a restart; Safekeeps phones poll, as in begin_night
+
+
 async def ticker() -> None:
     while True:
         await asyncio.sleep(1)
-        try:
-            for uid in list(sessions):
-                await run(uid, loop.Tick())
-        except Exception:
-            traceback.print_exc()  # never let one bad tick stop the countdowns
+        await tick_all()
+        save()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not os.environ.get("KAZE_DEMO_KEY"):
         logging.getLogger("uvicorn.error").warning("KAZE_DEMO_KEY is not set: /demo/state, /demo/event, /demo/skip and /demo/reset are open to anyone who can reach this server")
+    load()
     task = asyncio.create_task(ticker())
     yield
     task.cancel()
+    save()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -165,6 +223,7 @@ class SessionIn(BaseModel):
     ask_seconds: Seconds = 30
     grace_seconds: Seconds = 15
     ack_seconds: Seconds = 20
+    ack_hold_seconds: Seconds = 120
     night_ends_at: Annotated[float, Field(allow_inf_nan=False)] | None = None
     home_by: Annotated[float, Field(allow_inf_nan=False)] | None = None
     check_every_seconds: Annotated[float, Field(gt=0, allow_inf_nan=False)] | None = None
@@ -338,18 +397,20 @@ async def demo_skip(body: SkipIn):
     if abs(offset + body.seconds) > MAX_SKIP:
         raise HTTPException(400, f"the total skip must stay within +-{MAX_SKIP:g} seconds")
     offset += body.seconds
-    for uid in list(sessions):
-        await run(uid, loop.Tick())
+    await tick_all()
+    save()
     return {"offset": offset}
 
 
 @app.post("/demo/reset", dependencies=[Depends(demo_key)])
-def demo_reset():
-    global offset
+async def demo_reset():  # async so it runs on the ticker's thread and no save lands halfway through it
+    global offset, _saved
     offset = 0.0
     users.clear()
     groups.clear()
     sessions.clear()
+    state_path().unlink(missing_ok=True)
+    _saved = None
     return {"ok": True}
 
 
