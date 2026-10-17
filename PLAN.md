@@ -61,7 +61,8 @@ A new session continues from this section. Read it first, then the Status list a
 
 Branch `ntfy` (newest work, 2026-10-17 evening):
 - Worktree `~/Desktop/kaze-ntfy`, made from `judging`. Commit `ea1e5ab` adds the ntfy push (task 2.6). Not pushed, no pull request yet. 300 server tests and 57 app node tests pass.
-- One live push to ntfy.sh worked from a scratch server. Delivery to a real phone is not tested.
+- ntfy push reached a locked iPhone 13 on 2026-10-17. Also passed on that phone the same evening: duress PIN, scaled alerts, the new text colours and VoiceOver.
+- Still to test, with the teammate: Find them two-state band signal (two phones and the band), the band duress gesture, battery drain.
 - Retest of 6.12 and 6.13 over HTTP on a scratch server: the duress PIN and the duress gesture pass in all five front states. The phone gets the same answer as for the real PIN or an ok.
 - The Find them simulation is stable at 4 or more readings a second. Open bugs, not fixed:
   - Fixed in `3d3dac9`: one reading could enter "right next to them". Now it needs 3 readings in the 4 s window. The simulation showed no return to that state while walking away. False ones at the venue's 1 m level dropped from 38 to 3 in 100 runs at 0.5 readings a second.

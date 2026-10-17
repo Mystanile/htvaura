@@ -121,6 +121,7 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 | Band signal at 5 m | State shown |  |  |
 | Advertising while connected | A second phone sees KAZE-Band. Pass or fail | Pass | 2026-10-17 |
 | New text colours and VoiceOver | Look at every screen. VoiceOver on: three double-taps on Check in | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the text reads well in the teammate's colours, the outlined check shows, VoiceOver reads the button and hint, three double-taps check in and it says "Thanks!" | 2026-10-17 |
+| ntfy push to a contact's phone | The phone is the contact, subscribed in the ntfy app. The person in a web browser stays silent, phone locked | Pass (branch `ntfy`, iPhone 13): the lock screen showed "SafeKeeps: A SafeKeeps alert is waiting for you. Open the app." | 2026-10-17 |
 
 ### Built, but checked only by automated tests
 
@@ -139,4 +140,4 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 - Relay through friends' phones, and the encrypted payload it needs.
 - UWB precision finding.
 - Real SMS or calls.
-- Push to the phone is built through ntfy but only set up when `KAZE_NTFY_URL` is set. ntfy.sh is a third-party public server. The text says "A SafeKeeps alert is waiting for you. Open the app." and carries no name, no location and no personal data. Real phone delivery is untested until someone tries it on a phone.
+- Push to the phone is built through ntfy but only set up when `KAZE_NTFY_URL` is set. ntfy.sh is a third-party public server. The text says "A SafeKeeps alert is waiting for you. Open the app." and carries no name, no location and no personal data. Delivery to a locked iPhone passed on 2026-10-17.
