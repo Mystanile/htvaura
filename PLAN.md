@@ -44,6 +44,8 @@ Rules from the user for this repo:
 
 Not tested yet: the app on real iPhones (vibration, real taps), and the panel on real phones. Both wait for the Xcode build.
 
+Open pull requests: #1 (`checkin-screens` into `main`) and #2 (`find-them` into `checkin-screens`). Review #1 first. The worktree `~/Desktop/kaze-app` is now on `find-them`, which has everything.
+
 Next steps, in order:
 1. Done: phase 4, find them. The app side waits for the teammate's review in its pull request, and its phone test waits for the Xcode build.
 2. Phase 5 on the user's Mac: a development build of the teammate's app in Xcode (5.1). Install it on both iPhones over a cable. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
