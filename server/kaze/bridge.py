@@ -3,7 +3,6 @@
 A person's SQLite id is their loop user id. The loop decides who may do what. This file only
 checks who is calling and that every contact is an accepted friend.
 """
-import time
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException
@@ -15,7 +14,6 @@ from .loop import view_for
 from .safekeeps import connect, identity, record_check_in
 
 router = APIRouter(prefix="/safekeeps")
-MANUAL_COOLDOWN = 30  # seconds after a check-in before a friend's request starts another check
 EVENT_TYPES = ("ConfirmOk", "Duress", "Resolve", "LocationUpdate", "Leave")  # the rest are server or panel events
 
 
@@ -26,18 +24,15 @@ async def send(user_id: str, event) -> None:
 
 
 async def ask_to_check_in(sender: str, target: str) -> None:
-    """A friend asked `target` to check in. That starts a real check only if the night names the
-    sender (a contact or a friend at the start) and `target` has not just checked in."""
+    """A friend asked `target` to check in. That starts a real check if the night names the sender
+    (a contact or a friend at the start). The loop ignores it while a check is already running."""
     s = sessions.get(target)
     if s is None:
         return
     c = s.config
     if sender not in {x for t in c.tiers for x in t} | set(c.duress_contacts) | set(c.group):
         return
-    with connect() as db:
-        last = db.execute("SELECT last_check_in FROM people WHERE id = ?", (target,)).fetchone()["last_check_in"]
-    if last is None or time.time() * 1000 - last >= MANUAL_COOLDOWN * 1000:
-        await run(target, loop.Trigger("manual"))
+    await run(target, loop.Trigger("manual"))
 
 
 class NightIn(BaseModel):

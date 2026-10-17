@@ -265,7 +265,6 @@ def test_f2_a_removed_duress_contact_acts_the_same_in_a_hidden_and_an_honest_nig
 
 
 def test_r1_a_removed_shared_contact_cannot_tell_the_phone_holder_apart(client, monkeypatch):
-    monkeypatch.setattr("kaze.bridge.MANUAL_COOLDOWN", 0)  # the cooldown reads the real clock
 
     def world(event):
         (u, uh), (e, eh), (b, bh) = people(client, "U", "E", "Bob")
@@ -373,7 +372,7 @@ def test_a_contact_cannot_ack_or_resolve_their_own_night(client):
     assert (view["state"], view["screen"]) == ("escalating", "alert_active")
 
 
-def test_a_check_request_needs_a_contact_and_a_quiet_phone(client, monkeypatch):
+def test_a_check_request_needs_a_contact_named_by_the_night(client):
     (alice, a), (bob, b) = people(client, "Alice", "Bob")
     start(client, a, [[bob["id"]]], [bob["id"]])
     # A friend added after the night started is not named by it.
@@ -382,16 +381,10 @@ def test_a_check_request_needs_a_contact_and_a_quiet_phone(client, monkeypatch):
     ask = lambda h: client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=h, json={})
     assert ask(late_h).status_code == 200
     assert client.get(NIGHT, headers=a).json()["view"]["state"] == "armed"
-    # Bob is a contact, so his request counts, once. Right after she answers, it does not.
-    ask(b)
-    assert client.get(NIGHT, headers=a).json()["view"]["state"] == "asking"
-    client.post(NIGHT + "/events", headers=a, json={"type": "ConfirmOk"})
-    for _ in range(5):
+    # Bob is a contact, so his request starts a check. More requests while she is asked change nothing.
+    for _ in range(3):
         ask(b)
-        assert client.get(NIGHT, headers=a).json()["view"]["state"] == "armed"
-    monkeypatch.setattr("kaze.bridge.MANUAL_COOLDOWN", 0)
-    ask(b)
-    assert client.get(NIGHT, headers=a).json()["view"]["state"] == "asking"
+        assert client.get(NIGHT, headers=a).json()["view"]["state"] == "asking"
 
 
 def test_phase1_endpoints_refuse_the_ids_of_safekeeps_phones(client):
@@ -542,3 +535,17 @@ def test_a_hidden_alert_carries_into_the_next_night_for_a_removed_friend(client)
     client.post(NIGHT + "/events", headers=hx, json={"type": "Leave"})
     assert start(client, hx, [[a["id"]]], [a["id"]]).status_code == 200
     assert [v["kind"] for v in alerts(client, hb)] == ["duress"]
+
+
+def test_a_second_request_right_after_a_check_in_starts_a_new_check(client):
+    """A request that came within 30 s of an ok used to be dropped silently, so the phone looked frozen."""
+    (a, ha), (b, hb) = people(client, "A", "B")
+    start(client, ha, [[b["id"]]], [b["id"]])
+    state = lambda: client.get(NIGHT, headers=ha).json()["view"]["state"]
+    client.post(f"/safekeeps/friends/{a['id']}/requests", headers=hb, json={})
+    assert state() == "asking"
+    client.post(NIGHT + "/events", headers=ha, json={"type": "ConfirmOk"})
+    client.post(f"/safekeeps/friends/{a['id']}/requests", headers=hb, json={})
+    assert state() == "asking"
+    client.post(f"/safekeeps/friends/{a['id']}/requests", headers=hb, json={})  # asking again while asking
+    assert state() == "asking"
