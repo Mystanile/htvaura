@@ -2,7 +2,7 @@
 
 The band is the physical way to answer check-ins. It does not decide anything. It sends taps and receives commands. The server owns all timing and escalation.
 
-Sketch: `hardware/kaze_band/kaze_band.ino`
+Sketch: `Hardware/kaze_band/kaze_band.ino`
 
 ## Parts
 
@@ -31,6 +31,7 @@ Device name: **`KAZE-Band`**
 | `0x00` | Nothing yet (value at startup) |
 | `0x01` | I'm okay |
 | `0x02` | Duress |
+| `0x03` | Heartbeat. Not an answer. Sent every 20 s while a phone is connected |
 
 The app must **subscribe to notifications** on `event` to receive taps.
 
@@ -56,6 +57,10 @@ Okay and duress give **the exact same single short flash/beep**. A person watchi
 **The band never reports silence.** The server started its own timer when it sent the ask, and it escalates if no answer arrives. This also covers the band dying or disconnecting mid-ask.
 
 Timeout must never be treated as `0x02`. Duress goes only to private duress contacts. Silence goes through normal escalation (friend nearby, then group, then sober contact).
+
+**Heartbeat** (`0x03` on `event`, every 20 s while a phone is connected): iOS wakes a backgrounded app for each notification from a connected band. On each wake the app asks the server for its state and writes `ask` if a check is waiting, or `ping` if a friend pinged. Without it, a phone in a pocket would never learn about a new check, because the free Apple signing cannot use push notifications. Cost: an ask or ping can reach the band up to 20 s late. The server timer still covers silence.
+
+**Advertising while connected:** the radio stops advertising when a phone connects (ArduinoBLE re-enables it only after a disconnect). The sketch calls `BLE.advertise()` again on connect, so a friend's phone can still read the band's signal strength during find-them.
 
 **Ping** (write to `ping`): 10 loud beeps and flashes over about 2.5 s.
 
@@ -106,6 +111,8 @@ Do **not** use an RSSI cutoff. 2 m and 20 m look the same indoors. Treat someone
 - Ping and ask writes work
 - Disconnect and reconnect works without resetting the board
 - Runs from a power bank with no laptop
+
+Not tested on the board yet (it compiles): the heartbeat, and advertising again while connected. To test the second: connect with nRF Connect on one phone, then scan with a second phone. KAZE-Band must still show.
 
 ## Not built (future work)
 
