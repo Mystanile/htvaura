@@ -2,7 +2,9 @@
 
 A group safety app for the Hack the Valley 11 Project KAZE challenge. Every trigger becomes a check first: the app asks "are you okay?". Three quick taps mean fine. Only silence or a hidden duress signal alerts your contacts.
 
-See `PLAN.md` for the design and progress, and `DEMO_NOTES.md` for what is real, simulated, and assumed.
+- `PLAN.md`: the design and progress.
+- `DEMO_NOTES.md`: what is real, simulated, and assumed.
+- `VALIDATION.md`: the studies we plan, and the path to a real product.
 
 ## Run the server
 
@@ -17,8 +19,11 @@ python3 -m venv .venv
 Start the server:
 
 ```
-cd server && .venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000
+cd server && KAZE_DEMO_KEY=pick-a-word .venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000
 ```
+
+- `KAZE_DEMO_KEY` protects the demo panel data and the `/demo/*` routes. See "Demo panel and time skips" below.
+- `KAZE_STATE` is the file for saved nights. The default is `server/kaze_state.pickle`. The server saves its state to this file every second and at shutdown, and loads it at start. So a restart does not lose a running night or alert. Reset on the panel deletes the file. Git ignores it. To use another file, add `KAZE_STATE=/path/to/file` before the command.
 
 Run the tests:
 
@@ -76,7 +81,7 @@ The band is an Arduino UNO R4 WiFi. Flash it with the Arduino IDE.
 1. Open `Hardware/kaze_band/kaze_band.ino`.
 2. Select the board "Arduino UNO R4 WiFi".
 3. Install the library ArduinoBLE.
-4. Set `QUIET_MODE = false`. When it is `true`, the buzzer is off. It must be `false` for the demo.
+4. Check that `QUIET_MODE` is `false`, so the buzzer is on. For a test around other people, set it to `true` (LED only). It must be `false` for the demo.
 5. Upload the sketch.
 
 The pins, Bluetooth details and gestures are in `Hardware/kaze_band/HARDWARE.md`.

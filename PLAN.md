@@ -24,13 +24,44 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 5.2 Band firmware. The gestures, ask and ping were tested in nRF Connect. The heartbeat (0x03 every 20 s while connected) and advertising again on connect compile but are not tested on the board.
 - [x] 5.3 Band relay in the app, on branch `band`: pair in Settings, band ok and duress go to the server through one code path, the app writes `ask` and `ping`, iOS background mode and state restoration, and the heartbeat wakes the app to check the server. Unit tests pass. Not tested on a phone with the band yet.
 - [x] 5.4 Hotter and colder on Find them, on branch `band`. Unit tests pass. Needs the finder's phone on a Release build, and is not tested on a phone yet.
+- [x] 6.x Judging fixes, on branch `judging` (see the judging review). All done in automated tests only: 244 server tests and 57 app node tests pass, with type check and lint clean. Nothing in this list was run on a phone, in a browser, or on the band.
+  - [x] 6.1 Response cards: every card has three new "do" lines and two new "do not" lines about staying with the person (see `server/kaze/cards.py`). No diagnosis words.
+  - [x] 6.2 Ack hold: an "I'm on it" holds the alert for `ack_hold_seconds` (120 s demo). If the alert is not resolved by then, it goes back out with `stale_ack_by`, and the contact gets `ack_stale`. Alert fields only, so the watcher test stays green.
+  - [x] 6.3 Coercion holes: Leave is refused while asking or waiting. An okay or duress while armed no longer moves the next check later. After any end screen from a PIN, more wrong PINs show the end screen again and tell nobody.
+  - [x] 6.4 Location time: `location_at` on every location, shown as "Location updated N min ago" on the alert card and Find them.
+  - [x] 6.5 Re-alert backoff (60, 120, 300 s) and a simulated final step flag on the alert and the panel.
+  - [x] 6.6 Ticker: one broken night cannot stop the others (`tick_all`, also used by `/demo/skip`).
+  - [x] 6.7 Saved state: the server pickles its state to `KAZE_STATE` (default `server/kaze_state.pickle`) every second and at shutdown, and loads it at start. Tested through the test client only, not with a real server restart.
+  - [x] 6.8 App:
+    - Leave is hidden during a check, and asks once more on the armed screen.
+    - Start a night has "Night ends at" and "Who sees your location during an alert".
+    - Intervals go from 5 min to 2 hours. The default is 15 min.
+    - The dead "Alert emergency contacts" button is gone.
+    - The alert card shows the stale "I'm on it" line and the final step line.
+  - [x] 6.9 Band relay: asks the band again at the louder stage, and keeps band answers that fail in SecureStore to retry them later.
+  - [x] 6.10 Firmware: `QUIET_MODE = false`, answers kept while no phone is connected, the answer is notify only with a 0 after each answer. Compiles, not tested on the board.
+  - [x] 6.11 Docs:
+    - DEMO_SCRIPT: a third person as tier 2, the demo timers, and the new beats.
+    - DEMO_NOTES: the brief's four groups, with a hardware results table.
+    - New `VALIDATION.md`, and the env vars in README.
 
-## Handoff: start here (2026-10-17, afternoon)
+## Handoff: start here (2026-10-17, evening)
 
 A new session continues from this section. Read it first, then the Status list above.
 
+Judging branch (newest work):
+- Worktree `~/Desktop/kaze-judge`, branch `judging`. It holds the 6.x items above. The plan is a pull request into `home-by`. The lead reviews and commits it.
+- The user runs the hardware test from `~/Desktop/kaze-band` at the same time. After the test, fill in the "Hardware test results" table in `DEMO_NOTES.md`, and update the "HARDWARE TEST PENDING" line in `DEMO_SCRIPT.md`.
+- Ideas from the judging review that are not done:
+  - Push to contacts through ntfy (needs the user's approval, it is not in this plan).
+  - Slides.
+  - Rewrite DEMO_SCRIPT as a 5-minute story.
+  - A duress practice card on Start a night.
+  - A buzz and sound on the contact's phone for a new alert.
+  - The hallway gesture test with other hackers (the user's job).
+
 Where the code is:
-- `main` has the server: loop, bridge, demo panel. 223 server tests pass on the newest branch, `home-by` (`cd server && .venv/bin/pytest -q`). The app has 52 node tests.
+- `main` has the server: loop, bridge, demo panel. 223 server tests pass on `home-by` (`cd server && .venv/bin/pytest -q`). The app has 52 node tests there. The `judging` branch has 244 server tests and 57 app node tests.
 - Branch `checkin-screens` has the teammate's app with tasks 2.1, 2.3, 2.4 added, plus `main` merged in. Pull request #1 (https://github.com/Mystanile/htvaura/pull/1) is open and waits for the teammate's review. Do not merge it without the user.
 - Branch `find-them` (pull request #2, into `checkin-screens`) adds find them and ping.
 - Branch `test-fixes` (pull request #3, into `find-them`) fixes the first phone test: Find them hides the arrow below about 30 m because indoor GPS is off by 20 to 50 m, "Open in Maps" is a picker (Apple Maps, Google Maps, Waze), and you can rename a friend who added you (`POST /safekeeps/friends/{friend_id}/name`). 214 server tests pass.
@@ -76,7 +107,7 @@ Next steps, in order:
 1. Done: phase 4, find them. The app side waits for the teammate's review in its pull request, and its phone test waits for the Xcode build.
 2. Phase 5 on the user's Mac: 5.1 works on one iPhone (see "iPhone build" above). Install it on the second iPhone the same way. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
 3. (was step 1) Fix what breaks on the real phones.
-4. Before judging: update `README.md` and `DEMO_NOTES.md` (Demonstrated, Simulated, Assumed).
+4. Before judging: keep `README.md` and `DEMO_NOTES.md` up to date. DEMO_NOTES uses the brief's four groups now.
 
 ## History of earlier stops
 
