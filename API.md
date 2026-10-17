@@ -19,7 +19,7 @@ Rules that apply everywhere:
 
 - There is no login. A user id is the only identity. Anyone who knows an id can act as that user.
 - All REST bodies and responses are JSON.
-- All state lives in server memory. If the server restarts, every user, group, and session is gone. Handle a 400 or 404 by sending the user back to setup.
+- The phase 1 users, groups, and sessions live in server memory. If the server restarts, they are gone. Handle a 400 or 404 by sending the user back to setup. The Safekeeps profiles and friends (section 10) are different. They persist in SQLite. The environment variable `SAFEKEEPS_DB` sets the path of the database file.
 - Ids are short hex strings. A user id looks like `3f9a1c2e`. A group code looks like `A3F9`.
 - Time is in seconds, as floating point numbers. A `deadline` is a Unix timestamp on the server clock. Section 9 shows how to count down with it.
 
@@ -137,6 +137,7 @@ Fields:
 | `grace_seconds` | no, default 15 | How long the loud alarm runs before contacts are alerted. |
 | `ack_seconds` | no, default 20 | How long a tier has to tap "I'm on it" before the next tier is alerted. |
 | `night_ends_at` | no | Server Unix time when the night ends. See section 9. |
+| `home_by` | no | Server Unix time. A "be home by" check starts then, once per night. It is a normal check: silence escalates it with kind `home_by`. If another check is running at that time, it starts when the phone is armed again. It never starts after the night ended. Example: `"home_by": 1792236000`. |
 
 Response (200). The `view` is the user's own view (section 5):
 
@@ -391,6 +392,7 @@ The user left the group. Remove them from the group list.
 | `state` | `armed`, `asking`, `waiting`, `escalating`, `acknowledged`, or `ended`. |
 | `screen` | What to show. See section 7. |
 | `deadline` | A server Unix time in `asking` and `waiting`. Otherwise `null`. |
+| `home_by` | Only when the night has a `home_by` check that has not started yet. The server time it will start. The key is left out otherwise, and never appears in a contact's view. |
 
 The user's view always looks like the view of a user with no hidden trouble. The server does this on purpose, so a person who watches the screen learns nothing. The app does not need to know about it. Just render `state` and `screen` as the view says. The same is true for the WebSocket messages. See section 7 for what the screens look like.
 
@@ -429,7 +431,7 @@ What this means in practice:
 {"state": "escalating", "screen": "alert_active", "deadline": null, "ping_at": null}
 ```
 
-- After a user leaves, `state` is `ended`. This is also true when the user leaves during duress. The alert keeps running in the background.
+- After a user leaves, `state` is `ended`. This is also true when the user leaves during duress. The alert keeps running in the background. `screen` stays whatever the last screen was, for example `armed` or `thanks`. The next example shows `thanks`.
 
 ```json
 {"state": "ended", "screen": "thanks", "deadline": null, "ping_at": null}
@@ -683,6 +685,7 @@ Start a night for me. The group is all my accepted friends. Every contact must b
 | `grace_seconds` | Optional. Time of the louder `alarm` screen. Default 15. |
 | `ack_seconds` | Optional. Time a contact has to tap "I'm on it" before the next tier. Default 20. |
 | `night_ends_at` | Optional. A server Unix time. Get it from the `now` of `GET /safekeeps/night`. Add the length of the night. |
+| `home_by` | Optional. A server Unix time for a "be home by" check. The check starts then, once per night, and silence escalates it with kind `home_by`. Example: `{"pin": "4821", "tiers": [["7b21d0a4"]], "duress_contacts": ["50c6a9d8"], "home_by": 1792236000}`. The user's own view has a `home_by` key until the check starts. |
 
 Answer, `200`:
 
@@ -877,7 +880,7 @@ The duress gesture works at any time, not only during a check. Use it on the `ar
 
 `POST /safekeeps/friends/{friend_id}/requests` still records the request as before. If the friend has a night running, it now also starts a real check on their phone. Their `view` becomes `asking` on the next poll. If they stay silent, the check escalates like any other: `alarm`, then `alert_active`, then their contacts are alerted. The kind of the alert is `manual`.
 
-If the friend has no night, nothing else happens. Only the request is recorded. If a check or an alert is already running for that friend, the new trigger is ignored. The trigger is also ignored when the person who asks is not named by the night (not a contact, and not a friend from when the night started), or when the friend checked in less than 30 seconds ago.
+If the friend has no night, nothing else happens. Only the request is recorded. If a check or an alert is already running for that friend, the new trigger is ignored. The trigger is also ignored when the person who asks is not named by the night (not a contact, and not a friend from when the night started).
 
 So the friend's phone should show the check screen when `view.state` is `asking`. The old `incoming` list from `/state` is not enough.
 

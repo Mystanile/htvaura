@@ -54,6 +54,7 @@ def session_row(uid: str, s: loop.Session) -> dict:
     return {
         "user_id": uid, "name": name(uid), "state": s.state, "screen": s.screen, "deadline": s.deadline,
         "connected": s.connected, "location": s.location, "ping_at": s.ping_at, "next_check": s.next_check,
+        "home_by": s.config.home_by, "home_by_done": s.home_by_done,
         "config": {"tiers": [[name(p) for p in t] for t in c.tiers], "duress_contacts": [name(p) for p in c.duress_contacts],
                    "group": [name(p) for p in c.group], "share_location_with": c.share_location_with},
         "alerts": [alert_row(a) for a in s.alerts],

@@ -3,7 +3,9 @@
 //
 // BLE:
 //   Advertises as "KAZE-Band"
-//   "event" characteristic (notify): 1 = I'm okay, 2 = duress
+//   "event" characteristic (notify): 1 = I'm okay, 2 = duress, 3 = heartbeat
+//     The heartbeat goes out every 20 s while a phone is connected. It wakes the
+//     phone's app in the background so it can check the server for a pending ask.
 //   "ping" characteristic (write): any value makes the band beep and flash
 //   "ask" characteristic (write): any value starts a gentle "are you okay?" signal
 //     (slow LED blink, soft buzz) until the user answers or 30 s pass
@@ -17,15 +19,17 @@
 
 const int BUTTON = 2, TOUCH = 3, BUZZER = 4, LED = 5;
 
-const unsigned long HOLD_MS = 1000;          // hold length that arms duress
-const unsigned long DURESS_WINDOW_MS = 2500; // time allowed for the two duress taps
-const unsigned long OK_WINDOW_MS = 1500;     // max gap between okay taps before the count resets
-const unsigned long DEBOUNCE_MS = 30;
-const unsigned long ASK_MS = 30000;          // how long the band keeps asking
-const bool QUIET_MODE = true;                // true = no buzzer, LED only (set false for the demo)
+const unsigned long HOLD_MS = 1000;           // hold length that arms duress
+const unsigned long DURESS_WINDOW_MS = 2500;  // time allowed for the two duress taps
+const unsigned long OK_WINDOW_MS = 1500;      // max gap between okay taps before the count resets
+const unsigned long DEBOUNCE_MS = 60;
+const unsigned long ASK_MS = 30000;  // how long the band keeps asking
+const bool QUIET_MODE = true;        // true = no buzzer, LED only (set false for the demo)
 
 const uint8_t EVENT_OK = 1;
 const uint8_t EVENT_DURESS = 2;
+const uint8_t EVENT_HEARTBEAT = 3;
+const unsigned long HEARTBEAT_MS = 20000;  // how often a connected phone is woken
 
 BLEService kazeService("7f1a0001-6b4e-4c2a-9a7e-2d3c4b5a6f70");
 BLEByteCharacteristic eventChar("7f1a0002-6b4e-4c2a-9a7e-2d3c4b5a6f70", BLERead | BLENotify);
@@ -46,6 +50,12 @@ unsigned long duressDeadline = 0;
 
 int okTaps = 0;
 unsigned long lastOkTap = 0;
+
+bool rawPressed = false;
+unsigned long rawSince = 0;
+
+bool wasConnected = false;
+unsigned long lastHeartbeat = 0;
 
 bool isPressed() {
   return digitalRead(BUTTON) == HIGH || digitalRead(TOUCH) == HIGH;
@@ -152,6 +162,21 @@ void setup() {
 void loop() {
   BLE.poll();
 
+  bool connected = BLE.connected();
+  if (connected && !wasConnected) {
+    // The radio stops advertising when a phone connects. Start it again so a
+    // friend's phone can still see the band's signal strength during find-them.
+    BLE.advertise();
+    lastHeartbeat = millis();
+    Serial.println("phone connected, advertising again");
+  }
+  wasConnected = connected;
+
+  if (connected && millis() - lastHeartbeat > HEARTBEAT_MS) {
+    lastHeartbeat = millis();
+    eventChar.writeValue(EVENT_HEARTBEAT);
+  }
+
   if (pingChar.written()) {
     Serial.println("ping received");
     pingAlarm();
@@ -161,12 +186,14 @@ void loop() {
     Serial.println("ask received: are you okay?");
     asking = true;
     askUntil = millis() + ASK_MS;
-    buzz(true); delay(40); buzz(false);   // one soft nudge
+    buzz(true);
+    delay(40);
+    buzz(false);  // one soft nudge
   }
 
   if (asking) {
     if (millis() > askUntil) {
-      asking = false;                      // phone/server decides what silence means
+      asking = false;  // phone/server decides what silence means
       digitalWrite(LED, LOW);
       Serial.println("ask timed out (no answer)");
     } else if (millis() - lastAskBlink > 500) {
@@ -176,16 +203,19 @@ void loop() {
   }
 
   unsigned long now = millis();
-  bool pressed = isPressed();
+  bool raw = isPressed();
+  if (raw != rawPressed) {
+    rawPressed = raw;
+    rawSince = now;
+  }
 
-  if (pressed != wasPressed && now - lastChange > DEBOUNCE_MS) {
-    lastChange = now;
-    if (pressed) {
-      pressStart = now;
+  if (rawPressed != wasPressed && now - rawSince >= DEBOUNCE_MS) {
+    if (rawPressed) {
+      pressStart = rawSince;
     } else {
-      onRelease(now - pressStart, now);
+      onRelease(rawSince - pressStart, now);
     }
-    wasPressed = pressed;
+    wasPressed = rawPressed;
   }
 
   // Long hold with no follow-up taps: treat as okay so it never looks odd

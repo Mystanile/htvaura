@@ -171,6 +171,7 @@ def run_seed(seed):
     over = {
         "night_ends_at": rng.choice([None, None, rng.uniform(100, 900)]),
         "check_every_seconds": rng.choice([None, None, rng.uniform(20, 200)]),
+        "home_by": rng.choice([None, None, rng.uniform(20, 400)]),
         # sometimes a contact is in both the tiers and duress_contacts
         "duress_contacts": rng.choice([["x", "y"], ["x", "y"], ["x", "a"], ["d", "y"], ["b", "x"]]),
     }
