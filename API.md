@@ -498,6 +498,7 @@ When the server alerted the viewer and the alert is live:
 }
 ```
 
+- `name` (in `GET /safekeeps/night`) is what this contact calls the person: their own name for them, else the name the person picked. It stays after either side removes the other during the night, so the alert never says only "A friend".
 - `acknowledged_by` is `null` until a contact taps "I'm on it". It goes back to `null` if that contact does not resolve the alert within `ack_hold_seconds`.
 - `location_at` is the server time of the last location update, or `null` when `location` is `null`. Show the age: "updated 3 min ago" is `now - location_at` with `now` from the server.
 - `stale_ack_by` is the id of the contact who tapped "I'm on it" but did not resolve in time, or `null`. Show "Cara said she was on it but has not resolved it." A new "I'm on it" from anyone sets it back to `null`.
