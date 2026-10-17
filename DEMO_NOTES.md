@@ -9,7 +9,7 @@ This file lists what the prototype really does, what the demo fakes, and what th
 
 ## Simulated
 
-- Group separation. The demo panel sends it. Indoor GPS drifts 20 to 50 m, so we do not detect it for real.
+- Group separation. The demo panel sends it (Trigger "separation"). Indoor GPS drifts 20 to 50 m, so we do not detect it for real.
 - The passage of time. The demo panel can skip timers ahead.
 - Contacts who do not respond.
 - Phone disconnects.
@@ -22,10 +22,11 @@ This file lists what the prototype really does, what the demo fakes, and what th
 - The demo band uses BLE only. On the Uno R4 WiFi, BLE and Wi-Fi share one radio chip, so we did not build a direct band-to-server path over Wi-Fi.
 - iOS background limits still let the check-in reach the user.
 - GPS is accurate to 5 to 10 m outdoors only.
-- Nobody can read another person's session without a token. On the Safekeeps path every call has a per-user token, and the old phase 1 endpoints refuse the ids of Safekeeps phones. On the demo-panel path (ids from `POST /users`) there is no auth, so a person who holds such a phone and knows a contact's id could read a hidden alert. `POST /demo/reset` and `POST /demo/skip` have no auth either and affect every night. A real build needs auth on those.
+- Nobody can read another person's session without a token. On the Safekeeps path every call has a per-user token, and the old phase 1 endpoints refuse the ids of Safekeeps phones. On the demo-panel path (ids from `POST /users`) there is no auth, so a person who holds such a phone and knows a contact's id could read a hidden alert. `POST /demo/reset` and `POST /demo/skip` have no auth either, unless `KAZE_DEMO_KEY` is set, and they affect every night. A real build needs real auth on those.
 - Contacts are fixed when a night starts. A friend who is removed during a night keeps seeing, acking and resolving that night's alerts, and their location, until the night ends. The removal applies from the next night. This is on purpose: if removal worked at once, a person holding the phone could cancel a hidden alert by removing the contacts. A hidden alert (duress, or after a fake end) also carries into the next night. The removed friend keeps seeing it, with the user's live location, until someone resolves it. Without that, remove, Leave, and a new night would cancel it.
 
-- The demo server is public through a cloudflared quick tunnel. Anyone who knows the random tunnel address can call `/demo/skip` and `/demo/reset`, which have no auth. A real build would not expose them.
+- The demo server is public through a cloudflared quick tunnel. The data routes (`/demo/state`, `/demo/event`, `/demo/skip`, `/demo/reset`) need the key in `KAZE_DEMO_KEY`, sent as the `X-Demo-Key` header, when that variable is set. The `/panel` page itself is open but holds no data. If we start the server without a key, anyone who knows the random tunnel address can use the data routes. The server logs a warning and the panel shows a red banner. A real build would not expose them.
+- The demo panel is a demo tool. It shows hidden alerts (duress and fake-ended) on purpose, so judges can see what the contacts see. The key is the only protection. A real build would have no such view.
 
 ## Not built
 

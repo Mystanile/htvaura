@@ -45,8 +45,10 @@ EXPO_PUBLIC_API_URL=https://some-words.trycloudflare.com npx expo start --tunnel
 
 5. Scan the QR code with Expo Go on each iPhone. On each phone, tap "Start demo". If the app already saved an old address, change it in Settings under Connection.
 
-To skip waiting during a demo, move the server clock forward:
+To control the demo from a laptop browser, open the panel: `http://localhost:8000/panel`. It shows every night, hidden alerts included, and has buttons to fire triggers, disconnect a phone, set a location, skip time, and reset. It also has a guide for the 7 scenarios. When you use a tunnel, protect the panel with a key. Start the server with `KAZE_DEMO_KEY=pick-a-word`, then open `https://some-words.trycloudflare.com/panel`. The page asks for the key and sends it as a header, so the key never appears in the URL or the logs. With the key set, `/demo/state`, `/demo/event`, `/demo/skip` and `/demo/reset` need it too. If you start the server without a key, it logs a warning and the panel shows a red banner. Reset clears nights, users and groups. It does not delete the Safekeeps profiles.
+
+To skip waiting without the panel, move the server clock forward:
 
 ```
-curl -X POST https://some-words.trycloudflare.com/demo/skip -H 'content-type: application/json' -d '{"seconds": 60}'
+curl -X POST "https://some-words.trycloudflare.com/demo/skip" -H 'X-Demo-Key: pick-a-word' -H 'content-type: application/json' -d '{"seconds": 60}'
 ```

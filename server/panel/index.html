@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KAZE demo panel</title>
+<style>
+  :root {
+    --bg: #f8ffe8;
+    --text: #162224;
+    --primary: #B1CF58;
+    --accent: #4D651C;
+    --card: #162224;
+    --card-text: #f8ffe8;
+    --line: #d5e3b0;
+    --warn: #ffb4a8;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }  /* .bar sets display, which would beat the attribute */
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 16px; }
+  h1 { margin: 0; font-size: 1.5rem; }
+  h2 { margin: 28px 0 10px; font-size: 1.15rem; color: var(--accent); }
+  h3 { margin: 0 0 6px; font-size: 1.05rem; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 8px 12px; background: var(--primary); color: var(--text); cursor: pointer; }
+  button:hover { filter: brightness(0.95); }
+  button.ghost { background: transparent; color: inherit; border: 2px solid var(--primary); }
+  button.danger { background: var(--warn); }
+  .card { background: var(--card); color: var(--card-text); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .card .row { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 6px 0; }
+  .muted { opacity: 0.75; font-size: 0.9rem; }
+  .badge { display: inline-block; border-radius: 999px; padding: 1px 10px; font-size: 0.85rem; font-weight: 600; background: var(--primary); color: var(--text); }
+  .badge.off { background: var(--warn); }
+  .badge.hidden { background: #ffd966; }
+  .alert { border-top: 1px solid #3a4a4c; margin-top: 10px; padding-top: 8px; }
+  .light { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  details { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin-bottom: 8px; }
+  summary { cursor: pointer; font-weight: 600; }
+  ol { margin: 8px 0 4px; padding-left: 22px; }
+  #msg { min-height: 1.4em; margin: 10px 0 0; color: var(--accent); font-weight: 600; }
+  #msg.bad { color: #a12; }
+  #keyform { margin: 10px 0 0; }
+  #keyform input { font: inherit; padding: 7px 10px; border: 2px solid var(--primary); border-radius: 8px; }
+  #open { background: var(--warn); border-radius: 8px; padding: 8px 12px; margin: 10px 0 0; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>KAZE demo panel</h1>
+      <div class="muted">Server time <span id="clock">...</span> <span id="offset"></span></div>
+    </div>
+    <div class="bar" id="top"></div>
+  </header>
+  <p id="msg"></p>
+  <p id="open" hidden>No demo key is set. Anyone who can reach this server can read the nights and reset them.</p>
+  <form id="keyform" class="bar" hidden>
+    <input id="keyinput" type="password" placeholder="Demo key" autocomplete="off">
+    <button>Use key</button>
+  </form>
+
+  <h2>Nights</h2>
+  <div id="nights"><p class="muted">Loading...</p></div>
+
+  <h2>Privacy view</h2>
+  <p class="muted">This is a judge view. It shows what each person's phone would get from the server, including hidden alerts. The people's own phones show none of this.</p>
+  <div id="privacy"></div>
+
+  <h2>Scenario guide</h2>
+  <p class="muted">"User" is the phone that started the night. "Friend" is a phone in tier 1. Each step names a phone action or a panel button.</p>
+  <details>
+    <summary>1. Safe</summary>
+    <ol>
+      <li>Start a night on the user's phone. Put a friend in tier 1.</li>
+      <li>On the user's card, press Trigger "manual".</li>
+      <li>On the user's phone, tap three times quickly to say "I'm okay".</li>
+      <li>The card goes back to armed. The privacy view shows that nobody sees an alert.</li>
+    </ol>
+  </details>
+  <details>
+    <summary>2. No response</summary>
+    <ol>
+      <li>On the user's card, press Trigger "manual".</li>
+      <li>Do not touch the user's phone. Wait 45 seconds, or press +60 s on the top bar once.</li>
+      <li>The card shows escalating. The alert lists the tier 1 friend as alerted.</li>
+      <li>The friend's phone shows the alert and its response card.</li>
+    </ol>
+  </details>
+  <details>
+    <summary>3. Duress</summary>
+    <ol>
+      <li>On the user's card, press Trigger "manual".</li>
+      <li>On the user's phone, hold for 1 second, then tap twice quickly. The phone shows the same "Thanks" screen as a normal "I'm okay".</li>
+      <li>On the panel, the alert is marked "Hidden: the user's phone shows nothing". Only the duress contacts are alerted.</li>
+      <li>In the privacy view, group members and tier contacts show "no". Duress contacts show "yes (duress)".</li>
+    </ol>
+  </details>
+  <details>
+    <summary>4. Connectivity failure</summary>
+    <ol>
+      <li>On the user's card, press Trigger "manual".</li>
+      <li>Press "Disconnect phone". The badge turns to "offline".</li>
+      <li>Do not answer. Press +60 s on the top bar once.</li>
+      <li>The server still escalates. The friend's phone gets the alert while the user's phone is offline.</li>
+    </ol>
+  </details>
+  <details>
+    <summary>5. Unacknowledged alert</summary>
+    <ol>
+      <li>Start an alert as in scenario 2. The tier 1 friend gets it.</li>
+      <li>The tier 1 friend does not tap "I'm on it". Press +30 s on the top bar.</li>
+      <li>The alert moves to tier 2. The list shows both tiers as alerted.</li>
+      <li>On a tier 2 phone, tap "I'm on it". The alert shows who acknowledged.</li>
+    </ol>
+  </details>
+  <details>
+    <summary>6. False alarm</summary>
+    <ol>
+      <li>Start an alert as in scenario 2.</li>
+      <li>Option A: on the user's phone, enter the right PIN to end the alert. The alert shows resolved.</li>
+      <li>Option B: on the phone of the friend who tapped "I'm on it", tap resolve. The alert shows resolved.</li>
+      <li>Wrong PIN: the first wrong PIN shows "try again". The second one shows "Alert ended" on the user's phone, but the panel still shows the alert running, marked hidden.</li>
+    </ol>
+  </details>
+  <details>
+    <summary>7. Privacy</summary>
+    <ol>
+      <li>With the night armed, press "Set sample location" on the user's card. The privacy view shows "no" in the location column for everyone.</li>
+      <li>Press Trigger "manual" and skip 60 s once. Tier contacts now show location "yes".</li>
+      <li>If the night was started with share_location_with set to "acknowledger", tap "I'm on it" on one phone. Only that person shows "yes".</li>
+      <li>Resolve the alert. Everyone goes back to "no". Group members never saw the duress alert in scenario 3.</li>
+    </ol>
+  </details>
+</main>
+
+<script>
+// The key is typed in and sent as a header. It is never put in the URL, so it stays out of logs and history.
+let KEY = ""
+try { KEY = sessionStorage.getItem("kazeKey") || "" } catch (e) {}
+const KINDS = ["manual", "periodic", "separation", "home_by"]
+const SKIPS = [[15, "+15 s"], [30, "+30 s"], [60, "+60 s"], [900, "+15 min"]]
+let confirmReset = false
+let serverNow = 0
+let fetchedAt = Date.now()
+let lastHtml = {}
+
+const $ = id => document.getElementById(id)
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]))
+
+function say(text, bad) {
+  $("msg").textContent = text
+  $("msg").className = bad ? "bad" : ""
+}
+
+async function api(path, body) {
+  const headers = {"content-type": "application/json"}
+  if (KEY) headers["X-Demo-Key"] = KEY
+  const res = await fetch(path, body === undefined ? {headers} : {method: "POST", headers, body: JSON.stringify(body)})
+  if (res.status === 401) {
+    $("keyform").hidden = false
+    throw new Error(KEY ? "That key did not work. Type it again below." : "A demo key is needed. Type it below.")
+  }
+  if (!res.ok) throw new Error(path + " said " + res.status + " " + (await res.text()))
+  return res.json()
+}
+
+// A countdown is a span that holds an absolute server time. A timer fills it in, so a redraw is not needed each second.
+const countdown = dl => dl == null ? "none" : `<span data-dl="${esc(dl)}">...</span>`
+const place = loc => loc ? loc.map(n => n.toFixed(5)).join(", ") : "none"
+
+function nightCard(s) {
+  const c = s.config
+  const alertHtml = s.alerts.map(a => `
+    <div class="alert">
+      <strong>${esc(a.kind)}</strong> <span class="badge">${esc(a.state)}</span>
+      ${a.hidden ? `<span class="badge hidden">Hidden: the user's phone shows nothing</span>` : ""}
+      <div class="row">
+        <span>Tier reached: ${a.tier_index + 1}</span>
+        <span>Alerted: ${a.alerted.length ? esc(a.alerted.join(", ")) : "nobody"}</span>
+        <span>Acknowledged by: ${esc(a.acknowledged_by || "nobody")}</span>
+        ${a.deadline == null ? "" : `<span>${a.tier_index + 1 < a.tier_count ? "Next tier in" : "Alerts everyone again in"}: ${countdown(a.deadline)}</span>`}
+      </div>
+    </div>`).join("")
+  return `
+  <div class="card">
+    <h3>${esc(s.name)} <span class="muted">${esc(s.user_id)}</span></h3>
+    <div class="row">
+      <span>State: <span class="badge">${esc(s.state)}</span></span>
+      <span>Screen: ${esc(s.screen)}</span>
+      <span>Countdown: ${countdown(s.deadline)}</span>
+      <span class="badge ${s.connected ? "" : "off"}">${s.connected ? "connected" : "offline"}</span>
+    </div>
+    <div class="row">
+      <span>Next periodic check: ${countdown(s.next_check)}</span>
+      <span>Location: ${place(s.location)}</span>
+    </div>
+    <div class="row muted">
+      <span>Tiers: ${esc(c.tiers.map((t, i) => (i + 1) + " " + t.join(" + ")).join(" then "))}</span>
+      <span>Duress contacts: ${esc(c.duress_contacts.join(", "))}</span>
+      <span>Location goes to: ${esc(c.share_location_with)}</span>
+    </div>
+    <div class="bar">
+      ${KINDS.map(k => `<button data-act="event" data-user="${esc(s.user_id)}" data-type="Trigger" data-kind="${k}">Trigger "${k}"</button>`).join("")}
+      <button class="ghost" data-act="event" data-user="${esc(s.user_id)}" data-type="${s.connected ? "Disconnect" : "Reconnect"}">${s.connected ? "Disconnect phone" : "Reconnect phone"}</button>
+      <button class="ghost" data-act="event" data-user="${esc(s.user_id)}" data-type="LocationUpdate">Set sample location</button>
+    </div>
+    ${alertHtml}
+  </div>`
+}
+
+function privacyTable(s) {
+  const rows = s.privacy.map(p => `
+    <tr><td>${esc(p.name)}</td><td>${esc(p.role)}</td>
+    <td>${p.sees_alert ? "yes (" + esc(p.kind) + ")" : "no"}</td><td>${p.sees_location ? "yes" : "no"}</td></tr>`).join("")
+  return `<div class="light"><h3>${esc(s.name)}'s night</h3>
+    <table><tr><th>Person</th><th>Role</th><th>Sees alert?</th><th>Sees location?</th></tr>${rows}</table></div>`
+}
+
+function topBar() {
+  const skips = SKIPS.map(([n, label]) => `<button data-act="skip" data-seconds="${n}">${label}</button>`).join("")
+  const reset = confirmReset
+    ? `<span class="bar"><span>Clear all nights, users and groups? Safekeeps profiles stay.</span>
+       <button class="danger" data-act="reset-yes">Yes, reset</button><button class="ghost" data-act="reset-no">Cancel</button></span>`
+    : `<button class="danger" data-act="reset-ask">Reset</button>`
+  return skips + reset
+}
+
+// Set innerHTML only when the markup changed, so a click is never lost to a redraw.
+function show(id, html) {
+  if (lastHtml[id] === html) return
+  lastHtml[id] = html
+  $(id).innerHTML = html
+}
+
+function render(state) {
+  const ss = state.sessions
+  show("top", topBar())
+  $("open").hidden = state.key_set
+  $("keyform").hidden = true
+  show("nights", ss.length ? ss.map(nightCard).join("") : `<p class="muted">No nights yet. Start one on a phone.</p>`)
+  show("privacy", ss.length ? ss.map(privacyTable).join("") : `<p class="muted">No nights yet.</p>`)
+  $("offset").textContent = state.offset ? "(skipped ahead " + Math.round(state.offset) + " s)" : ""
+  tickClocks()
+}
+
+function tickClocks() {
+  const now = serverNow + (Date.now() - fetchedAt) / 1000
+  $("clock").textContent = serverNow ? new Date(now * 1000).toLocaleTimeString() : "..."
+  document.querySelectorAll("[data-dl]").forEach(el => {
+    el.textContent = Math.max(0, Math.ceil(el.dataset.dl - now)) + " s"
+  })
+}
+
+async function poll() {
+  try {
+    const state = await api("/demo/state")
+    serverNow = state.now
+    fetchedAt = Date.now()
+    render(state)
+    if ($("msg").className === "bad" && $("msg").dataset.from === "poll") say("")
+  } catch (err) {
+    say(err.message, true)
+    $("msg").dataset.from = "poll"
+  }
+  setTimeout(poll, 1000)
+}
+
+$("keyform").addEventListener("submit", e => {
+  e.preventDefault()
+  KEY = $("keyinput").value
+  try { sessionStorage.setItem("kazeKey", KEY) } catch (err) {}
+  say("")
+})
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]")
+  if (!b) return
+  const d = b.dataset
+  try {
+    if (d.act === "reset-ask" || d.act === "reset-no") {
+      confirmReset = d.act === "reset-ask"
+      show("top", topBar())
+    } else if (d.act === "reset-yes") {
+      confirmReset = false
+      await api("/demo/reset", {})
+      say("Reset done. Safekeeps profiles were not touched.")
+    } else if (d.act === "skip") {
+      await api("/demo/skip", {seconds: Number(d.seconds)})
+      say("Skipped " + d.seconds + " s ahead.")
+    } else if (d.act === "event") {
+      const body = {user_id: d.user, type: d.type}
+      if (d.kind) body.kind = d.kind
+      if (d.type === "LocationUpdate") Object.assign(body, {lat: 43.7845 + Math.random() / 1000, lng: -79.187 + Math.random() / 1000})
+      await api("/demo/event", body)
+      say(d.type + (d.kind ? " " + d.kind : "") + " sent.")
+    }
+    $("msg").dataset.from = "click"
+  } catch (err) {
+    say(err.message, true)
+    $("msg").dataset.from = "click"
+  }
+})
+
+setInterval(tickClocks, 250)
+poll()
+</script>
+</body>
+</html>
