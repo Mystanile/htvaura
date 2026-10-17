@@ -1,12 +1,12 @@
-import { Button, Column, Host } from '@expo/ui';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActionSheetIOS, Linking, Platform, View } from 'react-native';
 
+import { AppButton } from '@/components/app-button';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
-import { ButtonSeed, FriendsColors, Spacing } from '@/constants/theme';
-import { SurfaceThemeContext, useTheme } from '@/hooks/use-theme';
+import { Spacing } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSafekeeps } from '@/state/safekeeps';
 
 export function useNameOf() {
@@ -43,50 +43,49 @@ function List({ title, items }: { title: string; items: string[] }) {
 // Duress alerts use the exact same quiet card as every other alert, so nothing on screen looks louder.
 export function AlertsSection() {
   const state = useSafekeeps();
-  const theme = useTheme();
+  const scheme = useColorScheme();
   const nameOf = useNameOf();
   const [picking, setPicking] = useState<string | null>(null); // user_id of the alert whose map list is open (not iOS)
   const alerts = state.night?.alerts ?? [];
   if (alerts.length === 0) return null;
   return (
-    <SurfaceThemeContext value={{ ...theme, ...FriendsColors }}>
+    <>
       {alerts.map(alert => {
         const holder = nameOf(alert.acknowledged_by);
         const canResolve = alert.acknowledged_by === state.me?.id || alert.kind === 'duress';
         return (
-          <SectionCard key={alert.user_id}>
+          <SectionCard key={alert.user_id} tone="green">
             <ThemedText type="heading">{nameOf(alert.user_id) ?? 'A friend'}</ThemedText>
             <ThemedText type="name">{alert.card.title}</ThemedText>
             <List title="Do" items={alert.card.do} />
             <List title="Don't" items={alert.card.dont} />
-            <ThemedText type="small">{holder === null ? 'Nobody is on it yet' : `${holder} ${holder === 'You' ? 'are' : 'is'} on it`}</ThemedText>
-            <Host matchContents seedColor={ButtonSeed}>
-              <Column spacing={8}>
-                {alert.location !== null && (
-                  <Button label="Find them" onPress={() => { router.push({ pathname: '/find/[id]', params: { id: alert.user_id } }); }} />
-                )}
-                {alert.location !== null && (
-                  <Button label="Open in Maps" onPress={() => {
-                    const location = alert.location!;
-                    if (Platform.OS !== 'ios') return setPicking(picking === alert.user_id ? null : alert.user_id);
-                    ActionSheetIOS.showActionSheetWithOptions(
-                      { options: [...MAP_APPS.map(maps => maps.name), 'Cancel'], cancelButtonIndex: MAP_APPS.length },
-                      index => { if (index < MAP_APPS.length) void openMap(location, index); });
-                  }} />
-                )}
-                {alert.location !== null && picking === alert.user_id && MAP_APPS.map((maps, index) => (
-                  <Button key={maps.name} label={maps.name} variant="outlined"
-                    onPress={() => { setPicking(null); void openMap(alert.location!, index); }} />
-                ))}
-                {alert.acknowledged_by === null && (
-                  <Button label="I'm on it" disabled={state.busy} onPress={() => { void state.ackAlert(alert.user_id); }} />
-                )}
-                {canResolve && <Button label="Resolve" disabled={state.busy} onPress={() => { void state.resolveAlert(alert.user_id); }} />}
-              </Column>
-            </Host>
+            <ThemedText type="smallBold">{holder === null ? 'Nobody is on it yet' : `${holder} ${holder === 'You' ? 'are' : 'is'} on it`}</ThemedText>
+            <View style={{ gap: Spacing.two }}>
+              {alert.location !== null && (
+                <AppButton label="Find them" onPress={() => { router.push({ pathname: '/find/[id]', params: { id: alert.user_id } }); }} />
+              )}
+              {alert.location !== null && (
+                <AppButton label="Open in Maps" variant="secondary" onPress={() => {
+                  const location = alert.location!;
+                  if (Platform.OS !== 'ios') return setPicking(picking === alert.user_id ? null : alert.user_id);
+                  ActionSheetIOS.showActionSheetWithOptions(
+                    { options: [...MAP_APPS.map(maps => maps.name), 'Cancel'], cancelButtonIndex: MAP_APPS.length,
+                      userInterfaceStyle: scheme === 'dark' ? 'dark' : 'light' },
+                    index => { if (index < MAP_APPS.length) void openMap(location, index); });
+                }} />
+              )}
+              {alert.location !== null && picking === alert.user_id && MAP_APPS.map((maps, index) => (
+                <AppButton key={maps.name} label={maps.name} variant="secondary"
+                  onPress={() => { setPicking(null); void openMap(alert.location!, index); }} />
+              ))}
+              {alert.acknowledged_by === null && (
+                <AppButton label="I'm on it" disabled={state.busy} onPress={() => { void state.ackAlert(alert.user_id); }} />
+              )}
+              {canResolve && <AppButton label="Resolve" variant="secondary" disabled={state.busy} onPress={() => { void state.resolveAlert(alert.user_id); }} />}
+            </View>
           </SectionCard>
         );
       })}
-    </SurfaceThemeContext>
+    </>
   );
 }

@@ -1,12 +1,13 @@
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
-import { AppState, StyleSheet, Vibration, View } from 'react-native';
+import { AccessibilityInfo, AppState, StyleSheet, Vibration, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { api } from '@/services/demo-api';
 import { distanceMetres } from '@/services/geo';
 import { useSafekeeps } from '@/state/safekeeps';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 const SEND_EVERY_MS = 30_000;
@@ -69,6 +70,7 @@ function PingOverlay() {
   const seen = useRef<number | null | undefined>(undefined); // undefined: nothing seen yet
   const [ringing, setRinging] = useState(false);
   const [lit, setLit] = useState(true);
+  const [calm, setCalm] = useState(false); // the person asked their phone for reduced motion: no flashing
   const loaded = night !== null;
   const pingAt = night?.view?.ping_at ?? null;
 
@@ -81,22 +83,28 @@ function PingOverlay() {
   }, [loaded, pingAt]);
 
   useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setCalm).catch(() => {});
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setCalm);
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
     if (!ringing) return;
     setAudioModeAsync({ playsInSilentMode: true }).catch(() => {}); // sound even on the silent switch
     const beep = () => { player.seekTo(0).catch(() => {}); player.play(); }; // the clip is 1.2 s, so replay it
     beep();
     const replay = setInterval(beep, 1200);
     Vibration.vibrate([0, 500, 200, 500], true);
-    const flash = setInterval(() => setLit(value => !value), 250);
+    const flash = calm ? undefined : setInterval(() => setLit(value => !value), 400); // under 3 flashes a second
     const stop = setTimeout(() => setRinging(false), RING_MS);
     return () => { clearInterval(flash); clearInterval(replay); clearTimeout(stop); player.pause(); Vibration.cancel(); };
-  }, [ringing, player]);
+  }, [ringing, player, calm]);
 
   if (!ringing) return null;
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 100, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: theme.primary, opacity: lit ? 1 : 0.35 }]}>
-      <ThemedText style={{ fontSize: 40, lineHeight: 48, color: theme.onPrimary, textAlign: 'center' }}>A friend is looking for you</ThemedText>
+    <View pointerEvents="none" accessibilityRole="alert" style={[StyleSheet.absoluteFill, { zIndex: 100, alignItems: 'center', justifyContent: 'center',
+      padding: Spacing.five, backgroundColor: theme.primary, opacity: lit || calm ? 1 : 0.35 }]}>
+      <ThemedText type="title" style={{ fontSize: 40, lineHeight: 48, color: theme.onPrimary, textAlign: 'center' }}>A friend is looking for you</ThemedText>
     </View>
   );
 }

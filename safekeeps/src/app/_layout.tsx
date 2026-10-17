@@ -17,15 +17,19 @@ export default function RootLayout() {
   const theme = useTheme();
   const [fontsLoaded, fontError] = useFonts({ Righteous: require('@/assets/fonts/Righteous-Regular.ttf') });
   if (!fontsLoaded && !fontError) return null;
+  // The navigation colors come from our tokens, so no default white or black shows between screens.
+  const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+  const navTheme = { ...base, colors: { ...base.colors, background: theme.background, card: theme.background,
+    text: theme.text, border: theme.border, primary: theme.accent } };
   return (
-    <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navTheme}>
       <SafekeepsProvider>
-        <StatusBar style="dark" />
+        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <ConnectionGate><Stack screenOptions={{
           headerStyle: { backgroundColor: theme.background },
           headerTintColor: theme.text,
           headerShadowVisible: false,
-          headerTitleStyle: { fontFamily: AppFont, fontSize: 24, fontWeight: '400' },
+          headerTitleStyle: { fontFamily: AppFont, fontSize: 22, fontWeight: '400', color: theme.text },
           contentStyle: { backgroundColor: theme.background },
         }}>
           <Stack.Screen name="index" options={{ title: 'Safekeeps', headerShown: false }} />

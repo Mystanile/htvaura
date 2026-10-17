@@ -1,4 +1,3 @@
-import { Button, Column, Host } from '@expo/ui';
 import * as Location from 'expo-location';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { Stack } from 'expo-router/stack';
@@ -6,10 +5,11 @@ import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 
 import { useNameOf } from '@/components/alerts-section';
+import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
-import { ButtonSeed, Radius } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/services/demo-api';
 import { arrowRotation, bearingDegrees, compassWord, distanceMetres, formatDistance, smoothAngle, type LatLng } from '@/services/geo';
@@ -70,7 +70,7 @@ export default function FindScreen() {
     <AppScreen>
       <Stack.Screen options={{ title: 'Find them' }} />
       <ThemedText>{state.night === null ? 'Loading...' : 'No location to follow right now. The alert may have ended.'}</ThemedText>
-      <Link href="/">Back to home</Link>
+      <Link href="/" asChild><AppButton label="Back to home" variant="secondary" /></Link>
     </AppScreen>
   );
 
@@ -97,7 +97,7 @@ export default function FindScreen() {
   return (
     <AppScreen>
       <Stack.Screen options={{ title: 'Find them' }} />
-      <SectionCard dark>
+      <SectionCard tone="ink">
         <ThemedText type="heading">{name}</ThemedText>
         {own.denied ? (
           <ThemedText>Allow location in your settings to see how far away {name} is.</ThemedText>
@@ -106,11 +106,12 @@ export default function FindScreen() {
         ) : (
           <>
             {tooClose ? (
-              <ThemedText type="name" style={{ textAlign: 'center' }}>{"You're close. GPS can't point closer than this. Use Ping."}</ThemedText>
+              <ThemedText type="name" style={{ textAlign: 'center', paddingVertical: Spacing.three }}>{"You're close. GPS can't point closer than this. Use Ping."}</ThemedText>
             ) : (
               <>
-                {heading !== null && <View style={{ alignItems: 'center', paddingVertical: 24 }}><Arrow degrees={arrowRotation(bearing, heading)} /></View>}
-                <ThemedText style={{ fontSize: 28, lineHeight: 36, textAlign: 'center' }}>About {formatDistance(metres)} away (GPS is rough indoors)</ThemedText>
+                {heading !== null && <View style={{ alignItems: 'center', paddingVertical: Spacing.four }}><Arrow degrees={arrowRotation(bearing, heading)} /></View>}
+                <ThemedText type="display" style={{ textAlign: 'center' }}>About {formatDistance(metres)} away</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>GPS is rough indoors.</ThemedText>
                 <ThemedText type="name" style={{ textAlign: 'center' }}>Head {compassWord(bearing)}</ThemedText>
                 {heading === null && (
                   <ThemedText type="small" themeColor="textSecondary">
@@ -127,14 +128,10 @@ export default function FindScreen() {
       ) : alert.acknowledged_by !== null && alert.acknowledged_by !== state.me?.id ? (
         <ThemedText type="small" themeColor="textSecondary">Another friend is already on it, so pinging is off.</ThemedText>
       ) : (
-        <Host matchContents seedColor={ButtonSeed}>
-          <Column spacing={8}>
-            <Button label={ping === 'sending' ? 'Pinging...' : 'Ping'} disabled={ping === 'sending'} onPress={() => { void sendPing(); }} />
-          </Column>
-        </Host>
+        <AppButton label={ping === 'sending' ? 'Pinging...' : 'Ping'} disabled={ping === 'sending'} onPress={() => { void sendPing(); }} />
       )}
       {ping === 'sent' && <ThemedText accessibilityLiveRegion="polite">Ping sent. If it counts, their phone rings.</ThemedText>}
-      {problem && <ThemedText accessibilityLiveRegion="polite">{problem}</ThemedText>}
+      {problem && <ThemedText accessibilityLiveRegion="polite" themeColor="danger">{problem}</ThemedText>}
     </AppScreen>
   );
 }
