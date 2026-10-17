@@ -7,7 +7,7 @@ import { Radius, Spacing, TouchTarget } from '@/constants/theme';
 import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useScheme, useTheme } from '@/hooks/use-theme';
 
-type Variant = 'primary' | 'tonal' | 'outline' | 'danger';
+type Variant = 'primary' | 'tonal' | 'outline' | 'danger' | 'dangerOutline';
 
 // One button for the whole app. 50 pt tall at least, the label can wrap when the text size is large.
 export function Button({ label, onPress, variant = 'primary', disabled = false }: {
@@ -20,6 +20,7 @@ export function Button({ label, onPress, variant = 'primary', disabled = false }
     tonal: { bg: theme.accentSoft, pressed: theme.accentSoft, fg: theme.accent, border: theme.accentSoft },
     outline: { bg: 'transparent', pressed: theme.backgroundSelected, fg: theme.text, border: theme.borderStrong },
     danger: { bg: theme.danger, pressed: theme.danger, fg: theme.onDanger, border: theme.danger },
+    dangerOutline: { bg: 'transparent', pressed: theme.dangerSoft, fg: theme.danger, border: theme.danger },
   }[variant];
   return (
     <Pressable
@@ -51,7 +52,9 @@ export function TextField({ label, hint, error, ...input }: TextInputProps & { l
     <View style={{ gap: Spacing.two }}>
       <ThemedText type="smallBold">{label}</ThemedText>
       <View>
-        <Host matchContents={{ vertical: true }} colorScheme={scheme} seedColor={theme.accent}>
+        {/* On web matchContents sets alignSelf flex-start, which shrinks the input, so stretch it back. */}
+        <Host matchContents={{ vertical: true }} colorScheme={scheme} seedColor={theme.accent}
+          style={Platform.OS === 'web' ? { alignSelf: 'stretch' } : undefined}>
           <TextInput
             placeholderTextColor={theme.textSecondary}
             selectionColor={theme.accent}
@@ -121,7 +124,8 @@ export function SwitchRow({ label, value, onValueChange, disabled = false }: {
       <View style={{ width: 51, height: 31 }}>
         <Switch value={value} disabled={disabled} onValueChange={onValueChange}
           trackColor={{ false: theme.borderStrong, true: theme.accent }} ios_backgroundColor={theme.borderStrong}
-          thumbColor={theme.backgroundElement} accessible={false} />
+          thumbColor={theme.backgroundElement} accessible={false}
+          {...(Platform.OS === 'web' ? { activeThumbColor: theme.backgroundElement } : {})} />
       </View>
     </Pressable>
   );

@@ -60,7 +60,7 @@ export default function FriendScreen() {
         {confirmRemoval && (
           <ThemedText style={{ color: theme.danger }}>Remove {friend.name}? This removes the friendship and pending requests on both devices.</ThemedText>
         )}
-        <Button label={confirmRemoval ? 'Confirm removal' : 'Remove friend'} variant={confirmRemoval ? 'danger' : 'outline'} disabled={state.busy}
+        <Button label={confirmRemoval ? 'Confirm removal' : 'Remove friend'} variant={confirmRemoval ? 'danger' : 'dangerOutline'} disabled={state.busy}
           onPress={() => {
             if (!confirmRemoval) { setConfirmRemoval(true); return; }
             void state.removeFriend(friend.id).then(removed => {

@@ -196,7 +196,7 @@ function NightCheckIn({ view }: { view: NightView }) {
         </Panel>
       )}
       {inAlert ? (
-        <ThemedText type="small" themeColor="textSecondary">Enter your PIN to end the alert first.</ThemedText>
+        screen === 'alert_active' || screen === 'pin_retry' ? null : <ThemedText type="small" themeColor="textSecondary">Enter your PIN to end the alert first.</ThemedText>
       ) : (
         <Button label="Leave night" variant="outline" onPress={() => { void state.sendNightEvent('Leave'); }} />
       )}

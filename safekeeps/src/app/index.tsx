@@ -76,6 +76,7 @@ export default function HomeScreen() {
             Request sent to {request.name}. Waiting for them to accept.
           </ThemedText>
         ))}
+        {(state.friendRequests.length > 0 || state.sentRequests.length > 0) && <Divider />}
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
           <ThemedText type="heading" accessibilityRole="header">Friends</ThemedText>
           <ThemedText type="smallBold" themeColor="textSecondary">{state.friends.length}</ThemedText>

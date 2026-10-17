@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActionSheetIOS, Linking, Platform, View } from 'react-native';
 
-import { Button } from '@/components/controls';
+import { Button, Divider } from '@/components/controls';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -57,6 +57,7 @@ function Holder({ text, taken }: { text: string; taken: boolean }) {
 export function AlertsSection() {
   const state = useSafekeeps();
   const nameOf = useNameOf();
+  const theme = useTheme();
   const [picking, setPicking] = useState<string | null>(null); // user_id of the alert whose map list is open (not iOS)
   const alerts = state.night?.alerts ?? [];
   if (alerts.length === 0) return null;
@@ -89,10 +90,16 @@ export function AlertsSection() {
                     index => { if (index < MAP_APPS.length) void openMap(location, index); });
                 }} />
               )}
-              {alert.location !== null && picking === alert.user_id && MAP_APPS.map((maps, index) => (
-                <Button key={maps.name} label={maps.name} variant="outline"
-                  onPress={() => { setPicking(null); void openMap(alert.location!, index); }} />
-              ))}
+              {alert.location !== null && picking === alert.user_id && (
+                <View style={{ gap: Spacing.two, padding: Spacing.two, borderRadius: Radius.control, borderCurve: 'continuous', backgroundColor: theme.backgroundSelected }}>
+                  <ThemedText type="smallBold" themeColor="textSecondary">Open with</ThemedText>
+                  {MAP_APPS.map((maps, index) => (
+                    <Button key={maps.name} label={maps.name} variant="outline"
+                      onPress={() => { setPicking(null); void openMap(alert.location!, index); }} />
+                  ))}
+                </View>
+              )}
+              {canResolve && <Divider />}
               {canResolve && <Button label="Resolve" variant="outline" disabled={state.busy} onPress={() => { void state.resolveAlert(alert.user_id); }} />}
             </View>
           </SectionCard>
