@@ -108,7 +108,7 @@ The fastest way to try Homebound needs one laptop only. Run the server and the w
 
 You need:
 
-- the code: `git clone https://github.com/Mystanile/htvaura.git`, then `cd htvaura` (the repository is private: ask its owner, Mystanile on GitHub, for access)
+- the code: `git clone https://github.com/Mystanile/htvaura.git`, then `cd htvaura`
 - Python 3 and Node.js (we use Python 3.14 and Node.js 26)
 - for real phones: `cloudflared`, a free tool that makes the tunnel in step 2. On a Mac, install Homebrew from brew.sh, then run `brew install cloudflared`.
 - for the iPhone app: a Mac with Xcode, and an iPhone with a cable
