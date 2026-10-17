@@ -14,4 +14,14 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
-The server and tests come in phase 1. This section gets the run commands then.
+Start the server:
+
+```
+cd server && .venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000
+```
+
+Run the tests:
+
+```
+cd server && .venv/bin/pytest -q
+```

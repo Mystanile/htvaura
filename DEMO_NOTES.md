@@ -4,7 +4,8 @@ This file lists what the prototype really does, what the demo fakes, and what th
 
 ## Demonstrated
 
-Nothing yet. Phase 1 is next.
+- The check-in loop on the server: triggers, ask and grace timers, ranked tiers, acknowledgement, PIN cancel with one silent retry, duress, and privacy views. The 7 KAZE scenarios pass as automated tests (102 server tests in total).
+- Timers keep running on the server after a phone disconnects (scenario 4, tested over a real WebSocket).
 
 ## Simulated
 
