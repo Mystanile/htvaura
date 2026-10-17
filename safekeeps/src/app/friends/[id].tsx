@@ -1,4 +1,4 @@
-import { Button, Column, Host } from '@expo/ui';
+import { Button, Column, Host, TextInput, useNativeState } from '@expo/ui';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Stack } from 'expo-router/stack';
@@ -11,10 +11,12 @@ import { ButtonSeed } from '@/constants/theme';
 import { formatCheckIn, useSafekeeps } from '@/state/safekeeps';
 
 export default function FriendScreen() {
+  'use no memo'; // @expo/ui web TextInput only redraws when this screen re-renders, the compiler would skip that
   const { id } = useLocalSearchParams<{ id: string }>();
   const state = useSafekeeps();
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const friend = state.friends.find(item => item.id === id);
+  const newName = useNativeState(friend?.name ?? '');
 
   if (!friend) return (
     <AppScreen>
@@ -47,6 +49,17 @@ export default function FriendScreen() {
         </ThemedText>
       )}
       <ThemedText type="small" themeColor="textSecondary">Bluetooth not connected</ThemedText>
+      <SectionCard>
+        <ThemedText type="heading">Rename</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">Only you see this name. Leave it empty to use their own name.</ThemedText>
+        <Host matchContents seedColor={ButtonSeed}>
+          <Column spacing={12}>
+            <TextInput value={newName} placeholder="Name" autoCapitalize="words" editable={!state.busy} maxLength={40} />
+            <Button label={state.busy ? 'Saving...' : 'Save name'} disabled={state.busy}
+              onPress={() => { void state.renameFriend(friend.id, newName.value); }} />
+          </Column>
+        </Host>
+      </SectionCard>
       <SectionCard>
         {confirmRemoval && (
           <ThemedText>Remove {friend.name}? This removes the friendship and pending requests on both devices.</ThemedText>

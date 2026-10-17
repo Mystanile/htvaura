@@ -1,6 +1,7 @@
 import { Button, Column, Host } from '@expo/ui';
 import { router } from 'expo-router';
-import { Linking, Platform, View } from 'react-native';
+import { useState } from 'react';
+import { ActionSheetIOS, Linking, Platform, View } from 'react-native';
 
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
@@ -13,8 +14,20 @@ export function useNameOf() {
   return (id: string | null) => id === null ? null : id === state.me?.id ? 'You' : state.friends.find(friend => friend.id === id)?.name ?? null;
 }
 
-function openMap([lat, lng]: [number, number]) {
-  void Linking.openURL(Platform.OS === 'ios' ? `maps://?q=${lat},${lng}` : `https://maps.apple.com/?q=${lat},${lng}`);
+// Each maps app: its own link first, then a web link that works without the app installed.
+const MAP_APPS = [
+  { name: 'Apple Maps', app: (q: string) => `maps://?q=${q}`, web: (q: string) => `https://maps.apple.com/?q=${q}` },
+  { name: 'Google Maps', app: (q: string) => `comgooglemaps://?q=${q}`, web: (q: string) => `https://www.google.com/maps/search/?api=1&query=${q}` },
+  { name: 'Waze', app: (q: string) => `waze://?ll=${q}&navigate=yes`, web: (q: string) => `https://waze.com/ul?ll=${q}&navigate=yes` },
+];
+
+async function openMap([lat, lng]: [number, number], choice: number) {
+  const q = `${lat},${lng}`;
+  const maps = MAP_APPS[choice];
+  if (Platform.OS !== 'web') {
+    try { return await Linking.openURL(maps.app(q)); } catch { /* app not installed, use the web link */ }
+  }
+  await Linking.openURL(maps.web(q)).catch(() => {});
 }
 
 function List({ title, items }: { title: string; items: string[] }) {
@@ -32,6 +45,7 @@ export function AlertsSection() {
   const state = useSafekeeps();
   const theme = useTheme();
   const nameOf = useNameOf();
+  const [picking, setPicking] = useState<string | null>(null); // user_id of the alert whose map list is open (not iOS)
   const alerts = state.night?.alerts ?? [];
   if (alerts.length === 0) return null;
   return (
@@ -51,7 +65,19 @@ export function AlertsSection() {
                 {alert.location !== null && (
                   <Button label="Find them" onPress={() => { router.push({ pathname: '/find/[id]', params: { id: alert.user_id } }); }} />
                 )}
-                {alert.location !== null && <Button label="Open in Maps" onPress={() => { openMap(alert.location!); }} />}
+                {alert.location !== null && (
+                  <Button label="Open in Maps" onPress={() => {
+                    const location = alert.location!;
+                    if (Platform.OS !== 'ios') return setPicking(picking === alert.user_id ? null : alert.user_id);
+                    ActionSheetIOS.showActionSheetWithOptions(
+                      { options: [...MAP_APPS.map(maps => maps.name), 'Cancel'], cancelButtonIndex: MAP_APPS.length },
+                      index => { if (index < MAP_APPS.length) void openMap(location, index); });
+                  }} />
+                )}
+                {alert.location !== null && picking === alert.user_id && MAP_APPS.map((maps, index) => (
+                  <Button key={maps.name} label={maps.name} variant="outlined"
+                    onPress={() => { setPicking(null); void openMap(alert.location!, index); }} />
+                ))}
                 {alert.acknowledged_by === null && (
                   <Button label="I'm on it" disabled={state.busy} onPress={() => { void state.ackAlert(alert.user_id); }} />
                 )}

@@ -18,6 +18,7 @@ import { useSafekeeps } from '@/state/safekeeps';
 // Own position and compass heading. Heading is null on the web and until the first compass reading.
 function useOwnPosition() {
   const [position, setPosition] = useState<LatLng | null>(null);
+  const [accuracy, setAccuracy] = useState(0); // metres, how far off our own GPS says it may be
   const [heading, setHeading] = useState<number | null>(null);
   const [denied, setDenied] = useState(false);
   useEffect(() => {
@@ -29,7 +30,10 @@ function useOwnPosition() {
       if (stopped) return;
       if (!permission.granted) return setDenied(true);
       keep(await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 1 },
-        next => setPosition({ lat: next.coords.latitude, lng: next.coords.longitude })));
+        next => {
+          setPosition({ lat: next.coords.latitude, lng: next.coords.longitude });
+          setAccuracy(next.coords.accuracy ?? 0);
+        }));
       if (Platform.OS === 'web') return; // browsers have no compass here
       keep(await Location.watchHeadingAsync(next => {
         const value = next.trueHeading >= 0 ? next.trueHeading : next.magHeading;
@@ -38,7 +42,7 @@ function useOwnPosition() {
     })().catch(() => setDenied(true));
     return () => { stopped = true; subscriptions.forEach(subscription => subscription.remove()); };
   }, []);
-  return { position, heading, denied };
+  return { position, accuracy, heading, denied };
 }
 
 function Arrow({ degrees }: { degrees: number }) {
@@ -73,6 +77,9 @@ export default function FindScreen() {
   const target = { lat: alert.location[0], lng: alert.location[1] };
   const bearing = own.position ? bearingDegrees(own.position, target) : null;
   const heading = own.heading;
+  const metres = own.position ? distanceMetres(own.position, target) : 0;
+  // Indoor GPS is off by 20 to 50 m, so a short distance is mostly noise. Do not point the arrow at noise.
+  const tooClose = metres < 30 || metres < own.accuracy + 20;
 
   async function sendPing() {
     if (!state.session) return;
@@ -98,13 +105,19 @@ export default function FindScreen() {
           <ThemedText>Finding your position...</ThemedText>
         ) : (
           <>
-            {heading !== null && <View style={{ alignItems: 'center', paddingVertical: 24 }}><Arrow degrees={arrowRotation(bearing, heading)} /></View>}
-            <ThemedText style={{ fontSize: 40, lineHeight: 48, textAlign: 'center' }}>{formatDistance(distanceMetres(own.position, target))}</ThemedText>
-            <ThemedText type="name" style={{ textAlign: 'center' }}>Head {compassWord(bearing)}</ThemedText>
-            {heading === null && (
-              <ThemedText type="small" themeColor="textSecondary">
-                {Platform.OS === 'web' ? 'The arrow needs a phone with a compass.' : 'Waiting for your compass.'}
-              </ThemedText>
+            {tooClose ? (
+              <ThemedText type="name" style={{ textAlign: 'center' }}>{"You're close. GPS can't point closer than this. Use Ping."}</ThemedText>
+            ) : (
+              <>
+                {heading !== null && <View style={{ alignItems: 'center', paddingVertical: 24 }}><Arrow degrees={arrowRotation(bearing, heading)} /></View>}
+                <ThemedText style={{ fontSize: 28, lineHeight: 36, textAlign: 'center' }}>About {formatDistance(metres)} away (GPS is rough indoors)</ThemedText>
+                <ThemedText type="name" style={{ textAlign: 'center' }}>Head {compassWord(bearing)}</ThemedText>
+                {heading === null && (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {Platform.OS === 'web' ? 'The arrow needs a phone with a compass.' : 'Waiting for your compass.'}
+                  </ThemedText>
+                )}
+              </>
             )}
           </>
         )}

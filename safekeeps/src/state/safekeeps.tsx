@@ -163,6 +163,7 @@ function useSafekeepsState() {
     addFriend: (code: string, name = '') => post('/friends', { code, name }),
     acceptFriend: (id: string) => post('/friend-requests/' + encodeURIComponent(id) + '/accept'),
     declineFriend: (id: string) => post('/friend-requests/' + encodeURIComponent(id) + '/decline'),
+    renameFriend: (id: string, name: string) => post('/friends/' + encodeURIComponent(id) + '/name', { name }),
     removeFriend: (id: string) => post('/friends/' + encodeURIComponent(id) + '/remove'),
     requestCheckIn: (id: string) => post('/friends/' + encodeURIComponent(id) + '/requests'),
   };

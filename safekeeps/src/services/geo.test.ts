@@ -87,3 +87,20 @@ test('distance text', () => {
   assert.equal(formatDistance(999.6), '1.0 km');
   assert.equal(formatDistance(1500), '1.5 km');
 });
+
+test('room-sized offsets: same point is 0 m, small offsets give the right bearing and distance', () => {
+  const here = { lat: 43.6532, lng: -79.3832 };
+  const mPerDegLat = 111_195;
+  const mPerDegLng = mPerDegLat * Math.cos((here.lat * Math.PI) / 180);
+  assert.equal(distanceMetres(here, { ...here }), 0);
+  const north = { lat: here.lat + 20 / mPerDegLat, lng: here.lng };
+  assert.ok(Math.abs(distanceMetres(here, north) - 20) < 0.5);
+  assert.equal(Math.round(bearingDegrees(here, north)), 0);
+  const east = { lat: here.lat, lng: here.lng + 20 / mPerDegLng };
+  assert.ok(Math.abs(distanceMetres(here, east) - 20) < 0.5);
+  assert.equal(Math.round(bearingDegrees(here, east)), 90);
+  const northWest = { lat: here.lat + 20 / mPerDegLat, lng: here.lng - 20 / mPerDegLng };
+  assert.ok(Math.abs(distanceMetres(here, northWest) - 28.28) < 0.5);
+  assert.equal(Math.round(bearingDegrees(here, northWest)), 315);
+  assert.equal(compassWord(bearingDegrees(northWest, here)), 'SE');
+});
