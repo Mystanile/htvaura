@@ -12,6 +12,28 @@ import { ButtonSeed, FriendsColors, Radius, Spacing } from '@/constants/theme';
 import { SurfaceThemeContext, useTheme } from '@/hooks/use-theme';
 import { formatCheckIn, useSafekeeps } from '@/state/safekeeps';
 
+function FriendRequest({ request }: { request: { id: string; name: string } }) {
+  const state = useSafekeeps();
+  const name = useNativeState('');
+
+  return (
+    <View style={{ gap: Spacing.two }}>
+      <ThemedText type="name">{request.name} wants to add you</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">Choose a name for them. Only you will see it.</ThemedText>
+      <Host matchContents seedColor={ButtonSeed}>
+        <Column spacing={8}>
+          <TextInput value={name} placeholder="Name (optional)"
+            autoCapitalize="words" editable={!state.busy} maxLength={40} />
+          <Button label="Accept" disabled={state.busy}
+            onPress={() => { void state.acceptFriend(request.id, name.value); }} />
+          <Button label="Decline" disabled={state.busy}
+            onPress={() => { void state.declineFriend(request.id); }} />
+        </Column>
+      </Host>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const state = useSafekeeps();
   const theme = useTheme();
@@ -73,15 +95,7 @@ export default function HomeScreen() {
       <SectionCard>
       {state.friendRequests.length > 0 && <ThemedText type="heading">Friend requests</ThemedText>}
       {state.friendRequests.map(request => (
-        <View key={request.id} style={{ gap: Spacing.two }}>
-          <ThemedText type="name">{request.name} wants to add you</ThemedText>
-          <Host matchContents seedColor={ButtonSeed}>
-            <Column spacing={8}>
-              <Button label="Accept" disabled={state.busy} onPress={() => { void state.acceptFriend(request.id); }} />
-              <Button label="Decline" disabled={state.busy} onPress={() => { void state.declineFriend(request.id); }} />
-            </Column>
-          </Host>
-        </View>
+        <FriendRequest key={request.id} request={request} />
       ))}
       {state.sentRequests.map(request => (
         <ThemedText key={request.id} accessibilityLiveRegion="polite">Request sent to {request.name} · Awaiting acceptance</ThemedText>

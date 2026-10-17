@@ -123,7 +123,7 @@ function useSafekeepsState() {
     lastCheckIn, remindersEnabled, setRemindersEnabled, intervalMinutes, setIntervalMinutes, minutesRemaining,
     recordCheckIn: () => post('/check-ins'),
     addFriend: (code: string, name = '') => post('/friends', { code, name }),
-    acceptFriend: (id: string) => post('/friend-requests/' + encodeURIComponent(id) + '/accept'),
+    acceptFriend: (id: string, name = '') => post('/friend-requests/' + encodeURIComponent(id) + '/accept', { name }),
     declineFriend: (id: string) => post('/friend-requests/' + encodeURIComponent(id) + '/decline'),
     removeFriend: (id: string) => post('/friends/' + encodeURIComponent(id) + '/remove'),
     requestCheckIn: (id: string) => post('/friends/' + encodeURIComponent(id) + '/requests'),
