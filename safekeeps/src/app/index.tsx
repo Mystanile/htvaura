@@ -14,6 +14,7 @@ import { SectionCard } from '@/components/section-card';
 import { SettingsButton } from '@/components/settings-button';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing, TouchTarget } from '@/constants/theme';
+import { useBand } from '@/hooks/use-band';
 import { useTheme } from '@/hooks/use-theme';
 import type { Friend } from '@/services/demo-api';
 import { formatCheckIn, useSafekeeps } from '@/state/safekeeps';
@@ -56,6 +57,7 @@ function FriendRow({ friend: { id, name, lastCheckIn, requestedAt, resolvedAt } 
 
 export default function HomeScreen() {
   const state = useSafekeeps();
+  const band = useBand();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
 
@@ -79,6 +81,7 @@ export default function HomeScreen() {
       <SectionCard tone="ink">
         <ThemedText type="smallBold" themeColor="accent">Safekeeping check in :3</ThemedText>
         <CheckInCard />
+        {band.paired && <ThemedText type="small" themeColor="textSecondary">{band.connected ? 'Band connected' : 'Band not connected'}</ThemedText>}
         {(!state.night?.view || state.night.view.state === 'ended') && <NightEntry />}
         {state.lastCheckIn !== null && (
           <ThemedText type="small" themeColor="textSecondary" selectable>Last check-in: {formatCheckIn(state.lastCheckIn)}</ThemedText>

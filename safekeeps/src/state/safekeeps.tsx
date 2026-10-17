@@ -1,6 +1,7 @@
 import { createContext, use, useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AppState, Platform } from 'react-native';
 
+import { onNight } from '@/services/band-relay';
 import { api, fetchNight, fetchState, type Night, type NightConfig, type Snapshot } from '@/services/demo-api';
 import { loadSession, saveSession, type DemoSession } from '@/services/demo-session';
 
@@ -37,6 +38,7 @@ function useSafekeepsState() {
   const applyNight = useCallback((next: Night) => {
     setNight(next);
     setServerOffset(next.now * 1000 - Date.now());
+    onNight(next); // the band relay reuses this view instead of fetching again
   }, []);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {

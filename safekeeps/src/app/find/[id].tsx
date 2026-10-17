@@ -10,7 +10,9 @@ import { AppScreen } from '@/components/app-screen';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useBandSignal } from '@/hooks/use-band-signal';
 import { useTheme } from '@/hooks/use-theme';
+import { ZONE_TEXT } from '@/services/band';
 import { api } from '@/services/demo-api';
 import { arrowRotation, bearingDegrees, compassWord, distanceMetres, formatDistance, smoothAngle, type LatLng } from '@/services/geo';
 import { useSafekeeps } from '@/state/safekeeps';
@@ -65,6 +67,10 @@ export default function FindScreen() {
   const [problem, setProblem] = useState<string | null>(null);
   const alert = state.night?.alerts.find(item => item.user_id === id);
   const name = nameOf(id) ?? 'your friend';
+  const metres = own.position && alert?.location ? distanceMetres(own.position, { lat: alert.location[0], lng: alert.location[1] }) : 0;
+  // Indoor GPS is off by 20 to 50 m, so a short distance is mostly noise. Do not point the arrow at noise.
+  const tooClose = metres < 30 || metres < own.accuracy + 20;
+  const band = useBandSignal(own.position !== null && alert?.location != null && tooClose); // the band takes over when GPS cannot
 
   if (!alert || alert.location === null) return (
     <AppScreen>
@@ -77,9 +83,6 @@ export default function FindScreen() {
   const target = { lat: alert.location[0], lng: alert.location[1] };
   const bearing = own.position ? bearingDegrees(own.position, target) : null;
   const heading = own.heading;
-  const metres = own.position ? distanceMetres(own.position, target) : 0;
-  // Indoor GPS is off by 20 to 50 m, so a short distance is mostly noise. Do not point the arrow at noise.
-  const tooClose = metres < 30 || metres < own.accuracy + 20;
 
   async function sendPing() {
     if (!state.session) return;
@@ -106,7 +109,19 @@ export default function FindScreen() {
         ) : (
           <>
             {tooClose ? (
-              <ThemedText type="name" style={{ textAlign: 'center', paddingVertical: Spacing.three }}>{"You're close. GPS can't point closer than this. Use Ping."}</ThemedText>
+              <>
+                <ThemedText type="name" style={{ textAlign: 'center', paddingVertical: Spacing.three }}>{"You're close. GPS can't point closer than this. Use Ping."}</ThemedText>
+                {band && (
+                  <View style={{ gap: Spacing.one }} accessibilityLiveRegion="polite">
+                    <ThemedText type="display" style={{ textAlign: 'center' }}>
+                      {band.zone ? ZONE_TEXT[band.zone] : band.lost ? 'No band signal' : 'Looking for the band...'}
+                    </ThemedText>
+                    {band.zone && band.trend !== 'steady' && (
+                      <ThemedText type="name" style={{ textAlign: 'center' }}>{band.trend === 'warmer' ? 'Warmer' : 'Colder'}</ThemedText>
+                    )}
+                  </View>
+                )}
+              </>
             ) : (
               <>
                 {heading !== null && <View style={{ alignItems: 'center', paddingVertical: Spacing.four }}><Arrow degrees={arrowRotation(bearing, heading)} /></View>}

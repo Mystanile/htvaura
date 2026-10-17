@@ -47,6 +47,11 @@
         "microphonePermission": false,
         "recordAudioAndroid": false,
         "enableBackgroundPlayback": false
+      }],
+      ["react-native-ble-plx", {
+        "isBackgroundEnabled": true,
+        "modes": ["central"],
+        "bluetoothAlwaysPermission": "Safekeeps connects to your KAZE band so you can answer check-ins with it."
       }]
     ],
     "experiments": {

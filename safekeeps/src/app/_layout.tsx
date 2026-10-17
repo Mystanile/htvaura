@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { AppFont } from '@/constants/theme';
 
+import '@/services/band-relay'; // starts the band relay at app start, with no screen needed
 import { ConnectionGate } from '@/components/connection-gate';
 import { NightEffects } from '@/components/night-effects';
 import { SafekeepsProvider } from '@/state/safekeeps';
