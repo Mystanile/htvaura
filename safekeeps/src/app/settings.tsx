@@ -1,5 +1,7 @@
 import { Column, Host, Picker, Switch } from '@expo/ui';
 
+import { ServerAddress } from '@/components/server-address';
+import { ConnectionStatus } from '@/components/connection-status';
 import { AppScreen } from '@/components/app-screen';
 import { ThemedText } from '@/components/themed-text';
 import { useSafekeeps } from '@/state/safekeeps';
@@ -8,6 +10,8 @@ export default function SettingsScreen() {
   const state = useSafekeeps();
   return (
     <AppScreen>
+      <ConnectionStatus />
+      <ServerAddress />
       <ThemedText type="smallBold">Check-in reminders</ThemedText>
       <Host matchContents>
         <Column spacing={16}>

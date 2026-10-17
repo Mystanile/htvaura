@@ -10,6 +10,7 @@ export function AppScreen({ children }: PropsWithChildren) {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background }}
+      keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{
         padding: 20, paddingBottom: 20 + insets.bottom,

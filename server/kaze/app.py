@@ -14,6 +14,8 @@ from typing import Annotated
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from .safekeeps import router as safekeeps_router
 from pydantic import BaseModel, Field
 
 from . import loop
@@ -92,6 +94,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["Content-Type", "Authorization"])
 
 
 @app.exception_handler(RequestValidationError)
@@ -288,3 +291,8 @@ def demo_reset():
     groups.clear()
     sessions.clear()
     return {"ok": True}
+
+
+# Safekeeps mobile demo: persistent profiles, friends, and check-ins.
+
+app.include_router(safekeeps_router)
