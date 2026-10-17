@@ -15,7 +15,6 @@ This file lists what the prototype really does, what the demo fakes, and what th
 - The passage of time. The demo panel can skip timers ahead.
 - Contacts who do not respond.
 - Phone disconnects.
-- The band. A phone acts as the band until phase 5.
 - All alerts. No real SMS, calls, or 911.
 
 ## Assumed
@@ -42,6 +41,13 @@ This file lists what the prototype really does, what the demo fakes, and what th
 Automated tests cannot cover real phones, BLE, or the Arduino band. We list each manual test here when the feature exists.
 
 - Band on its own (the team tested this in nRF Connect, see `Hardware/kaze_band/HARDWARE.md`): 0x01 and 0x02 arrive over notify, ask and ping writes work, the band reconnects without a reset, and it runs from a power bank. Still to check on the button and the touch sensor: the new gestures (3 taps ok, hold 1 s plus 2 taps duress, hold alone ok after 2.5 s, 1 or 2 taps nothing), the same flash for ok and duress, and an unanswered ask that stops after 30 s and sends nothing.
-- Band with the server: not connected yet. It needs task 5.3 in the app. Until then, a person can pass the band's answers to `/safekeeps/night/events` by hand.
+- Band with the app (branch `band`), all untested on real hardware:
+  - Pair the band in Settings. Home shows "Band connected".
+  - Band ok and duress reach the server, and both look the same on the phone.
+  - When a check starts, the band buzzes and blinks. A ping makes the band beep.
+  - Heartbeat: lock the phone, put it away, trigger a check. The band asks within about 20 s.
+  - State restoration: background the app, stop it from the Mac (`xcrun devicectl`), then tap the band. The event must still reach the server. A swiped-away app is not relaunched by iOS, by Apple's rule.
+  - Advertising while connected: with the wearer's phone connected, a second phone still sees KAZE-Band.
+  - Hotter and colder on the friend's phone: the three zones and Warmer or Colder.
 - On web, the `@expo/ui` Switch labels render white on white (pre-existing, also in her Settings screen).
 - On web, her `ServerAddress` input has the same typing bug that was fixed elsewhere with `'use no memo'`. We left it alone because it is her component and native iPhone is unaffected. Verify on a device.

@@ -20,7 +20,10 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [ ] 2.5 Triggers: periodic and "ask a friend" work. Home-by time is not built.
 - [x] 3.1 Demo panel (`server/kaze/panel.py`, `server/panel/index.html`, `server/tests/test_panel.py`). Not yet tried on real phones.
 - [x] 4.1 to 4.2 Find them: server ping on `main`, app on branch `find-them` (pull request into `checkin-screens`). Tested in a web browser with a faked location. The compass arrow, real GPS, and the ping sound need a phone. See decisions 10 and 11.
-- [ ] 5.1 to 5.4 BLE band
+- [x] 5.1 iPhone Release build works (iPhone 15 Pro).
+- [x] 5.2 Band firmware, plus a heartbeat (0x03 every 20 s while connected) and advertising again on connect. Compiles. Not flashed or tested on the board yet.
+- [x] 5.3 Band relay in the app, on branch `band`: pair in Settings, band ok and duress go to the server through one code path, the app writes `ask` and `ping`, iOS background mode and state restoration, and the heartbeat wakes the app to check the server. Unit tests pass. Not tested on a phone with the band yet.
+- [x] 5.4 Hotter and colder on Find them, on branch `band`. Unit tests pass. Needs the finder's phone on a Release build, and is not tested on a phone yet.
 
 ## Handoff: start here (2026-10-17, afternoon)
 
@@ -59,7 +62,8 @@ iPhone build (task 5.1, works on 2026-10-17 on one iPhone 15 Pro):
 - A free Apple ID install expires after 7 days.
 
 Next steps, in order:
-0. Install `ui-refine` and `ui-fresh` on the iPhone 15 Pro one at a time (same bundle id, so each install replaces the other) with the build command in "iPhone build", run from `~/Desktop/kaze-refine/safekeeps` or `~/Desktop/kaze-fresh/safekeeps`. The user compares them and picks one.
+0. Phase 5 is on branch `band` (pull request into `ui-refine`, worktree `~/Desktop/kaze-band`). The user picked option A (`ui-refine`). Hold off on color changes: the teammate is redoing the palette. Next: build `band` onto the iPhone 15 Pro and run the band tests in DEMO_NOTES "Needs manual testing". The friend's phone needs a Release build for hotter and colder, so it needs a cable. The demo script is `DEMO_SCRIPT.md`. Before merging `band`, the user runs `git checkout -- Hardware/kaze_band/kaze_band.ino` in `~/Desktop/kaze`, because the branch already has their debounce change.
+0b. Done: the user picked `ui-refine`. Earlier step: install `ui-refine` and `ui-fresh` on the iPhone 15 Pro one at a time (same bundle id, so each install replaces the other) with the build command in "iPhone build", run from `~/Desktop/kaze-refine/safekeeps` or `~/Desktop/kaze-fresh/safekeeps`. The user compares them and picks one.
 1. Done: phase 4, find them. The app side waits for the teammate's review in its pull request, and its phone test waits for the Xcode build.
 2. Phase 5 on the user's Mac: 5.1 works on one iPhone (see "iPhone build" above). Install it on the second iPhone the same way. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
 3. (was step 1) Fix what breaks on the real phones.
