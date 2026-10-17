@@ -59,7 +59,9 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 A new session continues from this section. Read it first, then the Status list above.
 
 Judging branch (newest work):
-- Worktree `~/Desktop/kaze-judge`, branch `judging`. It holds the 6.x items above. The plan is a pull request into `home-by`. The lead reviews and commits it. Items 6.12 and 6.13 are not committed yet.
+- Worktree `~/Desktop/kaze-judge`, branch `judging`. It holds the 6.x items above, all committed (6.12 in `de2aedf`, 6.13 in `a100f73`). Pull request #8 (`judging` into `main`) is open. `judging` also has the teammate's UI overhaul from `main` (`9f13b4e`). It also has the pixel home sprites (`348c740`) and the check mark fix (`a75e86b`).
+- Checked on 2026-10-17, evening: 291 server tests and 57 app node tests pass on `judging`, and `tsc` is clean.
+- The demo processes run from `kaze-judge`: the server on port 8000 (with `SAFEKEEPS_DB=~/Desktop/kaze-app/server/safekeeps.sqlite3`), its tunnel, and the web app on port 8090 with its own tunnel. The logs are in `/private/tmp/claude-501/kz/`.
 - Two-person retest on 2026-10-17 (two iPhones and the band): most of the judging build worked. Not tested: scaled alerts (the hand-off to tier 2). Two problems, both fixed in code (6.12, 6.13) and waiting for a retest:
   - Find them was not accurate. Walking away sometimes showed a closer state.
   - The duress PIN did nothing, on the phone ("Cancel an alert") or from the band. The build had no duress PIN. The band gesture may also have been made during the user's own alert: the server ignored the duress gesture in escalating and acknowledged. Fixed: the gesture now starts the duress alert in every front state. A band paired with no night running also gets its answers refused (Home now says so).
@@ -70,7 +72,7 @@ Judging branch (newest work):
   - battery drain
   - the latest firmware and app from `judging`
 - Ideas from the judging review that are not done:
-  - Push to contacts through ntfy (needs the user's approval, it is not in this plan).
+  - Push to contacts through ntfy. The user asked for it on 2026-10-17, evening. Plan first, then build.
   - Slides.
   - Rewrite DEMO_SCRIPT as a 5-minute story.
   - A duress practice card on Start a night.
@@ -78,7 +80,9 @@ Judging branch (newest work):
   - The hallway gesture test with other hackers (the user's job).
 
 Where the code is:
-- `main` has the server: loop, bridge, demo panel. 223 server tests pass on `home-by` (`cd server && .venv/bin/pytest -q`). The app has 52 node tests there. The `judging` branch has 290 server tests and 57 app node tests (with 6.12, 6.13 and the duress gesture fix, not committed). `main` has 224 and 53.
+- Pull requests #1 and #7 are merged into `main`. So `main` has the whole branch chain and the teammate's UI overhaul. #2, #3, #4 and #6 are closed because their work arrived through #7. Open: #8 (`judging`) and #5 (`ui-fresh`, rejected option B, closing it is the user's call).
+- Test counts: `judging` has 291 server tests (`cd server && ~/Desktop/kaze/server/.venv/bin/pytest -q`) and 57 app node tests (`cd safekeeps && node --test src/services/*.test.ts`).
+- The paragraphs below describe the older branch chain. They stay for history.
 - Branch `checkin-screens` has the teammate's app with tasks 2.1, 2.3, 2.4 added, plus `main` merged in. Pull request #1 (https://github.com/Mystanile/htvaura/pull/1) is open and waits for the teammate's review. Do not merge it without the user.
 - Branch `find-them` (pull request #2, into `checkin-screens`) adds find them and ping.
 - Branch `test-fixes` (pull request #3, into `find-them`) fixes the first phone test: Find them hides the arrow below about 30 m because indoor GPS is off by 20 to 50 m, "Open in Maps" is a picker (Apple Maps, Google Maps, Waze), and you can rename a friend who added you (`POST /safekeeps/friends/{friend_id}/name`). 214 server tests pass.
@@ -116,7 +120,7 @@ iPhone build (task 5.1, works on 2026-10-17 on one iPhone 15 Pro):
 
 Next steps, in order:
 0. The newest code is on branch `home-by` (worktree `~/Desktop/kaze-band`). The user picked option A (`ui-refine`). Hold off on color changes: the teammate is redoing the palette. In order:
-   - First, after the lead commits 6.12 and 6.13: build `judging` onto both iPhones. Retest with a night running:
+   - First (6.12 and 6.13 are committed): build `judging` onto both iPhones. Retest with a night running:
      - The duress PIN from "Cancel an alert". The duress contact gets the alert, and the phone shows the filled check.
      - The band duress gesture.
      - The two-state band signal on Find them.
