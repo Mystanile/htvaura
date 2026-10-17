@@ -58,7 +58,7 @@ export function Choice<T extends string | number>({ label, options, value, onCha
                 opacity: disabled ? 0.5 : 1,
               })}>
               <ThemedText type="smallBold" style={{ color: selected ? theme.onPrimary : theme.text }}>
-                {selected ? 'âœ“ ' : ''}{option.short ?? option.label}
+                {selected ? '✓ ' : ''}{option.short ?? option.label}
               </ThemedText>
             </Pressable>
           );

@@ -185,7 +185,7 @@ function NightCheckIn({ view }: { view: NightView }) {
               alignItems: 'center', justifyContent: 'center',
               backgroundColor: screen === 'ended_true' ? theme.primary : 'transparent',
             }}>
-              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onPrimary : theme.primary }}>âœ“</ThemedText>
+              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onPrimary : theme.primary }}>✓</ThemedText>
             </View>
             <ThemedText type="heading" accessibilityLiveRegion="polite">Alert ended</ThemedText>
           </View>
