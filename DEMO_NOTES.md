@@ -4,7 +4,7 @@ This file sorts the prototype into the four groups that the KAZE brief asks for.
 
 ## What the prototype actually demonstrates
 
-These items run in the prototype and pass automated tests: 300 server tests and 58 app node tests.
+These items run in the prototype and pass automated tests: 304 server tests and 64 app node tests.
 
 On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware and app from branch `home-by`, 2026-10-17):
 
@@ -63,7 +63,8 @@ Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most 
 - On a phone alone, the check reaches the user only while the app is open. In the background the app does not poll, and push goes to contacts only. With the band, the heartbeat wakes the app, so the check reaches a phone in a pocket. A real build sends the check through APNs.
 - Time to help: in the worst case, a person becomes unable to answer just after a check. Help starts after one check interval plus the ask and grace times. With a 15 min interval and the demo timers, that is about 16 min. A shorter interval shortens it.
 - A hold on the band or the screen with no taps after it counts as "I'm okay", so a cut-off gesture never looks odd. A fumbled duress gesture sends no alert.
-- PIN guesses after an end screen are not limited and tell nobody. The filled check (right PIN or duress PIN) and the outlined check (wrong PIN) are a cue for the user. A watcher who knows the cue can try PINs until the filled check shows. The right PIN also ends a duress alert raised under it. The design assumes the watcher does not know the cue.
+- PIN guesses after an end screen are not limited and tell nobody. The filled check (right PIN or duress PIN) and the outlined check (wrong PIN) are a cue for the user. A watcher who knows the cue can try PINs until the filled check shows. The design assumes the watcher does not know the cue.
+- No PIN ends a duress alert, not even the real one. Only a duress contact can end it. A user who triggers duress by accident cannot cancel it. A duress contact has to resolve it. That counts as scenario 6, a false alarm resolved by an authorized contact. Until then the alert repeats every 5 min, and the duress card tells the contact not to call or text, so they check in person.
 - Misuse: any contact or group member in a night can start a check with "ask a friend", with no limit on how often. If the user stays silent, the alert shares their location with the alerted contacts. A real build needs a limit and a log of who asked.
 - Contacts are not asked to accept their role. They accepted a friend request, but they are not told that they are a tier contact or a duress contact.
 - The two Find them band states need several readings a second. The real iOS scan rate is not measured. With one reading a second or fewer, the state can still flip at the edge.

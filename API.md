@@ -452,7 +452,7 @@ What this means in practice:
 {"state": "ended", "screen": "thanks", "deadline": null, "ping_at": null}
 ```
 
-- If a contact resolves an alert that was hidden, the user's phone gets no message and the view does not change. The user keeps the screen they had. Only the user's own correct PIN gives `ended_true`. That PIN also ends every hidden alert.
+- If a contact resolves an alert that was hidden, the user's phone gets no message and the view does not change. The user keeps the screen they had. Only the user's own correct PIN gives `ended_true`. That PIN also ends every hidden alert of the user's own, but never a duress alert.
 
 Other examples:
 
@@ -567,7 +567,7 @@ Who can do what:
 - A contact who is alerted by more than one alert acts on the one on their screen. That is the duress alert first, else the newest. An alert that another contact already took comes last. `Ack` and `Resolve` change only that alert.
 - `Ack` works only for a contact the server alerted. In `duress`, only the first tap counts while that contact holds it. After the hold runs out (`ack_hold_seconds`), any duress contact can tap again.
 - `Resolve` by the user needs the right PIN. A missing PIN counts as a wrong PIN. The PIN must be a JSON string. A `by` of `null` is ignored. The user can send the PIN in every state except `ended`, where it is ignored. When no alert runs, it only changes `screen` to `pin_retry`, `ended_fake`, or `ended_true`.
-- After any end screen from a PIN (`ended_true` or `ended_fake`), there is no more `pin_retry` until the next check starts. Every wrong PIN shows `ended_fake` again and tells nobody. The right PIN shows `ended_true`. So a person who forces more guesses learns nothing from the screen. The right PIN, or a contact, still ends a hidden alert. Example: in an alert, `0000` gives `pin_retry`, `9999` gives `ended_fake`, then `1111` gives `ended_fake` again, not `pin_retry`.
+- After any end screen from a PIN (`ended_true` or `ended_fake`), there is no more `pin_retry` until the next check starts. Every wrong PIN shows `ended_fake` again and tells nobody. The right PIN shows `ended_true`. So a person who forces more guesses learns nothing from the screen. The right PIN, or a contact, still ends a hidden alert of the user's. A duress alert is the exception: no PIN ends it, only a duress contact. Example: in an alert, `0000` gives `pin_retry`, `9999` gives `ended_fake`, then `1111` gives `ended_fake` again, not `pin_retry`.
 - `Resolve` by a contact works only if that contact tapped "I'm on it" first. In duress, any duress contact can resolve it, even one who was not alerted yet.
 - `Leave` is ignored while the view says `asking`, `waiting`, `escalating` or `acknowledged`, even at `pin_retry`. A check must be answered first, and an alert must be cancelled with the PIN first. So a person who takes the phone cannot stop a check by leaving. At other times (`armed`) it works. If a hidden alert runs (duress, or after `ended_fake`), it works too, and the alert keeps running. Group members get `left`. After `Leave` the PIN is ignored until the next night.
 - The duress PIN (see below) is never a wrong PIN.
@@ -587,7 +587,7 @@ The rule:
 - Silently, a duress alert starts, exactly as after the `Duress` gesture. If an open duress alert is already running, no second one starts.
 - Nothing is resolved. If the user's own alert was running (`escalating` or `acknowledged`), it keeps going, hidden, like after a fake end. Its contacts keep seeing it. Nobody gets `resolved` or `wrong_pin_warning`.
 - It does not count as a wrong PIN and does not change what friends see (`lastCheckIn`).
-- Later, the right PIN ends every alert of the night, as usual.
+- Later, the right PIN ends the user's own alerts of the night, as usual. It never ends a duress alert. Only a duress contact can end it with `Resolve`.
 
 Example. Alice's night has `"pin": "4821"` and `"duress_pin": "9876"`. Her alert is `escalating` and Ben was alerted. She types `9876`. Her view is `{"state": "armed", "screen": "ended_true", "deadline": null, "ping_at": null}`, the same as after `4821`. Ben still sees the alert. Fia, her duress contact, gets an `alert` with kind `duress`.
 
@@ -653,8 +653,8 @@ Names: Alice is the user (`3f9a1c2e`). Ben is tier 1 (`7b21d0a4`). Cara is tier 
 3. Fia's socket gets `alert` with `kind` set to `duress`. Nobody else gets anything. Ben, Cara, and the group see nothing.
 4. If Fia does not tap "I'm on it" within `ack_seconds`, the next duress contact gets the alert.
 5. A duress contact taps "I'm on it". The other duress contacts get `owner`. Alice's view does not change.
-6. Alice cancels with the correct PIN. Her socket gets `ended_true`. The duress contacts get `resolved`.
-7. Or a duress contact sends `Resolve`. The duress contacts get `resolved`. Alice's socket gets nothing and her screen stays as it was. This is on purpose.
+6. If Alice types the correct PIN, her socket gets `ended_true`. The duress alert keeps running and the duress contacts get nothing. No PIN ends a duress alert.
+7. A duress contact sends `Resolve`. This is the only way it ends. The duress contacts get `resolved`. Alice's socket gets nothing and her screen stays as it was. This is on purpose.
 
 ### Wrong PIN
 

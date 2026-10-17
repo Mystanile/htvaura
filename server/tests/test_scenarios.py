@@ -399,6 +399,8 @@ def test_7_privacy():
         assert view_for(s, who) == INACTIVE
         assert to(fx + f, who) == []
     assert not has_word(view_for(s, U))
-    send(s, Resolve(U, PIN), now)
+    send(s, Resolve(U, PIN), now)  # the PIN does not end it
+    assert view_for(s, "x")["active"] is True
+    send(s, Resolve("x"), now)
     for who in EVERYONE_ELSE:
         assert view_for(s, who) == INACTIVE

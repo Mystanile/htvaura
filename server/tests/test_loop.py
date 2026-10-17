@@ -172,10 +172,11 @@ def test_duress_wrong_pin_warns_duress_contacts_only():
         assert to(fx, who) == []
         assert view_for(s, who) == INACTIVE
 
-    fx = send(s, Resolve(U, PIN), now)
-    assert active(s) == []
+    fx = send(s, Resolve(U, PIN), now)  # no PIN ends a duress alert
+    assert len(active(s)) == 1 and others(fx) == []
     assert s.wrong_pins == 0
-    assert recipients(others(fx)) == {"x", "y"}
+    fx = send(s, Resolve("x"), now)
+    assert active(s) == []
     assert recipients(fx, "resolved") == {"x", "y"}
 
 
@@ -448,7 +449,6 @@ def test_resolved_state_does_not_resend_resolved_on_tick():
     ("escalating", lambda: Resolve(U, PIN), True),
     ("acknowledged", lambda: Resolve(U, PIN), True),
     ("acknowledged", lambda: Resolve("a"), True),
-    ("duress", lambda: Resolve(U, PIN), True),
     ("duress", lambda: Resolve("y"), False),  # a hidden alert ends. The front keeps its own position.
 ])
 def test_location_cleared_on_resolve(state, resolver, front_ends):
@@ -461,6 +461,15 @@ def test_location_cleared_on_resolve(state, resolver, front_ends):
     assert (s.location is None) == front_ends
     for who in EVERYONE_ELSE:
         assert view_for(s, who) == INACTIVE
+
+
+def test_real_pin_leaves_duress_alert_location():
+    s, now = pin_session("escalating")
+    send(s, Resolve(U, DPIN), now)
+    send(s, LocationUpdate(43.0, -79.0), now)
+    send(s, Resolve(U, PIN), now)
+    assert only_duress(s)
+    assert all(a.location is not None for a in active(s))
 
 
 def test_wrong_pin_counter_resets_after_alert_ends():
@@ -679,9 +688,11 @@ def test_new_session_carries_hidden_alert_and_pin_resolves_it():
     fx = send(n, Resolve(U, "9876"), now)
     assert flat(fx) == [(U, "screen", {"screen": "ended_true"})]
     assert len(active(n)) == 1 and alert(n).location == (LAT, LNG)
-    # The PIN the alert was raised under ends it. The front already showed an end, so it shows one again.
+    # Not even the PIN the alert was raised under ends it. The front already showed an end, so it shows one again.
     fx = send(n, Resolve(U, PIN), now)
     assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_fake"})]
+    assert len(active(n)) == 1
+    fx = send(n, Resolve("x"), now)
     assert recipients(others(fx), "resolved") == {"x", "y"}
     assert active(n) == [] and all(a.location is None for a in n.alerts)
 
@@ -746,9 +757,11 @@ def test_correct_pin_ends_the_front_alert_and_hidden_alerts_together():
     now, _ = advance_until(s, now, lambda s: s.state == "escalating", limit=ASK + GRACE + 3)
     assert len(active(s)) == 2
     fx = send(s, Resolve(U, PIN), now)
-    assert active(s) == [] and s.state == "resolved"
+    assert [a.kind for a in active(s)] == ["duress"] and s.state == "resolved"  # the PIN leaves the duress alert
     assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_true"})]
-    assert sorted(e.to for e in fx if e.kind == "resolved") == ["a", "x", "y"], "each contact is told once"
+    assert sorted(e.to for e in fx if e.kind == "resolved") == ["a"]
+    fx = send(s, Resolve("x"), now)
+    assert active(s) == [] and sorted(e.to for e in fx if e.kind == "resolved") == ["x", "y"]
 
 
 def test_wrong_pin_warns_contacts_of_every_active_alert():
@@ -1270,8 +1283,8 @@ def test_duress_pin_hides_the_users_alert_and_it_keeps_escalating(state):
     assert view_for(s, "a") == seen_by_a  # contacts who saw it keep seeing it
     now, fx = advance(s, now, 300)
     assert {"b", "c"} <= recipients(fx, "alert") and to(fx, U) == []
-    send(s, Resolve(U, PIN), now)  # the right PIN still ends everything
-    assert active(s) == [] and s.screen == "ended_true"
+    send(s, Resolve(U, PIN), now)  # the right PIN ends the user's alert, not the duress one
+    assert [a.kind for a in active(s)] == ["duress"] and s.screen == "ended_true"
 
 
 def test_duress_pin_is_not_a_wrong_pin():
@@ -1339,3 +1352,42 @@ def test_next_check_is_hidden_when_it_falls_after_the_night_ends():
     assert view_for(s, U)["next_check"] is None
     s, now = start(check_every_seconds=EVERY, night_ends_at=EVERY + 1000)
     assert view_for(s, U)["next_check"] == now + EVERY
+
+
+# ---------- no PIN ends a duress alert: only a duress contact does ----------
+
+def only_duress(s):
+    return [a.kind for a in active(s)] == ["duress"]
+
+
+def test_real_pin_after_the_duress_pin_leaves_the_duress_alert_running():
+    s, now = pin_session("escalating")
+    send(s, Resolve(U, DPIN), now)
+    assert len(active(s)) == 2  # the user's alert (hidden) and the duress alert
+    send(s, Resolve(U, PIN), now)
+    assert only_duress(s)
+    now, fx = advance(s, now, 300)
+    assert view_for(s, "x")["kind"] == "duress"
+    send(s, Resolve("x"), now)
+    assert active(s) == []
+
+
+def test_real_pin_after_the_duress_gesture_leaves_the_duress_alert_running():
+    s, now = pin_session("armed")
+    send(s, Duress(), now)
+    send(s, Resolve(U, PIN), now)
+    assert only_duress(s) and view_for(s, "x")["kind"] == "duress"
+    send(s, Resolve("x"), now)
+    assert active(s) == []
+
+
+def test_pin_sweep_after_an_end_screen_never_ends_a_duress_alert():
+    s, now = pin_session("end_screen")
+    send(s, Duress(), now)
+    for n in range(10000):
+        send(s, Resolve(U, f"{n:04d}"), now)
+        if n % 1000 == 0 or f"{n:04d}" == PIN:
+            assert only_duress(s)
+    assert only_duress(s)
+    send(s, Resolve("x"), now)
+    assert active(s) == []

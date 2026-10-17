@@ -72,7 +72,7 @@ Branch `ntfy` (newest work, 2026-10-17 evening):
   - Fixed in `7c2238c`: a failed Bluetooth scan now restarts every 2.5 s, and the failed scan is stopped first so no listener leaks.
 - Accessibility in `43bfefa`, inside the teammate's theme: darker text in the same hues, screen reader announcements (the same words for ok and duress), labels, text up to 2x, 44 pt targets, and check-in under TalkBack. Two audits found 10 issues, all fixed. Not tried with VoiceOver or TalkBack on a phone.
   - Fixed in the docs: `HARDWARE.md` now says the 30 s separation rule is design only.
-- Open design question for the user: after an end, PIN guesses are unlimited. The filled or outlined check shows which PIN is real, and the real PIN ends a duress alert (`loop.py:281`).
+- Decided 2026-10-17 (was an open question): after an end, PIN guesses stay unlimited, but no PIN ends a duress alert, so the filled or outlined check gives a captor nothing to cancel a duress alert with (decision 13).
 - An LLM council graded the project at about 60 of 100. Its top must-haves:
   1. Run everything from one checkout.
   2. Retest duress on the phones.
@@ -193,7 +193,7 @@ The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/
 ## Decisions
 
 1. Check-in input (changed 2026-10-17). The app button and the band use the same gestures. 3 quick taps within 1.5 s = "I'm okay". Hold 1 s, then 2 quick taps within 2.5 s = duress. Hold 1 s and then nothing = "I'm okay" after 2.5 s. 1 or 2 taps and then nothing = nothing. `Hardware/kaze_band/HARDWARE.md` is the source of truth. Ok and duress show the same "Thanks!" screen, and the band gives the same single flash and beep.
-2. Cancel PIN. The user sets a 4-digit PIN at setup. A PIN is needed to cancel an alert that already reached contacts (a false alarm or a duress alert).
+2. Cancel PIN. The user sets a 4-digit PIN at setup. A PIN is needed to cancel an alert that already reached contacts (a false alarm). No PIN cancels a duress alert (see decision 13).
 3. Wrong PIN. The first wrong PIN is a silent retry: the screen shows a normal "Incorrect PIN, try again", nothing changes on the server, and no one is told. From the second wrong attempt on, the screen says "Alert ended". A person watching cannot tell. Contacts see "Someone tried to cancel with a wrong PIN." A small cue that only the user knows shows the truth. Correct PIN: filled check mark. Wrong PIN: outlined check mark, and the alert keeps going. After any end screen (the fake end or a real end), every later wrong PIN shows "Alert ended" with the outlined check again and tells nobody, until the next check starts. So a person who forces more guesses learns nothing. The right PIN, or a contact, still ends a hidden alert.
 4. Ending duress. The user (correct PIN) or one of the duress contacts can end it.
 5. Ranked tiers. The user ranks who gets alerted. Each tier is a list of people. If no one in a tier taps "I'm on it" in time, the next tier gets alerted. Modes are only presets of tiers:
@@ -206,10 +206,13 @@ The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/
 
 10. Location during a night (decided 2026-10-17). While a night runs and the app is open, the phone sends its GPS location to the server about every 30 s. The server shows it to contacts only during an active alert (`view_for`), and clears it when the alert ends. Reason: the phone never knows a duress alert is running, so this is the only way duress contacts get a location.
 11. Ping only for visible alerts (decided 2026-10-17). A contact can ping the person's phone (loud sound and flash) only through the user's visible front alert, never a hidden one. A ringing phone would expose a duress alert to the person watching.
-12. Duress PIN (decided 2026-10-17). The user sets a second 4-digit PIN at setup, different from the cancel PIN. The user types it in the same PIN box. The phone shows exactly what the right PIN shows: "Alert ended" with the filled check. In secret, a duress alert starts with the front location, exactly as after the duress gesture. Nothing is resolved. The user's own alert, if one runs, becomes hidden and keeps escalating. This is like a fake end, but no contact gets `wrong_pin_warning`. It never counts as a wrong PIN. The right PIN still ends every alert later.
+12. Duress PIN (decided 2026-10-17). The user sets a second 4-digit PIN at setup, different from the cancel PIN. The user types it in the same PIN box. The phone shows exactly what the right PIN shows: "Alert ended" with the filled check. In secret, a duress alert starts with the front location, exactly as after the duress gesture. Nothing is resolved. The user's own alert, if one runs, becomes hidden and keeps escalating. This is like a fake end, but no contact gets `wrong_pin_warning`. It never counts as a wrong PIN. The right PIN ends the user's own alerts later, but never a duress alert (decision 13).
    - Reason: the KAZE brief gives this as an example of a duress mechanism. It is a code that appears to cancel an alert while it silently asks for help.
    - How it relates to decision 3: both hide an alert from the watcher. Decision 3 stays. It protects a user who types a wrong PIN, by accident or on purpose, and its screens do not change. The duress PIN is the planned way. It gives the filled check and a new alert to the duress contacts.
    - Tests: `test_twin.py` compares the duress PIN with the right PIN, in random runs and from all 8 front states. Also the HTTP twin in `test_bridge.py`, and `test_3_duress_pin_looks_like_a_real_cancel_but_alerts_the_duress_contacts`.
+13. No PIN ends a duress alert (decided 2026-10-17). The real PIN, a wrong PIN, a fake end and an older night's PIN end only the user's own alerts. A duress alert ends only when a duress contact resolves it (`loop.py:281-283`). Reason: after an end screen the filled check shows which PIN is real, so a captor could find the real PIN and cancel the duress alert. Tradeoff: a user who triggers duress by accident cannot cancel it. A duress contact has to resolve it. This is scenario 6, a false alarm resolved by an authorized contact.
+   - Tests: `test_loop.py` (the duress PIN then the real PIN, the duress gesture then the real PIN, a PIN sweep 0000-9999 after an end screen, and the contact resolve).
+
 
 ## Architecture
 

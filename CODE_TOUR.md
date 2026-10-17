@@ -49,7 +49,7 @@ Read sections 2 to 4 first. They give you the whole system and one night through
 
 ### One pure step function
 
-`server/kaze/loop.py:1` says: "Pure Python: no I/O, no clock, no UI." Every rule goes through one function, `step`, at `loop.py:473-477`. It picks a handler by the type of the event, from the table at `loop.py:458-470`.
+`server/kaze/loop.py:1` says: "Pure Python: no I/O, no clock, no UI." Every rule goes through one function, `step`, at `loop.py:475-479`. It picks a handler by the type of the event, from the table at `loop.py:460-472`.
 
 ```python
 def step(session: Session, event, now: float) -> tuple[Session, list[Effect]]:
@@ -80,7 +80,7 @@ A session has two halves (`loop.py:6-13`):
 - **The front** (`loop.py:59-68`) is what the user's phone shows: `state`, `deadline`, `screen`, `wrong_pins` and a few more. Its states are armed, asking, waiting, escalating, acknowledged, resolved, ended (`loop.py:60`).
 - **The alerts** (`loop.py:38-53`, list at `loop.py:70`) are what contacts see. An alert can be `hidden`: a duress alert, or an alert the user "ended" with a wrong PIN.
 
-The rule: front code reads only front fields and whether a PIN is right. It never looks at hidden alerts (`loop.py:9`). The user's own view is built only from front fields (`loop.py:482-488`). So a hidden alert cannot change anything on the user's phone. This is how an "ok" and a duress look the same to a person watching.
+The rule: front code reads only front fields and whether a PIN is right. It never looks at hidden alerts (`loop.py:9`). The user's own view is built only from front fields (`loop.py:484-490`). So a hidden alert cannot change anything on the user's phone. This is how an "ok" and a duress look the same to a person watching.
 
 Duress first runs exactly the code of an "ok", then adds the hidden alert (`loop.py:255-271`):
 
@@ -104,7 +104,7 @@ def _on_duress(s, e, now):
     return (_front_ok(s, now) or []) + _raise_duress(s, now)
 ```
 
-The duress PIN uses the same idea. It runs the same front code as the right PIN and calls the same `_raise_duress` (`loop.py:300-311`). See trace 4.8.
+The duress PIN uses the same idea. It runs the same front code as the right PIN and calls the same `_raise_duress` (`loop.py:302-313`). See trace 4.8.
 
 Note: "duress" is not a front state. It is an `Alert.state` (`loop.py:46`). CLAUDE.md lists duress among the states. Be ready to explain the difference: the phone never enters a duress state, on purpose.
 
@@ -140,7 +140,7 @@ Each trace is a list of steps with `path:line`. "Poll" means the 2.5 s refresh i
 **Manual, from the panel**
 1. Panel button: `server/panel/index.html:300-305` posts `/demo/event`.
 2. `demo_event` (`server/kaze/panel.py:78-85`) allows only Trigger, Disconnect, Reconnect, LocationUpdate (`panel.py:18`).
-3. `apply_event` (`server/kaze/app.py:319-337`) checks the trigger kind (`app.py:332-333`), then `run` (`app.py:90-92`), then `step` (`loop.py:473-477`).
+3. `apply_event` (`server/kaze/app.py:319-337`) checks the trigger kind (`app.py:332-333`), then `run` (`app.py:90-92`), then `step` (`loop.py:475-479`).
 4. `_on_trigger` (`loop.py:229-237`): only from armed. State asking, deadline now + 30 s, one `check` effect.
 
 **Manual, a friend taps "Request check-in"**
@@ -151,15 +151,15 @@ Each trace is a list of steps with `path:line`. "Poll" means the 2.5 s refresh i
 
 **Periodic**
 1. Ticker: `server/kaze/app.py:152-156`, then `tick_all` (`app.py:95-100`), then `step(Tick)`.
-2. `_on_tick` (`loop.py:357-367`) calls `_tick_front` (`loop.py:323-352`).
-3. When armed and `now >= next_check`, it calls `_on_trigger(Trigger("periodic"))` (`loop.py:348-349`).
+2. `_on_tick` (`loop.py:359-369`) calls `_tick_front` (`loop.py:325-354`).
+3. When armed and `now >= next_check`, it calls `_on_trigger(Trigger("periodic"))` (`loop.py:350-351`).
 
 **Home-by**
 1. The time is set in Start a night (`night.tsx:63`, `night.tsx:73`) and stored in `Config.home_by` (`loop.py:34`).
-2. `_tick_front` fires it once, only from armed (`loop.py:345-347`).
+2. `_tick_front` fires it once, only from armed (`loop.py:347-349`).
 
 **The phone and the band see it**
-1. Next poll: `GET /safekeeps/night` (`bridge.py:71-81`) returns the user's own `view_for` (`loop.py:482-488`).
+1. Next poll: `GET /safekeeps/night` (`bridge.py:71-81`) returns the user's own `view_for` (`loop.py:484-490`).
 2. The card buzzes once (`safekeeps/src/components/check-in-card.tsx:85`) and shows "Are you okay?" with a countdown (`check-in-card.tsx:158`, `check-in-card.tsx:209-222`).
 3. `applyNight` (`safekeeps.tsx:38-42`) calls `onNight` (`safekeeps.tsx:41`). The band relay builds an ask key (`safekeeps/src/services/band.ts:35-37`) and writes ask once (`band-relay.ts:222-226`).
 4. The band: `askChar.written()` gives one 40 ms buzz, then blinks for up to 30 s (`Hardware/kaze_band/kaze_band.ino:213-231`).
@@ -192,54 +192,54 @@ Each trace is a list of steps with `path:line`. "Poll" means the 2.5 s refresh i
 3. Server: `night_event` (`bridge.py:84-99`), then `apply_event`, then `step`.
 4. `_on_duress` (`loop.py:267-271`): `_front_ok` gives the same "thanks" screen, or nothing in an alert, exactly as for an ok (`loop.py:271`). Then, in every front state, `_raise_duress` adds a hidden alert with one tier per duress contact (`loop.py:255-264`). `_alert_next_tier` (`loop.py:170-189`) alerts duress contact 1 with a 20 s ack timer.
 5. `record_check_in` writes the same record as an ok (`bridge.py:97-98`).
-6. The duress friend's poll: `get_night` (`bridge.py:76-80`) includes the alert from `view_for` (`loop.py:489-503`). The banner (`safekeeps/src/components/alert-banner.tsx:7-19`) and the card (`safekeeps/src/components/alerts-section.tsx:46-111`) show it.
-7. The second friend (not a duress contact): `view_for` returns `active: False` (`loop.py:490-491`), and `bridge.py:80` filters it out.
+6. The duress friend's poll: `get_night` (`bridge.py:76-80`) includes the alert from `view_for` (`loop.py:491-505`). The banner (`safekeeps/src/components/alert-banner.tsx:7-19`) and the card (`safekeeps/src/components/alerts-section.tsx:46-111`) show it.
+7. The second friend (not a duress contact): `view_for` returns `active: False` (`loop.py:492-493`), and `bridge.py:80` filters it out.
 
 ### 4.6 Silence escalates to tier 1, then tier 2
 
 1. Ticker (`app.py:152-156`) or panel "+30 s" (`index.html:297-298`, then `demo_skip` at `app.py:397-405`). Both call `tick_all` (`app.py:95-100`).
-2. `_tick_front`: asking past its deadline becomes waiting. The screen is `alarm` and the grace deadline is counted from the ask deadline (`loop.py:326-331`).
+2. `_tick_front`: asking past its deadline becomes waiting. The screen is `alarm` and the grace deadline is counted from the ask deadline (`loop.py:328-333`).
 3. The phone shows "Please answer now!" and buzzes every 1.5 s (`check-in-card.tsx:94-101`, `check-in-card.tsx:139`). The band is asked again because the ask key changed (`band.ts:35-37`, `band-relay.ts:222-226`). This is unit-tested in `band.test.ts` but not yet tried on the band (`DEMO_NOTES.md:85`).
-4. Panel "+15 s": waiting past its deadline becomes escalating. A front alert is created and the user sees `alert_active` (`loop.py:332-340`).
+4. Panel "+15 s": waiting past its deadline becomes escalating. A front alert is created and the user sees `alert_active` (`loop.py:334-342`).
 5. `_alert_next_tier` (`loop.py:170-189`) alerts tier 1 and sets a 20 s ack deadline (`loop.py:173-176`). The alert effect carries the response card, never the location (`loop.py:187`).
-6. Panel "+30 s": `_on_tick` sees the alert's deadline passed (`loop.py:359-360`) and calls `_alert_next_tier` again, which alerts tier 2 (`loop.py:366`).
+6. Panel "+30 s": `_on_tick` sees the alert's deadline passed (`loop.py:361-362`) and calls `_alert_next_tier` again, which alerts tier 2 (`loop.py:368`).
 7. After the last tier, everyone is re-alerted with gaps of 60, 120, then 300 s (`loop.py:166`, `loop.py:177-182`). After 3 rounds nobody took, `final_step` is set (`loop.py:179-180`). It is only a flag.
 
 ### 4.7 "I'm on it", and the hold running out
 
 1. The friend taps "I'm on it" (`alerts-section.tsx:101-103`), then `ackAlert` (`safekeeps.tsx:162`).
 2. `ack_alert` (`bridge.py:113-115`), then `act_on_alert` (`bridge.py:102-110`), then `send` (`bridge.py:20-23`), then `step(Ack(me))`.
-3. `_on_ack` (`loop.py:370-393`): the contact takes the free alert on top of their screen. The hold deadline is now + 120 s (`loop.py:387`). A plain alert becomes acknowledged (`loop.py:388-389`), and the front follows (`loop.py:390-391`). The other contacts get `owner` (`loop.py:392`).
+3. `_on_ack` (`loop.py:372-395`): the contact takes the free alert on top of their screen. The hold deadline is now + 120 s (`loop.py:389`). A plain alert becomes acknowledged (`loop.py:390-391`), and the front follows (`loop.py:392-393`). The other contacts get `owner` (`loop.py:394`).
 4. The answer is always `{"ok": True}` (`bridge.py:110`).
-5. The hold runs out with no Resolve: `_on_tick` (`loop.py:361-365`) sets `stale_ack_by` and clears `acknowledged_by`. The alert goes back to escalating, and the taker gets `ack_stale`. Then the next tier is alerted (`loop.py:366`).
-6. The friends see "said they were on it but has not resolved it" from `stale_ack_by` (`loop.py:501`, `alerts-section.tsx:68-72`).
+5. The hold runs out with no Resolve: `_on_tick` (`loop.py:363-367`) sets `stale_ack_by` and clears `acknowledged_by`. The alert goes back to escalating, and the taker gets `ack_stale`. Then the next tier is alerted (`loop.py:368`).
+6. The friends see "said they were on it but has not resolved it" from `stale_ack_by` (`loop.py:503`, `alerts-section.tsx:68-72`).
 
 ### 4.8 Resolve with the PIN, and a wrong PIN twice
 
 1. `PinEntry.end()` (`check-in-card.tsx:242-249`) checks 4 digits on the phone, then sends `Resolve` with the PIN (`safekeeps.tsx:160`).
 2. `night_event` (`bridge.py:92-95`) requires a string PIN and sets `by` to the caller.
-3. `_on_resolve` (`loop.py:431-436`) sends it to `_on_user_resolve` (`loop.py:274-297`). A typed PIN equal to the night's duress PIN goes to the duress PIN path first (`loop.py:275-276`, see step 9).
-4. Right PIN (`loop.py:282-286`): screen `ended_true`, the front ends, and every alert raised under this PIN ends, hidden ones too. `_resolve` wipes their location (`loop.py:213`).
-5. First wrong PIN (`loop.py:289-291`): screen `pin_retry`. Nothing is sent to contacts, with one exception. The typed PIN can be the PIN of an older night whose hidden alert carried over. Then that alert ends (`loop.py:281`, `loop.py:291`).
-6. Second wrong PIN (`loop.py:292-297`): screen `ended_fake`. The front alert becomes hidden and keeps escalating. The front looks ended (`_end_front`, `loop.py:217-224`). Every alerted contact gets `wrong_pin_warning`.
-7. More guesses after that (`loop.py:287-288`): `ended_fake` again, and nobody is told.
+3. `_on_resolve` (`loop.py:433-438`) sends it to `_on_user_resolve` (`loop.py:274-299`). A typed PIN equal to the night's duress PIN goes to the duress PIN path first (`loop.py:275-276`, see step 9).
+4. Right PIN (`loop.py:284-288`): screen `ended_true`, the front ends, and every alert raised under this PIN ends, hidden ones too. A duress alert is the exception: it stays (`loop.py:281-283`). `_resolve` wipes their location (`loop.py:213`).
+5. First wrong PIN (`loop.py:291-293`): screen `pin_retry`. Nothing is sent to contacts, with one exception. The typed PIN can be the PIN of an older night whose hidden alert carried over. Then that alert ends (`loop.py:283`, `loop.py:293`).
+6. Second wrong PIN (`loop.py:294-299`): screen `ended_fake`. The front alert becomes hidden and keeps escalating. The front looks ended (`_end_front`, `loop.py:217-224`). Every alerted contact gets `wrong_pin_warning`.
+7. More guesses after that (`loop.py:289-290`): `ended_fake` again, and nobody is told.
 8. The app shows a filled check for `ended_true` and an outlined check for `ended_fake` (`check-in-card.tsx:177-190`, fill at `check-in-card.tsx:183`).
-9. Duress PIN (`_on_duress_pin`, `loop.py:300-311`). The user types it in the same PIN box. A typical case: someone forces them to cancel.
-   - First `_raise_duress` starts a hidden duress alert, with the front location (`loop.py:303`). It runs first because the end clears that location.
-   - Then the front does exactly what the right PIN does: screen `ended_true` (the filled check), `_end_front`, and `pin_ended` (`loop.py:306-310`).
-   - Nothing is resolved. A running alert of the user becomes hidden and keeps escalating, like after a fake end (`loop.py:307-308`). Nobody gets `wrong_pin_warning` or `resolved`.
-   - In `ended` (after Leave or the night end), the phone gets nothing, the same as for the right PIN. The duress alert still starts (`loop.py:304-305`).
+9. Duress PIN (`_on_duress_pin`, `loop.py:302-313`). The user types it in the same PIN box. A typical case: someone forces them to cancel.
+   - First `_raise_duress` starts a hidden duress alert, with the front location (`loop.py:305`). It runs first because the end clears that location.
+   - Then the front does exactly what the right PIN does: screen `ended_true` (the filled check), `_end_front`, and `pin_ended` (`loop.py:308-312`).
+   - Nothing is resolved. A running alert of the user becomes hidden and keeps escalating, like after a fake end (`loop.py:309-310`). Nobody gets `wrong_pin_warning` or `resolved`.
+   - In `ended` (after Leave or the night end), the phone gets nothing, the same as for the right PIN. The duress alert still starts (`loop.py:306-307`).
    - `wrong_pins` does not change, so it is never a wrong PIN.
    - The bridge does not call `record_check_in` on Resolve, so friends see the same `lastCheckIn` for both PINs (`bridge.py:97-98`).
-   - Later, the right PIN ends every alert of the night. The duress alert carries this night's PIN (`loop.py:262`).
+   - Later, the right PIN ends the user's own alerts, never the duress alert. The duress alert still carries this night's PIN (`loop.py:262`), but `mine` filters it out (`loop.py:283`).
 
-A contact can also end it. `_on_contact_resolve` (`loop.py:414-428`) uses `_may_resolve` (`loop.py:408-411`): only the contact who took a plain alert, or any duress contact for a duress alert.
+A contact can also end it. `_on_contact_resolve` (`loop.py:416-430`) uses `_may_resolve` (`loop.py:410-413`): only the contact who took a plain alert, or any duress contact for a duress alert.
 
 ### 4.9 The phone disconnects
 
 1. Panel "Disconnect phone": `index.html:300-305`, then `panel.py:78-85`, then `apply_event` (`app.py:319-337`). A closed WebSocket does the same (`app.py:381-383`).
-2. `_on_disconnect` (`loop.py:439-441`) only sets `connected = False`.
-3. The countdown is in the session on the server. The ticker keeps running it (`app.py:152-156`, then `loop.py:323-340`).
+2. `_on_disconnect` (`loop.py:441-443`) only sets `connected = False`.
+3. The countdown is in the session on the server. The ticker keeps running it (`app.py:152-156`, then `loop.py:325-342`).
 4. A real Safekeeps phone that loses signal sends nothing at all, because it polls. The server does not need to notice. It escalates on the same timer.
 
 ### 4.10 Server restart
@@ -256,8 +256,8 @@ A contact can also end it. `_on_contact_resolve` (`loop.py:414-428`) uses `_may_
 3. Distance (`find/[id].tsx:70`, haversine in `safekeeps/src/services/geo.ts:14-19`). Under 30 m, or under GPS accuracy + 20 m, the arrow hides. The Bluetooth band signal starts (`find/[id].tsx:72-73`, `safekeeps/src/hooks/use-band-signal.ts:16-51`). It shows one of two states: "You're right next to them" or "Their band is in range" (`find/[id].tsx:119-120`). Before the first reading it shows "Looking for the band...", and after 10 s with no reading "No band signal".
 4. Far away: an arrow from bearing minus heading (`find/[id].tsx:127`, `geo.ts:22-32`).
 5. Ping: `sendPing` (`find/[id].tsx:88-99`) POSTs `/alerts/<id>/ping`. For duress alerts, and for alerts another friend took, the button is hidden (`find/[id].tsx:141-154`).
-6. Server: `ping_alert` (`bridge.py:123-126`), then `_on_ping` (`loop.py:396-405`). It works only for a visible front alert that is escalating or acknowledged, from an alerted contact (`loop.py:400-403`). It sets `ping_at` (`loop.py:404`).
-7. The wearer's next poll carries `ping_at` (`loop.py:485`). `PingOverlay` rings only for a newer value (`safekeeps/src/components/night-effects.tsx:77-83`) and plays sound, vibration and flash for 5 s (`night-effects.tsx:91-101`).
+6. Server: `ping_alert` (`bridge.py:123-126`), then `_on_ping` (`loop.py:398-407`). It works only for a visible front alert that is escalating or acknowledged, from an alerted contact (`loop.py:402-405`). It sets `ping_at` (`loop.py:406`).
+7. The wearer's next poll carries `ping_at` (`loop.py:487`). `PingOverlay` rings only for a newer value (`safekeeps/src/components/night-effects.tsx:77-83`) and plays sound, vibration and flash for 5 s (`night-effects.tsx:91-101`).
 8. In parallel the relay writes ping to the band (`band-relay.ts:227-231`), and the band plays `pingAlarm()` (`kaze_band.ino:208-211`, `kaze_band.ino:86-96`).
 
 ## 5. The subsystems
@@ -284,18 +284,18 @@ A contact can also end it. `_on_contact_resolve` (`loop.py:414-428`) uses `_may_
 |---|---|---|---|
 | armed | `Trigger(kind)` | asking, sends `check` | `loop.py:229-237` |
 | armed, asking, waiting | `ConfirmOk` | armed, screen `thanks` | `loop.py:240-252` |
-| asking | Tick past deadline | waiting, `alarm` | `loop.py:326-331` |
-| waiting | Tick past deadline | escalating, tier 1 alerted | `loop.py:332-340` |
+| asking | Tick past deadline | waiting, `alarm` | `loop.py:328-333` |
+| waiting | Tick past deadline | escalating, tier 1 alerted | `loop.py:334-342` |
 | armed, asking, waiting | `Duress` | same as `ConfirmOk`, plus a hidden alert | `loop.py:267-271` |
-| any but ended | `Resolve(user, pin)` | see the PIN rules in 4.8 | `loop.py:274-297` |
-| any but ended | `Resolve(user, duress_pin)` | same as the right PIN, plus a hidden duress alert. Nothing is resolved | `loop.py:300-311` |
-| ended | `Resolve(user, duress_pin)` | no change for the user, a hidden duress alert starts | `loop.py:304-305` |
-| escalating | `Ack` on the front alert | acknowledged | `loop.py:390-391` |
-| escalating, acknowledged | taker's `Resolve` | resolved, `ended_true` | `loop.py:425-427` |
-| resolved | next Tick | armed | `loop.py:350-351` |
-| armed, resolved | Tick after `night_ends_at` | ended, `left` to group | `loop.py:341-344` |
-| armed, resolved | `Leave` | ended, `left` to group. Refused in any other state | `loop.py:314-320` |
-| any | `Disconnect`, `Reconnect` | no change, only the flag | `loop.py:439-446` |
+| any but ended | `Resolve(user, pin)` | see the PIN rules in 4.8 | `loop.py:274-299` |
+| any but ended | `Resolve(user, duress_pin)` | same as the right PIN, plus a hidden duress alert. Nothing is resolved | `loop.py:302-313` |
+| ended | `Resolve(user, duress_pin)` | no change for the user, a hidden duress alert starts | `loop.py:306-307` |
+| escalating | `Ack` on the front alert | acknowledged | `loop.py:392-393` |
+| escalating, acknowledged | taker's `Resolve` | resolved, `ended_true` | `loop.py:427-429` |
+| resolved | next Tick | armed | `loop.py:352-353` |
+| armed, resolved | Tick after `night_ends_at` | ended, `left` to group | `loop.py:343-346` |
+| armed, resolved | `Leave` | ended, `left` to group. Refused in any other state | `loop.py:316-322` |
+| any | `Disconnect`, `Reconnect` | no change, only the flag | `loop.py:441-448` |
 
 **Escalation** (`loop.py:166-189`):
 
@@ -315,7 +315,7 @@ def _alert_next_tier(s: Session, a: Alert, now: float) -> list[Effect]:
         a.rounds += 1
 ```
 
-**The PIN rules** (`loop.py:287-297`):
+**The PIN rules** (`loop.py:289-299`):
 
 ```python
     if s.pin_ended and s.front_alert is None:  # no more guesses: a wrong PIN looks like the right one
@@ -331,9 +331,9 @@ def _alert_next_tier(s: Session, a: Alert, now: float) -> list[Effect]:
     return effects + _resolve(s, mine) + _told(s, _active(s), "wrong_pin_warning")
 ```
 
-`mine` (`loop.py:281`) is the active alerts raised under the typed PIN. A wrong PIN matches only alerts carried from an older night that used that PIN.
+`mine` (`loop.py:283`) is the active alerts raised under the typed PIN, without duress alerts. No PIN ends a duress alert. Only a duress contact does (`_on_contact_resolve`, `loop.py:416`). A wrong PIN matches only alerts carried from an older night that used that PIN.
 
-**The duress PIN** (`loop.py:300-311`). It is checked before every other PIN rule (`loop.py:275-276`). So it never counts as a wrong PIN. It also never ends a carried alert, even one whose old PIN equals it.
+**The duress PIN** (`loop.py:302-313`). It is checked before every other PIN rule (`loop.py:275-276`). So it never counts as a wrong PIN. It also never ends a carried alert, even one whose old PIN equals it.
 
 ```python
 def _on_duress_pin(s, now):
@@ -350,23 +350,23 @@ def _on_duress_pin(s, now):
     return effects + help_
 ```
 
-Compare it with the right PIN at `loop.py:282-286`. The user gets the same `ended_true` effect, and the front fields end the same. The only difference is in the alerts, which the front never reads.
+Compare it with the right PIN at `loop.py:284-288`. The user gets the same `ended_true` effect, and the front fields end the same. The only difference is in the alerts, which the front never reads.
 
-**Privacy: `view_for`** (`loop.py:480-503`) is the only place that decides who sees what.
-- The user gets `state`, `screen`, `deadline`, `ping_at`, and `home_by` until it fires (`loop.py:482-488`). `resolved` is shown as `armed`.
-- Anyone not alerted gets `{"user_id", "active": False}` (`loop.py:489-491`).
-- An alerted contact gets kind, card, who took it, `stale_ack_by`, `final_step`. The location is included only under the rule at `loop.py:492`:
+**Privacy: `view_for`** (`loop.py:482-505`) is the only place that decides who sees what.
+- The user gets `state`, `screen`, `deadline`, `ping_at`, and `home_by` until it fires (`loop.py:484-490`). `resolved` is shown as `armed`.
+- Anyone not alerted gets `{"user_id", "active": False}` (`loop.py:491-493`).
+- An alerted contact gets kind, card, who took it, `stale_ack_by`, `final_step`. The location is included only under the rule at `loop.py:494`:
 
 ```python
     sees_location = (c.share_location_with == "alerted" or viewer_id == a.acknowledged_by) and a.location is not None
 ```
 
 **Other rules worth knowing**
-- Ping only on a visible front alert (`loop.py:396-405`). A ringing phone during duress tells the captor that help is coming.
+- Ping only on a visible front alert (`loop.py:398-407`). A ringing phone during duress tells the captor that help is coming.
 - An "ok" while armed does not push the next periodic check later (`loop.py:244`). Otherwise a captor can tap ok again and again to delay checks.
 - A new night carries hidden alerts (`loop.py:130-131`). A captor cannot cancel a duress alert by starting a new night.
-- Shared contact (in tiers and duress list): one "I'm on it" takes both alerts (`loop.py:377-380`), so the front changes the same way as for an honest user.
-- `cards.py`: one response card per alert kind (`cards.py:11-38`). The duress card says "Do not call their phone" (`cards.py:32-37`). `card_for` returns fresh copies (`cards.py:41-43`). No diagnosis words, checked by `server/tests/test_loop.py:1110-1123`.
+- Shared contact (in tiers and duress list): one "I'm on it" takes both alerts (`loop.py:379-382`), so the front changes the same way as for an honest user.
+- `cards.py`: one response card per alert kind (`cards.py:11-38`). The duress card says "Do not call their phone" (`cards.py:32-37`). `card_for` returns fresh copies (`cards.py:41-43`). No diagnosis words, checked by `server/tests/test_loop.py:1123-1136`.
 
 ### 5.2 The server shell (`server/kaze/app.py` 427 lines, `bridge.py` 126, `safekeeps.py` 247, `panel.py` 85)
 
@@ -583,7 +583,7 @@ export function onNight(night: Night | null) {
 
 ## 6. How we know it works
 
-### Server: 300 tests, all pass (2.8 s)
+### Server: 304 tests, all pass (2.8 s)
 
 Run:
 
@@ -591,14 +591,14 @@ Run:
 cd ~/Desktop/kaze-judge/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q
 ```
 
-Result on 2026-10-17 (branch `ntfy`): `300 passed, 1 warning in 2.85s`.
+Result on 2026-10-17 (branch `ntfy`): `304 passed, 1 warning in 3.05s`.
 
 | File | Tests | What it proves |
 |---|---|---|
 | `server/tests/test_scenarios.py` | 13 | The 7 KAZE scenarios, one group each (`test_1_safe` at line 19 to `test_7_privacy` at line 333). Written from PLAN.md only, never from loop.py (`server/tests/helpers.py:1`). |
-| `server/tests/test_loop.py` | 135 | Edge rules: ignored events, re-alerts and final step, Leave, night end, hidden alerts, periodic and home-by, ping, cards, stale acks. The duress PIN in every front state, compared with a twin that gets the right PIN (`test_loop.py:1248`). |
+| `server/tests/test_loop.py` | 138 | Edge rules: ignored events, re-alerts and final step, Leave, night end, hidden alerts, periodic and home-by, ping, cards, stale acks. The duress PIN in every front state, compared with a twin that gets the right PIN (`test_loop.py:1261`). |
 | `server/tests/test_twin.py` | 21 | A watcher cannot tell duress, a fake end or the duress PIN from an honest user. 500 random runs of 70 steps, plus explicit cases. The duress PIN against the right PIN from all 8 front states (`test_twin.py:430`). |
-| `server/tests/test_app.py` | 46 | The duress PIN checks on `POST /sessions` (`test_app.py:314`). HTTP routes, scenario 4 over a real WebSocket (`test_app.py:24`), a stuck socket does not slow a duress answer (`test_app.py:181`). |
+| `server/tests/test_app.py` | 46 | The duress PIN checks on `POST /sessions` (`test_app.py:316`). HTTP routes, scenario 4 over a real WebSocket (`test_app.py:24`), a stuck socket does not slow a duress answer (`test_app.py:181`). |
 | `server/tests/test_bridge.py` | 38 | Tokens and friend checks. The HTTP twin with the duress PIN against the right PIN, compared byte for byte (`test_bridge.py:378`). The duress PIN is checked and never shown (`test_bridge.py:664`). Allowed event types (`test_bridge.py:143`). Same answer for anyone (`test_bridge.py:314`). Friends' data identical after ok and duress (`test_bridge.py:98`). Escalation with no polling (`test_bridge.py:173`, `:185`). |
 | `server/tests/test_panel.py` | 9 | Key in header only (`test_panel.py:32`), privacy table matches `view_for` (`test_panel.py:89`). |
 | `server/tests/test_safekeeps.py` | 8 | The teammate's profile and friend API. |
@@ -663,7 +663,7 @@ Honest note: these hardware tests ran on the earlier firmware and app from branc
 
 ### Test counts to quote
 
-The `ntfy` branch has 300 server tests and 58 app node tests. `main` has 224 and 53, because the judging fixes are not merged yet. Quote the branch you demo.
+The `ntfy` branch has 304 server tests and 58 app node tests. `main` has 224 and 53, because the judging fixes are not merged yet. Quote the branch you demo.
 
 ## 7. Likely questions and answers
 
@@ -672,10 +672,10 @@ The `ntfy` branch has 300 server tests and 58 app node tests. `main` has 224 and
 ### Potential impact
 
 #### Q: How does this close the gap when someone cannot ask for help?
-Silence is the alarm. Every trigger (a timer, home-by, a friend's request, a separation) starts a check (`loop.py:229-237`). If nobody answers in 45 s, contacts are alerted with no action from the person (`loop.py:326-340`). The server runs the timer, so a dead or lost phone still escalates.
+Silence is the alarm. Every trigger (a timer, home-by, a friend's request, a separation) starts a check (`loop.py:229-237`). If nobody answers in 45 s, contacts are alerted with no action from the person (`loop.py:328-342`). The server runs the timer, so a dead or lost phone still escalates.
 
 #### Q: Does KAZE detect drugging or unconsciousness?
-No, on purpose. Every trigger is a timer, a request, or a simulated separation (`loop.py:87`). Only silence or the duress gesture escalates. The response cards give steps and make no diagnosis, and a test fails on words like "drugged" or "unconscious" (`server/tests/test_loop.py:1110-1123`).
+No, on purpose. Every trigger is a timer, a request, or a simulated separation (`loop.py:87`). Only silence or the duress gesture escalates. The response cards give steps and make no diagnosis, and a test fails on words like "drugged" or "unconscious" (`server/tests/test_loop.py:1123-1136`).
 
 #### Q: What does a contact actually see?
 First a banner. Then a card with what to do and what not to do, and who is on it. It also shows the location with its age (`alerts-section.tsx:46-111`). The card text comes from `cards.py:11-38`. The duress card says "Do not call their phone" (`cards.py:32-37`).
@@ -686,13 +686,13 @@ First a banner. Then a card with what to do and what not to do, and who is on it
 The person is often unable to touch the phone. The phone can die, lose signal or be killed by iOS. A timer on the phone stops at exactly the wrong moment. The ticker ticks every night each second (`app.py:152-156`). Tests: `test_4_connectivity_failure` (`test_scenarios.py:152`) and escalation with no polling (`test_bridge.py:173`).
 
 #### Q: What if the first contact never answers?
-Each tier has 20 s in the demo (`loop.py:31`, `loop.py:173-176`), then the next tier is alerted (`loop.py:359-366`). After the last tier, everyone is re-alerted with 60, 120, then 300 s gaps (`loop.py:166`). After 3 rounds nobody took, a `final_step` flag is set (`loop.py:179-180`). Tests: `test_scenarios.py:180`, `test_loop.py:241-271`.
+Each tier has 20 s in the demo (`loop.py:31`, `loop.py:173-176`), then the next tier is alerted (`loop.py:361-368`). After the last tier, everyone is re-alerted with 60, 120, then 300 s gaps (`loop.py:166`). After 3 rounds nobody took, a `final_step` flag is set (`loop.py:179-180`). Tests: `test_scenarios.py:180`, `test_loop.py:242-271`.
 
 #### Q: What if someone taps "I'm on it" and then does nothing?
-"I'm on it" starts a 120 s hold (`loop.py:387`). If nobody resolves it in time, the alert goes back out and everyone sees who did not follow through (`loop.py:361-365`, `loop.py:501`). Test: `test_5_acknowledger_who_does_not_end_it_hands_the_alert_on` (`test_scenarios.py:216`).
+"I'm on it" starts a 120 s hold (`loop.py:389`). If nobody resolves it in time, the alert goes back out and everyone sees who did not follow through (`loop.py:363-367`, `loop.py:503`). Test: `test_5_acknowledger_who_does_not_end_it_hands_the_alert_on` (`test_scenarios.py:216`).
 
 #### Q: What stops a captor from forcing the user to cancel?
-The first wrong PIN is a normal retry (`loop.py:289-291`). The second shows "Alert ended", but the alert becomes hidden, keeps escalating, and contacts are warned (`loop.py:292-297`). More guesses change nothing (`loop.py:287-288`). Leave is refused during a check or alert (`loop.py:314-316`), and a new night does not cancel a hidden alert (`loop.py:130-131`). The user can also type the duress PIN. It looks like a real cancel, but it starts a silent duress alert and ends nothing (`loop.py:300-311`). Limit: a captor who forces out the real PIN can still cancel. The PIN is 4 digits, compared as plain text (`loop.py:282`).
+The first wrong PIN is a normal retry (`loop.py:291-293`). The second shows "Alert ended", but the alert becomes hidden, keeps escalating, and contacts are warned (`loop.py:294-299`). More guesses change nothing (`loop.py:289-290`). Leave is refused during a check or alert (`loop.py:316-318`), and a new night does not cancel a hidden alert (`loop.py:130-131`). The user can also type the duress PIN. It looks like a real cancel, but it starts a silent duress alert and ends nothing (`loop.py:302-313`). No PIN ends a duress alert, not even the real one (`loop.py:281-283`). So a captor who forces out the real PIN ends only the user's own alert. Limit: a user who triggers duress by accident cannot cancel it. A duress contact has to resolve it. The PIN is 4 digits, compared as plain text (`loop.py:284`).
 
 #### Q: Can a watcher tell an ok from a duress?
 Not from the phone, the band or the server answer. The app uses one code path (`check-in-card.tsx:103-112`). The band uses one `sendEvent` and one beep (`kaze_band.ino:98-109`). The server runs the ok code first (`loop.py:268`) and writes the same record (`bridge.py:97-98`). `test_twin.py` checks this over 500 random runs. Limits: the gesture itself differs (hold then 2 taps), the BLE link is not encrypted, and the HTTPS body length differs (`DEMO_NOTES.md:61`).
@@ -735,7 +735,7 @@ Polling recovers by itself after a dropped network, a new tunnel address or a se
 Expo Go cannot load the native Bluetooth module (`README.md:43`). Release puts the JavaScript inside the app, so it does not need the venue Wi-Fi to reach the laptop. A new server address goes in Settings with no rebuild.
 
 #### Q: What is simulated?
-The passage of time (`app.py:397-405`) and phone disconnects (`loop.py:439-441`). Contacts who do not respond, and group separation. The final step (`loop.py:180`), and every alert. No SMS, calls or 911. The full list is `DEMO_NOTES.md:37-45`.
+The passage of time (`app.py:397-405`) and phone disconnects (`loop.py:441-443`). Contacts who do not respond, and group separation. The final step (`loop.py:180`), and every alert. No SMS, calls or 911. The full list is `DEMO_NOTES.md:37-45`.
 
 #### Q: What would change in production?
 - Push notifications or SMS instead of polling, so contacts need not have the app open.
@@ -752,19 +752,19 @@ The band only speaks BLE. On the Uno R4 WiFi, BLE and Wi-Fi share one radio chip
 ### Privacy and autonomy
 
 #### Q: Who sees the location, and when?
-All night, the phone sends it about every 30 s or after a 25 m move. It does this only while the app is open (`night-effects.tsx:13-14`, `night-effects.tsx:28-35`). A locked phone sends nothing, so the location can be old. The card shows its age. But `view_for` gives it only to contacts in an active alert (`loop.py:492`). The user can also limit it to the taker only. It is never inside the alert message (`test_scenarios.py:355-358`). When the alert ends, it is wiped (`loop.py:213`). The demo panel sees everything, on purpose, and is locked by a key (`DEMO_NOTES.md:64`).
+All night, the phone sends it about every 30 s or after a 25 m move. It does this only while the app is open (`night-effects.tsx:13-14`, `night-effects.tsx:28-35`). A locked phone sends nothing, so the location can be old. The card shows its age. But `view_for` gives it only to contacts in an active alert (`loop.py:494`). The user can also limit it to the taker only. It is never inside the alert message (`test_scenarios.py:355-358`). When the alert ends, it is wiped (`loop.py:213`). The demo panel sees everything, on purpose, and is locked by a key (`DEMO_NOTES.md:64`).
 
 #### Q: Does the group learn about a duress alert?
-No. Duress goes only to the private duress list, one at a time (`loop.py:257`). Group members get `active: False` (`loop.py:490-491`), and the twin test checks they only ever get `left` (`test_twin.py:49-52`).
+No. Duress goes only to the private duress list, one at a time (`loop.py:257`). Group members get `active: False` (`loop.py:492-493`), and the twin test checks they only ever get `left` (`test_twin.py:49-52`).
 
 #### Q: Can a friend probe whether I have a night or a hidden alert?
 No. Ack, resolve and ping always answer `{"ok": True}` (`bridge.py:102-110`). The loop decides whether it counts. Tests: `test_bridge.py:314` (ack and resolve) and `test_bridge.py:582` (ping).
 
 #### Q: Can a friend ping a duress alert and expose it?
-No. The app hides the button (`find/[id].tsx:141-142`), and the server refuses it anyway: `_on_ping` ignores hidden alerts (`loop.py:400`).
+No. The app hides the button (`find/[id].tsx:141-142`), and the server refuses it anyway: `_on_ping` ignores hidden alerts (`loop.py:402`).
 
 #### Q: Can the user leave a group?
-Yes, from the armed screen, with one extra tap and no notice to anyone but a `left` effect (`loop.py:314-320`, `check-in-card.tsx:191-203`). Not during a check or alert, so a captor cannot use Leave to cancel.
+Yes, from the armed screen, with one extra tap and no notice to anyone but a `left` effect (`loop.py:316-322`, `check-in-card.tsx:191-203`). Not during a check or alert, so a captor cannot use Leave to cancel.
 
 #### Q: What if I remove a friend during a night?
 Contacts are fixed for that night (`PLAN.md` decision 9, `DEMO_NOTES.md:62`). Otherwise a captor can remove contacts to cancel a hidden alert. The cost: the removed friend keeps that night's access.
@@ -772,7 +772,7 @@ Contacts are fixed for that night (`PLAN.md` decision 9, `DEMO_NOTES.md:62`). Ot
 ### Code and design
 
 #### Q: Why is the state machine one pure function?
-All rules live in `step` (`loop.py:473-477`). Time comes in and effects go out. So it is testable with fake time, repeatable, and the web server stays thin (`app.py:90-92`). A swap from FastAPI to a queue does not touch the rules.
+All rules live in `step` (`loop.py:475-479`). Time comes in and effects go out. So it is testable with fake time, repeatable, and the web server stays thin (`app.py:90-92`). A swap from FastAPI to a queue does not touch the rules.
 
 #### Q: How does the twin test work?
 Two sessions get the same events, with one exception. One gets `Duress` where the other gets `ConfirmOk` (`test_twin.py:160`). Or one gets a second wrong PIN against the right PIN (`test_twin.py:177`). Or one gets the duress PIN against the right PIN (`test_twin.py:146-157`, `test_twin.py:223-225`). After every step it asserts the user views and user effects are equal (`test_twin.py:43-54`). It runs 500 fixed seeds of 70 steps and asserts it really reached the hard cases (`test_twin.py:233-241`). For example, the duress PIN must hide a running alert in more than 50 runs (`test_twin.py:241`). It did so in 119 of 500.
@@ -780,17 +780,17 @@ Two sessions get the same events, with one exception. One gets `Duress` where th
 #### Q: How is the duress PIN different from a wrong PIN?
 Both leave the user's alert running in secret. They differ in four ways:
 - The phone shows a filled check for the duress PIN (`ended_true`), the same as the right PIN. A wrong PIN shows "Incorrect PIN, try again" first, then an outlined check (`ended_fake`).
-- The duress PIN starts a new silent alert to the private duress contacts (`loop.py:303`). A wrong PIN alerts nobody new.
+- The duress PIN starts a new silent alert to the private duress contacts (`loop.py:305`). A wrong PIN alerts nobody new.
 - A second wrong PIN sends `wrong_pin_warning` to the alerted contacts. The duress PIN sends no warning. The duress contacts get a new alert instead.
-- The duress PIN never counts as a wrong PIN (`loop.py:275-276`). Test: `test_duress_pin_is_not_a_wrong_pin` (`test_loop.py:1277`).
+- The duress PIN never counts as a wrong PIN (`loop.py:275-276`). Test: `test_duress_pin_is_not_a_wrong_pin` (`test_loop.py:1290`).
 
 The wrong PIN rule still protects a user who does not type the duress PIN. See `PLAN.md` decisions 3 and 12.
 
 #### Q: Can someone watching tell the duress PIN from the real one?
-Not from the phone, the friends' screens or the server answer. The front runs the same code for both (`loop.py:306-310` against `loop.py:283-285`). The bridge does not record a check-in on Resolve, so `lastCheckIn` stays the same (`bridge.py:97-98`). `test_twin.py` compares the user's view and effects after every step. It does this from all 8 front states (`test_twin.py:430`) and in 500 random runs. The HTTP twin test compares status, body and length of every answer, and what every friend sees (`test_bridge.py:378`). Limit: the person who watches the hands sees which digits are typed.
+Not from the phone, the friends' screens or the server answer. The front runs the same code for both (`loop.py:308-312` against `loop.py:285-287`). The bridge does not record a check-in on Resolve, so `lastCheckIn` stays the same (`bridge.py:97-98`). `test_twin.py` compares the user's view and effects after every step. It does this from all 8 front states (`test_twin.py:430`) and in 500 random runs. The HTTP twin test compares status, body and length of every answer, and what every friend sees (`test_bridge.py:378`). Limit: the person who watches the hands sees which digits are typed.
 
 #### Q: Walk me through one request from the phone to the state machine.
-Use trace 4.5. The phone side is `check-in-card.tsx:108`, `safekeeps.tsx:145`, `demo-api.ts:56`. The server side is `bridge.py:84`, token at `safekeeps.py:51`, `apply_event` at `app.py:319`. Then `run` at `app.py:90`, `step` at `loop.py:473`, `_on_duress` at `loop.py:267`. Every entry point (phone, panel, ticker) ends in the same `run()`.
+Use trace 4.5. The phone side is `check-in-card.tsx:108`, `safekeeps.tsx:145`, `demo-api.ts:56`. The server side is `bridge.py:84`, token at `safekeeps.py:51`, `apply_event` at `app.py:319`. Then `run` at `app.py:90`, `step` at `loop.py:475`, `_on_duress` at `loop.py:267`. Every entry point (phone, panel, ticker) ends in the same `run()`.
 
 #### Q: How does the clock skip work without breaking the logic?
 There is one `offset` and one `now()` (`app.py:40-44`). `/demo/skip` adds to it and ticks every night at once (`app.py:397-405`). The loop never reads the clock, so nothing else changes. The phone follows through `serverOffset` (`safekeeps.tsx:40`).
@@ -807,7 +807,7 @@ A leftover copy of the Expo starter template from the teammate's first app commi
 ## 8. If you get stuck
 
 1. Open `server/kaze/loop.py` at `step` (line 451) and follow the handler for that event in `_HANDLERS` (line 436).
-2. Run the server tests: `cd ~/Desktop/kaze-judge/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q` and say "300 pass in under 3 seconds".
+2. Run the server tests: `cd ~/Desktop/kaze-judge/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q` and say "304 pass in under 3 seconds".
 3. Run one scenario by name: add `-k test_3_duress` (or any scenario name from section 6) to the same command.
 4. Show the panel at `/panel`: the hidden alert row and the privacy table come from the same `view_for` the phones use (`panel.py:34-50`).
 5. Say "I do not know that detail, but here is where it lives". Then open the file from section 5 and read the comment above the function.
