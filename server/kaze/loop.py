@@ -24,6 +24,7 @@ class Config:
     tiers: list[list[str]]
     duress_contacts: list[str]
     group: list[str]
+    duress_pin: str | None = None  # looks like the right PIN to the user, but silently alerts the duress contacts
     share_location_with: str = "alerted"  # "alerted" or "acknowledger"
     ask_seconds: float = 30
     grace_seconds: float = 15
@@ -251,21 +252,28 @@ def _on_confirm_ok(s, e, now):
     return _front_ok(s, now) or []
 
 
-def _on_duress(s, e, now):
-    effects = _front_ok(s, now)  # the front does exactly what ConfirmOk does
-    if effects is None:
-        return []
+def _raise_duress(s: Session, now: float) -> list[Effect]:
+    """Start a hidden duress alert. Takes the front location, so call it before the front ends."""
     tiers = [[c] for c in s.config.duress_contacts]
     # one open duress alert at a time. One that someone already took does not count.
-    if not any(a.state == "duress" and not a.acknowledged_by and a.tiers == tiers for a in _active(s)):
-        a = Alert(kind="duress", tiers=tiers, state="duress", hidden=True, location=s.location,
-                  location_at=s.location_at, pin=s.config.pin)
-        s.alerts.append(a)
-        effects += _alert_next_tier(s, a, now)  # tier 1 = duress contact 1 only
-    return effects
+    if any(a.state == "duress" and not a.acknowledged_by and a.tiers == tiers for a in _active(s)):
+        return []
+    a = Alert(kind="duress", tiers=tiers, state="duress", hidden=True, location=s.location,
+              location_at=s.location_at, pin=s.config.pin)
+    s.alerts.append(a)
+    return _alert_next_tier(s, a, now)  # tier 1 = duress contact 1 only
 
 
-def _on_user_resolve(s, e):
+def _on_duress(s, e, now):
+    # The front does exactly what ConfirmOk does, which is nothing in an alert or after the end.
+    # The duress alert starts in every front state, as for the duress PIN. ConfirmOk changes nothing
+    # in the other states either, so a watcher still cannot tell the two apart.
+    return (_front_ok(s, now) or []) + _raise_duress(s, now)
+
+
+def _on_user_resolve(s, e, now):
+    if s.config.duress_pin is not None and e.pin == s.config.duress_pin:
+        return _on_duress_pin(s, now)
     if s.state == "ended":
         return []
     # A PIN ends the alerts raised under it. An older night's PIN still ends the alerts carried from that night.
@@ -287,6 +295,20 @@ def _on_user_resolve(s, e):
     _end_front(s)
     s.pin_ended = True
     return effects + _resolve(s, mine) + _told(s, _active(s), "wrong_pin_warning")
+
+
+def _on_duress_pin(s, now):
+    """The front does exactly what the right PIN does. Nothing is resolved: the user's own alert goes on
+    hidden, as after a fake end but with no warning, and a duress alert starts."""
+    help_ = _raise_duress(s, now)  # first: it takes the front location, which the end clears
+    if s.state == "ended":
+        return help_
+    effects = [_to_user(s, "ended_true")]
+    if s.front_alert:
+        s.front_alert.hidden = True
+    _end_front(s)
+    s.pin_ended = True
+    return effects + help_
 
 
 def _on_leave(s, e, now):
@@ -410,7 +432,7 @@ def _on_resolve(s, e, now):
     if e.by is None:
         return []
     if e.by == s.config.user_id:
-        return _on_user_resolve(s, e)
+        return _on_user_resolve(s, e, now)
     return _on_contact_resolve(s, e)
 
 

@@ -63,6 +63,22 @@ def test_two_phones_full_flow(client):
     assert alerts(client, b) == []
 
 
+def test_duress_gesture_during_her_own_alert_reaches_the_duress_contact(client):
+    """Found in the 2-phone test: the band duress gesture while her alert ran did nothing."""
+    (alice, a), (bob, b), (carol, c) = people(client, "Alice", "Bob", "Carol")
+    start(client, a, [[bob["id"]]], [carol["id"]])
+    client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={})
+    client.post("/demo/skip", json={"seconds": 50})
+    for gesture in ("ConfirmOk", "Duress"):  # the same answer and the same screen for both
+        before = client.get(NIGHT, headers=a).json()["view"]
+        r = client.post(NIGHT + "/events", headers=a, json={"type": gesture})
+        assert (r.status_code, r.json()) == (200, {"ok": True})
+        assert client.get(NIGHT, headers=a).json()["view"] == before
+    assert before["state"] == "escalating"
+    assert [x["kind"] for x in alerts(client, c)] == ["duress"]
+    assert [x["kind"] for x in alerts(client, b)] == ["manual"]  # her own alert goes on
+
+
 def test_check_in_endpoint_answers_the_check(client):
     (alice, a), (bob, b) = people(client, "Alice", "Bob")
     start(client, a, [[bob["id"]]], [bob["id"]])
@@ -333,21 +349,25 @@ def test_f3_ack_and_resolve_answer_the_same_for_anyone(client):
 
 def hidden_twin_world(client, how):
     """Alice, Bob (tier 1), Carol (duress contact) and Dan (a friend, no part in the night). Alice's phone is held:
-    `how` is "duress" or "fake_end" for the hidden world and "honest" for the twin. Everything after the hiding step
+    `how` is "duress", "fake_end" or "duress_pin" for the hidden world and "honest_..." for the twin. Everything after the hiding step
     is the same in both. Returns every step: what each person's screen and data show and each response."""
     (alice, a), (bob, b), (carol, c), (dan, d) = people(client, "Alice", "Bob", "Carol", "Dan")
     who = {"alice": a, "bob": b, "carol": c, "dan": d}
-    start(client, a, [[bob["id"]]], [carol["id"]])
+    start(client, a, [[bob["id"]]], [carol["id"]], duress_pin="9876")
     client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={})
+    response = None
     if how in ("duress", "honest_duress"):
         client.post(NIGHT + "/events", headers=a, json={"type": "Duress" if how == "duress" else "ConfirmOk"})
     else:
         skip(client, 31)
         skip(client, 16)
-        pins = ("0000", "1111") if how == "fake_end" else ("1234",)
+        pins = {"fake_end": ("0000", "1111"), "duress_pin": ("9876",)}.get(how, ("1234",))
         for pin in pins:
-            client.post(NIGHT + "/events", headers=a, json={"type": "Resolve", "pin": pin})
-    sees = {"carol"} if how in ("duress", "honest_duress") else {"bob"}  # who may legitimately see an alert
+            r = client.post(NIGHT + "/events", headers=a, json={"type": "Resolve", "pin": pin})
+            response = (r.status_code, r.json(), r.headers.get("content-length"))
+    # who may legitimately see an alert
+    sees = {"duress": {"carol"}, "honest_duress": {"carol"}, "duress_pin": {"bob", "carol"},
+            "honest_duress_pin": {"bob", "carol"}}.get(how, {"bob"})
     steps = []
 
     def snap(label, response=None):
@@ -358,7 +378,7 @@ def hidden_twin_world(client, how):
             shot[name]["alerts"] = "skipped" if name in sees else mine["alerts"]
         steps.append((label, shot, response))
 
-    snap("hidden")
+    snap("hidden", response)
     for name in ("bob", "carol"):
         client.post(f"/safekeeps/friends/{locals()[name]['id']}/remove", headers=a)
     snap("removed")
@@ -372,7 +392,7 @@ def hidden_twin_world(client, how):
 
 
 def test_http_twin_a_hidden_alert_looks_like_an_honest_one_after_a_friend_is_removed(client):
-    for hidden, honest in (("duress", "honest_duress"), ("fake_end", "honest_fake_end")):
+    for hidden, honest in (("duress", "honest_duress"), ("fake_end", "honest_fake_end"), ("duress_pin", "honest_duress_pin")):
         client.post("/demo/reset")
         a_steps = hidden_twin_world(client, hidden)
         client.post("/demo/reset")
@@ -655,3 +675,27 @@ def test_ack_hold_seconds_must_be_a_real_time(client, value):
     content = '{"user_id": "%s", "pin": "1", "tiers": [["%s"]], "duress_contacts": ["%s"], "ack_hold_seconds": %s}' % (
         user, other, other, value)
     assert client.post("/sessions", content=content, headers={"content-type": "application/json"}).status_code == 422
+
+
+def test_duress_pin_is_checked_and_never_shown(client):
+    (alice, a), (bob, b), (carol, c) = people(client, "Alice", "Bob", "Carol")
+    same = start(client, a, [[bob["id"]]], [carol["id"]], duress_pin="1234")
+    assert (same.status_code, same.json()) == (400, {"detail": "duress_pin must be different from pin"})
+    for bad in (9876, 98.5, True, ["9876"]):
+        assert start(client, a, [[bob["id"]]], [carol["id"]], duress_pin=bad).status_code == 422
+    assert client.get(NIGHT, headers=a).json()["view"] is None
+    ok = start(client, a, [[bob["id"]]], [carol["id"]], duress_pin="9876")
+    assert ok.status_code == 200 and "9876" not in ok.text
+    for h in (a, b, c):
+        assert "9876" not in client.get(NIGHT, headers=h).text
+        assert "9876" not in client.get("/safekeeps/state", headers=h).text
+    assert "9876" not in client.get("/demo/state").text
+
+
+def test_duress_pin_alerts_the_duress_contact_and_answers_like_the_right_pin(client):
+    (alice, a), (bob, b), (carol, c) = people(client, "Alice", "Bob", "Carol")
+    start(client, a, [[bob["id"]]], [carol["id"]], duress_pin="9876")
+    r = client.post(NIGHT + "/events", headers=a, json={"type": "Resolve", "pin": "9876"})
+    assert (r.status_code, r.json()) == (200, {"ok": True})
+    assert client.get(NIGHT, headers=a).json()["view"]["screen"] == "ended_true"
+    assert [x["kind"] for x in alerts(client, c)] == ["duress"] and alerts(client, b) == []

@@ -309,3 +309,28 @@ def test_one_bad_session_does_not_stop_the_other_countdowns(client, monkeypatch)
     monkeypatch.setattr(loop, "step", step)
     assert client.post("/demo/skip", json={"seconds": 50}).status_code == 200
     assert client.get(f"/sessions/{user}/view", params={"viewer": user}).json()["state"] == "escalating"
+
+
+def test_duress_pin_must_be_a_string_that_differs_from_pin(client):
+    user, contact = make_user(client, "u"), make_user(client, "c")
+    r = start_night(client, user, contact, duress_pin="1234")
+    assert (r.status_code, r.json()) == (400, {"detail": "duress_pin must be different from pin"})
+    assert start_night(client, user, contact, duress_pin=9876).status_code == 422
+    r = start_night(client, user, contact, duress_pin="9876")
+    assert r.status_code == 200 and "9876" not in r.text
+    client.post(f"/sessions/{user}/events", json={"type": "Trigger", "kind": "manual"})
+    client.post("/demo/skip", json={"seconds": 50})
+    r = client.post(f"/sessions/{user}/events", json={"type": "Resolve", "by": user, "pin": "9876"})
+    assert (r.status_code, r.json()) == (200, {"ok": True})
+    assert client.get(f"/sessions/{user}/view", params={"viewer": user}).json()["screen"] == "ended_true"
+    assert client.get(f"/sessions/{user}/view", params={"viewer": contact}).json()["kind"] == "duress"
+
+
+def test_a_422_never_echoes_the_sent_values_and_an_empty_duress_pin_is_refused(client):
+    uid = client.post("/users", json={"name": "Ann"}).json()["user_id"]
+    friend = client.post("/users", json={"name": "Bo"}).json()["user_id"]
+    body = {"user_id": uid, "pin": "1234", "duress_pin": 9876, "tiers": [[friend]], "duress_contacts": [friend]}
+    r = client.post("/sessions", json=body)
+    assert r.status_code == 422 and "9876" not in r.text and "1234" not in r.text
+    r = client.post("/sessions", json=body | {"duress_pin": ""})
+    assert r.status_code == 400 and r.json()["detail"] == "duress_pin must not be empty"

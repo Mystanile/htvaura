@@ -1206,3 +1206,129 @@ def test_location_at_goes_with_the_location():
 
     s, now, _ = make("escalating")
     assert view_for(s, "a")["location"] is None and view_for(s, "a")["location_at"] is None
+
+
+# ---------- the duress PIN ----------
+
+DPIN = "9876"
+FRONT_FIELDS = ("state", "screen", "deadline", "wrong_pins", "check_kind", "next_check", "home_by_done",
+                "pin_ended", "location", "location_at", "ping_at")
+PIN_STATES = ["armed", "asking", "waiting", "escalating", "acknowledged", "fake_end", "end_screen", "ended"]
+
+
+def pin_session(state):
+    """A session with a duress PIN, driven to `state`, with a location sent just before."""
+    base = {"fake_end": "escalating", "end_screen": "armed", "ended": "armed"}.get(state, state)
+    s, now, _ = make(base, duress_pin=DPIN, check_every_seconds=500)
+    send(s, LocationUpdate(LAT, LNG), now)
+    if state == "fake_end":
+        send(s, Resolve(U, "0000"), now)
+        send(s, Resolve(U, "0000"), now)
+    if state == "end_screen":
+        send(s, Resolve(U, PIN), now)  # now every wrong PIN shows ended_fake
+    if state == "ended":
+        send(s, Leave(), now)
+    return s, now
+
+
+def duress_pin_and_twin(s, now):
+    """Send the duress PIN to `s` and the right PIN to a copy. The user must see the same in both."""
+    twin = copy.deepcopy(s)
+    fx = send(s, Resolve(U, DPIN), now)
+    fx_t = send(twin, Resolve(U, PIN), now)
+    assert view_for(s, U) == view_for(twin, U)
+    assert flat(to(fx, U)) == flat(to(fx_t, U))
+    for f in FRONT_FIELDS:
+        assert getattr(s, f) == getattr(twin, f), f
+    assert s.front_alert is twin.front_alert is None
+    return fx
+
+
+@pytest.mark.parametrize("state", PIN_STATES)
+def test_duress_pin_looks_like_the_right_pin_and_starts_a_duress_alert(state):
+    s, now = pin_session(state)
+    before, here = list(active(s)), s.location  # an earlier end or Leave already cleared the front location
+    fx = duress_pin_and_twin(s, now)
+    if state != "ended":
+        assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_true"})]
+    duress = [a for a in active(s) if a.state == "duress"]
+    assert len(duress) == 1 and duress[0].hidden and duress[0].alerted == ["x"]
+    assert duress[0].location == here
+    assert [(e.to, e.kind, e.data["kind"]) for e in others(fx)] == [("x", "alert", "duress")]
+    assert all(a in active(s) and a.hidden for a in before), "nothing that ran before is resolved, all of it is hidden"
+    assert has_word(view_for(s, U)) is False and has_word(to(fx, U)) is False
+
+
+@pytest.mark.parametrize("state", ["escalating", "acknowledged"])
+def test_duress_pin_hides_the_users_alert_and_it_keeps_escalating(state):
+    s, now = pin_session(state)
+    front = s.front_alert
+    seen_by_a = view_for(s, "a")
+    fx = send(s, Resolve(U, DPIN), now)
+    assert front.hidden and front.state == state and front in active(s)
+    assert recipients(fx, "wrong_pin_warning") == set() and recipients(fx, "resolved") == set()
+    assert view_for(s, "a") == seen_by_a  # contacts who saw it keep seeing it
+    now, fx = advance(s, now, 300)
+    assert {"b", "c"} <= recipients(fx, "alert") and to(fx, U) == []
+    send(s, Resolve(U, PIN), now)  # the right PIN still ends everything
+    assert active(s) == [] and s.screen == "ended_true"
+
+
+def test_duress_pin_is_not_a_wrong_pin():
+    s, now = pin_session("escalating")
+    assert flat(send(s, Resolve(U, "0000"), now)) == [(U, "screen", {"screen": "pin_retry"})]
+    fx = send(s, Resolve(U, DPIN), now)
+    assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_true"})]
+    assert recipients(fx, "wrong_pin_warning") == set() and s.wrong_pins == 0
+
+
+def test_duress_pin_after_an_end_screen_shows_the_true_end():
+    s, now = pin_session("end_screen")
+    assert flat(send(s, Resolve(U, "0000"), now)) == [(U, "screen", {"screen": "ended_fake"})]
+    fx = send(s, Resolve(U, DPIN), now)
+    assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_true"})]
+    assert recipients(fx, "alert") == {"x"}
+
+
+def test_duress_pin_while_a_duress_alert_runs_acts_like_a_repeated_duress():
+    s, now = pin_session("armed")
+    send(s, Duress(), now)
+    assert others(send(s, Resolve(U, DPIN), now)) == []  # the open one is enough
+    send(s, Ack("x"), now)
+    assert recipients(send(s, Resolve(U, DPIN), now), "alert") == {"x"}  # a taken one does not block a new one
+    assert len([a for a in active(s) if a.state == "duress"]) == 2
+
+
+def test_duress_pin_never_ends_a_carried_alert_whose_old_pin_it_matches():
+    s, now = pin_session("armed")
+    send(s, Duress(), now)
+    carried = active(s)
+    s = new_session(make_config(pin="5555", duress_pin=PIN), now, carry=s)
+    fx = send(s, Resolve(U, PIN), now)  # the old night's PIN is this night's duress PIN
+    assert active(s) == carried and recipients(fx, "resolved") == set()
+
+
+@pytest.mark.parametrize("state", PIN_STATES)
+def test_duress_gesture_starts_help_in_every_front_state(state):
+    """The band gesture during the user's own alert, or after the end, still alerts duress contact 1.
+    The front does exactly what ConfirmOk does, which is nothing outside armed, asking and waiting."""
+    s, now = pin_session(state)
+    twin = copy.deepcopy(s)
+    before, here = list(active(s)), s.location
+    fx = send(s, Duress(), now)
+    fx_t = send(twin, ConfirmOk(), now)
+    assert view_for(s, U) == view_for(twin, U) and flat(to(fx, U)) == flat(to(fx_t, U))
+    for f in FRONT_FIELDS:
+        assert getattr(s, f) == getattr(twin, f), f
+    duress = [a for a in active(s) if a.state == "duress"]
+    assert len(duress) == 1 and duress[0].hidden and duress[0].location == here
+    assert [(e.to, e.kind, e.data["kind"]) for e in others(fx)] == [("x", "alert", "duress")]
+    assert all(a in active(s) for a in before), "nothing that ran before is resolved"
+    assert view_for(s, "x")["active"] is True and view_for(s, "x")["kind"] == "duress"
+
+
+def test_no_duress_pin_means_no_pin_raises_help():
+    s, now, _ = make("escalating")
+    for pin in (None, "", "9876"):
+        assert not any(a.state == "duress" for a in s.alerts)
+        send(s, Resolve(U, pin), now)

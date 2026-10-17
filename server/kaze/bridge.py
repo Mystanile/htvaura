@@ -37,6 +37,7 @@ async def ask_to_check_in(sender: str, target: str) -> None:
 
 class NightIn(BaseModel):
     pin: str
+    duress_pin: str | None = None  # passed to the loop with the other fields
     tiers: list[list[str]]
     duress_contacts: list[str]
     check_every_minutes: Annotated[float, Field(gt=0, allow_inf_nan=False)] | None = None

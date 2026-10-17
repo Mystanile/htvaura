@@ -116,6 +116,37 @@ def test_3_duress():
     assert not has_word(view_for(s, U))
 
 
+def test_3_duress_pin_looks_like_a_real_cancel_but_alerts_the_duress_contacts():
+    """Someone makes the user cancel a running alert. The user types the duress PIN. The phone shows the same
+    filled check as the right PIN, but the alert goes on hidden and the duress contacts are alerted too."""
+    s, now, _ = make("acknowledged", duress_pin="9876")
+    twin, _, _ = make("acknowledged", duress_pin="9876")
+    send(s, LocationUpdate(LAT, LNG), now)
+    send(twin, LocationUpdate(LAT, LNG), now)
+
+    fx = send(s, Resolve(U, "9876"), now)
+    fx_real = send(twin, Resolve(U, PIN), now)
+
+    assert view_for(s, U) == view_for(twin, U) == {"state": "armed", "screen": "ended_true", "deadline": None, "ping_at": None}
+    assert flat(to(fx, U)) == flat(to(fx_real, U))
+    assert not has_word([flat(to(fx, U)), view_for(s, U)])
+    # The real cancel tells "a" it is over. The duress PIN tells "a" nothing and alerts duress contact 1.
+    assert recipients(fx_real, "resolved") == {"a"}
+    assert recipients(others(fx)) == {"x"} and to(fx, "x", "alert")[0].data["card"] == card_for("duress")
+    assert view_for(s, "a")["active"] and view_for(s, "a")["acknowledged_by"] == "a"
+    assert view_for(s, "x")["kind"] == "duress" and view_for(s, "x")["location"] == (LAT, LNG)
+
+    # Later: nothing more reaches the user or the group, and the help goes on in both alerts.
+    t0 = now
+    now, later = advance(s, now, 300)
+    _, twin_later = advance(twin, t0, 300)
+    assert flat(to(later, U)) == flat(to(twin_later, U)) == []
+    assert "y" in recipients(later, "alert") and "b" in recipients(later, "alert")
+    for who in ["g1", "g2", "stranger"]:
+        assert to(fx + later, who) == [] and view_for(s, who) == INACTIVE
+    assert view_for(s, U) == view_for(twin, U)
+
+
 # ---------- 4. Connectivity failure ----------
 
 def test_4_connectivity_failure():

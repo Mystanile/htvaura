@@ -130,6 +130,7 @@ Fields:
 |---|---|---|
 | `user_id` | yes | The person who is out. |
 | `pin` | yes | The cancel PIN, as a string. The server compares it exactly. |
+| `duress_pin` | no | A second PIN, as a string. It must differ from `pin`. On the phone it works exactly like `pin`, but it silently alerts the duress contacts and does not end the user's alert. See "The duress PIN" in section 6. The server never sends it back. |
 | `tiers` | yes | Ranked list of lists of contact ids. Tier 1 is alerted first. |
 | `duress_contacts` | yes, at least one | Private ranked list. Each contact is its own tier. They are never shown to the group. |
 | `group_code` | no | Leave it out for solo use. |
@@ -156,6 +157,7 @@ Errors:
 - 400 if `user_id` is in `tiers` or `duress_contacts`. The response is `{"detail": "the user cannot be their own contact"}`. Leave the user out when you build the lists from the group members.
 - 400 if `tiers` and `duress_contacts` hold more than 50 entries in all. Both `POST /sessions` and `POST /safekeeps/night` check this.
 - 400 if `duress_contacts` is empty. The response is `{"detail": "duress_contacts must not be empty"}`. Always ask the user to pick at least one duress contact.
+- 400 if `duress_pin` is the same as `pin`. The response is `{"detail": "duress_pin must be different from pin"}`. A `duress_pin` that is not a string (a number, for example) gives 422.
 - 409 if the user's own view shows `escalating` or `acknowledged`. The response is `{"detail": "session busy"}`. The old session stays as it was, and nothing is replaced. Be ready for a 409 when you start a night, and show a neutral message such as "Could not start right now". Do not retry in a loop. The alert must end first. A user with a hidden alert (duress, or a fake end) gets the same answer as any other user in the same view.
 - 422 if a required field is missing. Example: `{"detail": [{"type": "missing", "loc": ["body", "pin"], "msg": "Field required", "input": {...}}]}`. A 422 also comes if a timer is negative, NaN, or infinite.
 
@@ -510,7 +512,7 @@ Send these with `POST /sessions/{user_id}/events`. Put the event name in `type`.
 |---|---|---|---|
 | `Trigger` | `kind`: `home_by`, `separation`, `periodic`, or `manual` | The user's app (the demo panel sends `separation`) | Start the check. Send it to start a check. The server ignores it if a check or an alert the user can see is already running. |
 | `ConfirmOk` | none | The user | One tap on "I'm okay". Works in `asking` and `waiting`. In `armed` it only shows `thanks`. |
-| `Duress` | none | The user | The hidden gesture (hold 1 s, then 2 quick taps). Send it at any time. Where it has no effect, the server ignores it. |
+| `Duress` | none | The user | The hidden gesture (hold 1 s, then 2 quick taps). Send it at any time. The phone gets what `ConfirmOk` gives in the same state. The duress alert starts in every state, also during the user's own alert. |
 | `Ack` | `contact_id` | A contact | "I'm on it". Send your own id as `contact_id`. |
 | `Resolve` | `by`, `pin` (user only) | The user or a contact | End the alert. |
 | `Ping` | `contact_id` | A contact | Make the user's phone ring and flash. Counts only on the visible alert, see section 10. |
@@ -566,7 +568,26 @@ Who can do what:
 - After any end screen from a PIN (`ended_true` or `ended_fake`), there is no more `pin_retry` until the next check starts. Every wrong PIN shows `ended_fake` again and tells nobody. The right PIN shows `ended_true`. So a person who forces more guesses learns nothing from the screen. The right PIN, or a contact, still ends a hidden alert. Example: in an alert, `0000` gives `pin_retry`, `9999` gives `ended_fake`, then `1111` gives `ended_fake` again, not `pin_retry`.
 - `Resolve` by a contact works only if that contact tapped "I'm on it" first. In duress, any duress contact can resolve it, even one who was not alerted yet.
 - `Leave` is ignored while the view says `asking`, `waiting`, `escalating` or `acknowledged`, even at `pin_retry`. A check must be answered first, and an alert must be cancelled with the PIN first. So a person who takes the phone cannot stop a check by leaving. At other times (`armed`) it works. If a hidden alert runs (duress, or after `ended_fake`), it works too, and the alert keeps running. Group members get `left`. After `Leave` the PIN is ignored until the next night.
+- The duress PIN (see below) is never a wrong PIN.
 - `ConfirmOk` and `Duress` while `armed` show `thanks` but do not move the next periodic check later. Only an answer to a running check (`asking` or `waiting`) plans the next periodic check from now. 
+
+### The duress PIN
+
+A night can have a `duress_pin` (set it in `POST /sessions` or `POST /safekeeps/night`). The user types it in the same PIN box as the cancel PIN, for example when someone makes them cancel an alert. Send it the same way:
+
+```json
+{"type": "Resolve", "by": "3f9a1c2e", "pin": "9876"}
+```
+
+The rule:
+
+- The phone gets exactly what the right PIN gives in the same state: the same `screen` (`ended_true`, the filled check), the same view, and the same `{"ok": true}`. This is also true after an end screen, where a wrong PIN shows `ended_fake`. In `ended` (after `Leave` or the night end) the phone gets nothing, as with the right PIN.
+- Silently, a duress alert starts, exactly as after the `Duress` gesture. If an open duress alert is already running, no second one starts.
+- Nothing is resolved. If the user's own alert was running (`escalating` or `acknowledged`), it keeps going, hidden, like after a fake end. Its contacts keep seeing it. Nobody gets `resolved` or `wrong_pin_warning`.
+- It does not count as a wrong PIN and does not change what friends see (`lastCheckIn`).
+- Later, the right PIN ends every alert of the night, as usual.
+
+Example. Alice's night has `"pin": "4821"` and `"duress_pin": "9876"`. Her alert is `escalating` and Ben was alerted. She types `9876`. Her view is `{"state": "armed", "screen": "ended_true", "deadline": null, "ping_at": null}`, the same as after `4821`. Ben still sees the alert. Fia, her duress contact, gets an `alert` with kind `duress`.
 
 ## 7. User screens
 
@@ -625,8 +646,8 @@ Names: Alice is the user (`3f9a1c2e`). Ben is tier 1 (`7b21d0a4`). Cara is tier 
 
 ### Duress
 
-1. Alice is in `armed`, `asking`, or `waiting`. She does the hidden gesture. The app sends `{"type": "Duress"}`.
-2. Alice's socket gets `screen` with `thanks`. This is the exact message she gets after a normal tap.
+1. Alice does the hidden gesture. The app sends `{"type": "Duress"}`.
+2. In `armed`, `asking`, or `waiting`, Alice's socket gets `screen` with `thanks`. This is the exact message she gets after a normal tap. In any other state (for example her own alert is `escalating`) she gets nothing, the same as after a normal tap there.
 3. Fia's socket gets `alert` with `kind` set to `duress`. Nobody else gets anything. Ben, Cara, and the group see nothing.
 4. If Fia does not tap "I'm on it" within `ack_seconds`, the next duress contact gets the alert.
 5. A duress contact taps "I'm on it". The other duress contacts get `owner`. Alice's view does not change.
@@ -712,6 +733,7 @@ Start a night for me. The group is all my accepted friends. Every contact must b
 | Field | Meaning |
 |---|---|
 | `pin` | A string. The user needs it to cancel. Required. |
+| `duress_pin` | Optional. A string that differs from `pin`. It looks like `pin` on the phone, but it silently alerts the duress contacts. See "The duress PIN" in section 6. |
 | `tiers` | A list of lists of friend ids. The first list is alerted first. Required. Must not be empty. No tier may be empty. |
 | `duress_contacts` | Friend ids for the silent alert. Required. Must not be empty. Only the user knows this list. |
 | `check_every_minutes` | Optional. The server starts a check by itself this long after the phone is armed. A number above 0. |
@@ -735,8 +757,9 @@ Errors:
 | `400` | A contact is not an accepted friend. This includes yourself. The text is `every contact must be an accepted friend`. |
 | `400` | `duress_contacts` is empty. |
 | `400` | `tiers` is empty or has an empty tier. |
+| `400` | `duress_pin` is the same as `pin`. Text: `duress_pin must be different from pin`. |
 | `409` | `session busy`. An alert is running for you now. Cancel it with the PIN first. |
-| `422` | A bad field. For example `pin` is a number and not a string, or `check_every_minutes` is 0. |
+| `422` | A bad field. For example `pin` or `duress_pin` is a number and not a string, or `check_every_minutes` is 0. |
 
 Starting a new night while the old one is quiet replaces it.
 

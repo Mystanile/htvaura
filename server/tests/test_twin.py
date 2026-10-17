@@ -18,6 +18,7 @@ from kaze.loop import (
 )
 
 CONTACTS = ["a", "b", "c", "d", "x", "y", "g1", "stranger"]
+DPIN = "9876"  # the duress PIN. Every night in this file has one; only the hidden user ever types it
 SEEDS = 500
 STEPS = 70
 
@@ -71,7 +72,7 @@ class Pair:
 
 
 def new_pair(**over):
-    cfg = lambda: make_config(**over)
+    cfg = lambda: make_config(**{"duress_pin": DPIN} | over)
     return Pair(new_session(cfg(), 0.0), new_session(cfg(), 0.0))
 
 
@@ -142,15 +143,21 @@ def user_event(rng, p, leave=0.05):
 def make_hidden(rng, p, kind):
     """Give `hidden` a hidden alert. Returns False if the front is in the wrong state right now."""
     state = p.hidden.state
-    if kind == "duress":
-        if state in ("armed", "asking", "waiting"):
-            p.send(Duress(), ConfirmOk())
-            return True
-        if state in ("escalating", "acknowledged"):  # steer: end the alert with the PIN
-            p.send(Resolve(U, PIN))
-        elif state == "resolved":
-            p.tick(1)
-        return False
+    if kind == "duress_pin":
+        if p.hidden.front_alert is None and rng.random() < 0.6:  # steer toward the user's own alert half the time
+            if state == "armed":
+                p.send(Trigger("manual"))
+            elif state in ("asking", "waiting"):
+                p.tick(100)
+            elif state == "resolved":
+                p.tick(1)
+            if state != "ended":
+                return False
+        p.send(Resolve(U, DPIN), Resolve(U, PIN))
+        return True
+    if kind == "duress":  # the gesture starts help in every front state
+        p.send(Duress(), ConfirmOk())
+        return True
     if p.hidden.front_alert is None:
         if state == "armed":  # steer: start a check
             p.send(Trigger("manual"))
@@ -175,15 +182,19 @@ def run_seed(seed):
         "ack_hold_seconds": rng.choice([120, rng.uniform(0, 60), rng.uniform(5, 200)]),  # taken alerts go stale
         # sometimes a contact is in both the tiers and duress_contacts
         "duress_contacts": rng.choice([["x", "y"], ["x", "y"], ["x", "a"], ["d", "y"], ["b", "x"]]),
+        "duress_pin": DPIN,
     }
     p = new_pair(**over)
-    kind = rng.choice(["duress", "fake"])
+    kind = rng.choice(["duress", "fake", "duress_pin"])
     p.watch = kind == "duress"
     make_at = rng.randrange(0, 25)
-    seen = {"hidden": False, "carried": False, "front_after": False, "leave_in_check": False, "stale": False}
+    seen = {"hidden": False, "carried": False, "front_after": False, "leave_in_check": False, "stale": False,
+            "pin_hid_front": False}
     for i in range(STEPS):
         if not seen["hidden"] and i >= make_at:
+            had_front = p.hidden.front_alert
             seen["hidden"] = make_hidden(rng, p, kind)
+            seen["pin_hid_front"] |= kind == "duress_pin" and seen["hidden"] and had_front is not None
             if seen["hidden"] and kind == "duress" and shared_contacts(p.hidden):
                 p.send(Trigger("manual"))  # a missed check: the user alert meets the open duress alert
                 p.tick(100)
@@ -202,7 +213,11 @@ def run_seed(seed):
             event, seconds = Leave(), 0  # a captor tries to leave during a check: refused for both
         p.now += seconds
         seen["leave_in_check"] |= isinstance(event, Leave) and p.hidden.state in ("asking", "waiting")
-        fx = p.send(event)
+        hidden_event = event
+        if kind == "duress_pin" and event == Resolve(U, p.honest.config.pin) and rng.random() < 0.5:
+            hidden_event = Resolve(U, DPIN)  # the hidden user types the duress PIN where the honest one types the right one
+            seen["pin_hid_front"] |= p.hidden.front_alert is not None
+        fx = p.send(hidden_event, event)
         seen["stale"] |= any(e.kind == "ack_stale" for e in fx)
         if seen["hidden"] and p.hidden.front_alert is not None:
             seen["front_after"] = True
@@ -217,6 +232,7 @@ def test_random_twins_cannot_be_told_apart():
     assert sum(r["front_after"] for r in runs) > 100
     assert sum(r["leave_in_check"] for r in runs) > 100
     assert sum(r["stale"] for r in runs) > 50
+    assert sum(r["pin_hid_front"] for r in runs) > 50
 
 
 # ---------- the four reviewed tells, as explicit cases ----------
@@ -400,3 +416,48 @@ def test_n8_a_stale_ack_on_a_hidden_alert_looks_the_same_to_the_user():
     p.send(Ack("x"))
     p.ticks(31)
     assert alert(p.hidden).stale_ack_by == "x"
+
+
+# ---------- the duress PIN against the right PIN, the duress gesture against ok ----------
+
+@pytest.mark.parametrize("how", ["pin", "gesture"])
+@pytest.mark.parametrize("state", ["armed", "asking", "waiting", "escalating", "acknowledged", "fake_end", "end_screen", "ended"])
+def test_duress_pin_and_right_pin_look_the_same_from_every_state(state, how):
+    """The hidden user types the duress PIN where the honest one types the right PIN (or does the duress
+    gesture where the honest one taps ok), then both carry on the same way. The user's view and effects
+    match at every step (Pair.send checks it). The gesture starts help in every state, an alert included."""
+    p = new_pair(check_every_seconds=200)
+    p.send(LocationUpdate(43.65, -79.38))
+    if state not in ("armed", "ended"):
+        p.send(Trigger("manual"))
+    if state in ("waiting", "escalating", "acknowledged", "fake_end"):
+        p.ticks(31 if state == "waiting" else 50)
+    if state == "acknowledged":
+        p.send(Ack("a"))
+    if state == "fake_end":  # both fake-end: only then the right PIN and the duress PIN differ
+        p.send(Resolve(U, "0000"))
+        p.send(Resolve(U, "0000"))
+    if state in ("end_screen", "ended"):
+        p.send(Resolve(U, PIN))
+    if state == "ended":
+        p.send(Leave())
+    assert p.hidden.state == {"fake_end": "resolved", "end_screen": "asking"}.get(state, state)
+    if how == "pin":
+        p.send(Resolve(U, DPIN), Resolve(U, PIN))
+    else:
+        p.send(Duress(), ConfirmOk())
+    assert any(a.state == "duress" and a.alerted == ["x"] for a in active(p.hidden))
+    # Everything after is the same for both users.
+    for event in (Resolve(U, "0000"), Resolve(U, "1111"), ConfirmOk(), Trigger("manual"), Leave()):
+        p.send(event)
+        p.tick(1)
+    p.ticks(60)  # a missed check escalates the same in both
+    p.send(Resolve(U, "0000"))
+    p.send(Resolve(U, PIN))
+    p.send(Ping("a"))
+    p.ticks(300)
+    p.hidden = new_session(make_config(duress_pin=DPIN), p.now, carry=p.hidden)
+    p.honest = new_session(make_config(duress_pin=DPIN), p.now, carry=p.honest)
+    p.send(Trigger("manual"))
+    p.ticks(100)
+    p.send(Resolve(U, PIN))

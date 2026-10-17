@@ -173,8 +173,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "P
 
 @app.exception_handler(RequestValidationError)
 async def bad_body(request: Request, exc: RequestValidationError):
-    """The usual 422. An input that JSON cannot hold (NaN or infinity, alone or inside a list or object) is shown as text."""
-    return JSONResponse(status_code=422, content={"detail": [e | {"input": _jsonable(e.get("input"))} for e in exc.errors()]})
+    """The usual 422, without the sent value: it can hold a PIN or a duress PIN, and an error must never echo either."""
+    return JSONResponse(status_code=422, content={"detail": [{k: _jsonable(v) for k, v in e.items() if k != "input"} for e in exc.errors()]})
 
 
 def _jsonable(v):
@@ -216,6 +216,7 @@ Seconds = Annotated[float, Field(ge=0, allow_inf_nan=False)]  # NaN and infinity
 class SessionIn(BaseModel):
     user_id: str
     pin: str
+    duress_pin: str | None = None
     tiers: list[list[str]]
     duress_contacts: list[str] = []
     group_code: str | None = None
@@ -274,6 +275,10 @@ def begin_night(user_id: str, members: list[str], **fields) -> dict:
         raise HTTPException(400, "share_location_with must be 'alerted' or 'acknowledger'")
     if not config.duress_contacts:
         raise HTTPException(400, "duress_contacts must not be empty")
+    if config.duress_pin == "":  # an empty duress PIN would turn an empty PIN entry into a silent alert
+        raise HTTPException(400, "duress_pin must not be empty")
+    if config.duress_pin == config.pin:  # never echo either PIN
+        raise HTTPException(400, "duress_pin must be different from pin")
     if not config.tiers or not all(config.tiers):
         raise HTTPException(400, "tiers must not be empty and every tier needs a contact")
     contacts = [c for t in config.tiers for c in t] + config.duress_contacts
