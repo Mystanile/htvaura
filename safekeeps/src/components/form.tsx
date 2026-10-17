@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, Switch, TextInput, View, type TextInputProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, TouchTarget } from '@/constants/theme';
+import { AppFont, Radius, Spacing, TouchTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export const INTERVALS = [
@@ -26,7 +26,7 @@ export function Field({ label, helper, ...input }: TextInputProps & { label: str
         onFocus={event => { setFocused(true); input.onFocus?.(event); }}
         onBlur={event => { setFocused(false); input.onBlur?.(event); }}
         style={{
-          minHeight: 52, paddingHorizontal: Spacing.three, paddingVertical: 12, fontSize: 17,
+          fontFamily: AppFont, minHeight: 52, paddingHorizontal: Spacing.three, paddingVertical: 12, fontSize: 17,
           borderRadius: Radius.control, borderCurve: 'continuous', borderWidth: 1.5,
           borderColor: focused ? theme.accent : theme.fieldBorder, backgroundColor: theme.field,
           color: theme.text, opacity: input.editable === false ? 0.5 : 1,
@@ -58,7 +58,7 @@ export function Choice<T extends string | number>({ label, options, value, onCha
                 opacity: disabled ? 0.5 : 1,
               })}>
               <ThemedText type="smallBold" style={{ color: selected ? theme.onPrimary : theme.text }}>
-                {selected ? '✓ ' : ''}{option.short ?? option.label}
+                {selected ? 'âœ“ ' : ''}{option.short ?? option.label}
               </ThemedText>
             </Pressable>
           );

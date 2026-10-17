@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 import { AlertBanner } from '@/components/alert-banner';
 import { AlertsSection } from '@/components/alerts-section';
 import { AppButton } from '@/components/app-button';
+import { Artwork, PixelArt } from '@/components/pixel-art';
 import { AppScreen } from '@/components/app-screen';
 import { CheckInCard } from '@/components/check-in-card';
 import { ConnectionStatus } from '@/components/connection-status';
@@ -13,10 +14,8 @@ import { NightEntry } from '@/components/night-entry';
 import { SectionCard } from '@/components/section-card';
 import { SettingsButton } from '@/components/settings-button';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, TouchTarget } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useBand } from '@/hooks/use-band';
-import { useTheme } from '@/hooks/use-theme';
-import type { Friend } from '@/services/demo-api';
 import { formatCheckIn, useSafekeeps } from '@/state/safekeeps';
 
 // A friend request (the teammate's card, with option A's labeled field and buttons). The name is private to me.
@@ -36,42 +35,6 @@ function FriendRequest({ request }: { request: { id: string; name: string } }) {
   );
 }
 
-// A friend row. It sits inside the green card, so useTheme() here already gives the green card colors.
-function FriendRow({ friend: { id, name, lastCheckIn, requestedAt, resolvedAt } }: { friend: Friend }) {
-  const theme = useTheme();
-  return (
-    <Link href={{ pathname: '/friends/[id]', params: { id } }} asChild>
-      <Pressable accessibilityRole="link" accessibilityLabel={`View ${name}`}>
-        {/* the look is on an inner View: Link asChild cannot pass a style function to the Pressable */}
-        {({ pressed }) => (
-          <View style={{
-            padding: Spacing.three, gap: Spacing.three, borderRadius: Radius.control, minHeight: TouchTarget + 28,
-            borderCurve: 'continuous', backgroundColor: pressed ? theme.backgroundSelected : theme.backgroundElement,
-            borderWidth: 1.5, borderColor: theme.accent, flexDirection: 'row', alignItems: 'center',
-          }}>
-            <View style={{
-              width: 48, height: 48, borderRadius: Radius.control, backgroundColor: theme.accentSoft,
-              alignItems: 'center', justifyContent: 'center',
-            }}>
-              <ThemedText type="name" themeColor="text">{name.charAt(0).toUpperCase()}</ThemedText>
-            </View>
-            <View style={{ flex: 1, gap: Spacing.half }}>
-              <ThemedText type="name">{name}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">{formatCheckIn(lastCheckIn)}</ThemedText>
-              {requestedAt !== null && (
-                <ThemedText type="smallBold">
-                  {resolvedAt === null ? 'Check-in requested' : 'Request answered'}
-                </ThemedText>
-              )}
-            </View>
-            <ThemedText style={{ fontSize: 26, lineHeight: 30 }} themeColor="textSecondary" accessible={false}>›</ThemedText>
-          </View>
-        )}
-      </Pressable>
-    </Link>
-  );
-}
-
 export default function HomeScreen() {
   const state = useSafekeeps();
   const band = useBand();
@@ -87,8 +50,9 @@ export default function HomeScreen() {
 
   return (
     <AppScreen header={
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three }}>
-        <ThemedText type="heading" accessibilityRole="header" style={{ flex: 1 }}>SAFEKEEPS</ThemedText>
+      <View style={{ minHeight: 72, paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three }}>
+        <PixelArt source={Artwork.header} />
+        <ThemedText type="heading" accessibilityRole="header" style={{ flex: 1, fontSize: 28 }}>HOMEBOUND</ThemedText>
         <SettingsButton />
       </View>
     }>
@@ -96,7 +60,6 @@ export default function HomeScreen() {
       <ConnectionStatus />
       <AlertsSection />
       <SectionCard tone="ink">
-        <ThemedText type="smallBold" themeColor="accent">Safekeeping check in :3</ThemedText>
         <CheckInCard />
         {band.paired && (
           <ThemedText type="small" themeColor="textSecondary">
@@ -122,14 +85,46 @@ export default function HomeScreen() {
         {state.friendRequests.length > 0 && <ThemedText type="heading">Friend requests</ThemedText>}
         {state.friendRequests.map(request => <FriendRequest key={request.id} request={request} />)}
         {state.sentRequests.map(request => (
-          <ThemedText key={request.id} accessibilityLiveRegion="polite">Request sent to {request.name} · Awaiting acceptance</ThemedText>
+          <ThemedText key={request.id} accessibilityLiveRegion="polite">Request sent to {request.name} - Awaiting acceptance</ThemedText>
         ))}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <ThemedText type="heading" accessibilityRole="header">Friends</ThemedText>
           <ThemedText type="smallBold">{state.friends.length}</ThemedText>
         </View>
-        {state.friends.length === 0 && <ThemedText>Add your friends to stay safe together!</ThemedText>}
-        {state.friends.map(friend => <FriendRow key={friend.id} friend={friend} />)}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {Array.from({ length: Math.max(6, Math.ceil(state.friends.length / 2) * 2) }, (_, index) => {
+          const friend = state.friends[index];
+          if (!friend) return (
+            <View key={`empty-${index}`} accessible accessibilityLabel="Empty friend slot"
+              style={{ width: '48%', flexGrow: 1, aspectRatio: 100 / 36, minHeight: 70, alignItems: 'center', justifyContent: 'center' }}>
+              <PixelArt source={Artwork.empty} />
+              <ThemedText type="name" style={{ color: '#FFFCF0' }}>EMPTY</ThemedText>
+            </View>
+          );
+          const pending = friend.requestedAt !== null && friend.resolvedAt === null;
+          const recent = friend.lastCheckIn !== null && state.now - friend.lastCheckIn <= state.intervalMinutes * 60_000;
+          const present = recent && !pending;
+          const status = pending ? 'Awaiting reply' : present ? 'Checked in' : friend.lastCheckIn === null ? 'No check-in yet' : 'Check-in overdue';
+          return (
+            <View key={friend.id} style={{ width: '48%', flexGrow: 1 }}>
+            <Link href={{ pathname: '/friends/[id]', params: { id: friend.id } }} asChild>
+              <Pressable accessibilityRole="link" accessibilityLabel={`View ${friend.name}, ${status}`}
+                style={{
+                  width: '100%', minHeight: 70, aspectRatio: 100 / 36,
+                  paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center',
+                }}>
+                <PixelArt source={present ? Artwork.present : Artwork.away} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <ThemedText type="name" numberOfLines={1} style={{ flex: 1, fontSize: 17, lineHeight: 24, color: present ? '#52653B' : '#712F2D' }}>{friend.name}</ThemedText>
+                  <ThemedText style={{ fontSize: 9, color: present ? '#52653B' : '#712F2D' }}>CHECK IN?</ThemedText>
+                </View>
+                <ThemedText numberOfLines={1} style={{ fontSize: 11, lineHeight: 16, color: present ? '#52653B' : '#712F2D' }}>{status}</ThemedText>
+              </Pressable>
+            </Link>
+            </View>
+          );
+        })}
+      </View>
       </SectionCard>
       <SectionCard tone="ink">
         <ThemedText type="heading" accessibilityRole="header">Add a friend</ThemedText>

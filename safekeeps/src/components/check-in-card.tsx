@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { Pressable, Vibration, View } from 'react-native';
 
+import { Artwork, PixelArt } from '@/components/pixel-art';
 import { AppButton } from '@/components/app-button';
 import { Field } from '@/components/form';
 import { ThemedText } from '@/components/themed-text';
@@ -36,9 +37,10 @@ function PlainCheckIn() {
         onPress={() => { void state.recordCheckIn(); }}
         style={({ pressed }) => ({
           ...hero,
-          backgroundColor: state.busy ? theme.primaryDisabled : pressed ? theme.primaryPressed : theme.primary,
+          opacity: state.busy ? 0.6 : pressed ? 0.8 : 1,
           transform: [{ scale: pressed && !state.busy ? 0.98 : 1 }],
         })}>
+        <PixelArt source={Artwork.checkIn} />
         <ThemedText type="display" style={{ color: state.busy ? theme.textSecondary : theme.onPrimary }}>
           {state.busy ? 'Saving...' : 'Check In'}
         </ThemedText>
@@ -131,11 +133,12 @@ function NightCheckIn({ view }: { view: NightView }) {
           onPressOut={() => { answer(decoder.pressOut(Date.now())); watch(); }}
           style={({ pressed }) => ({
             ...hero,
-            backgroundColor: loud ? theme.text : pressed ? theme.primaryPressed : theme.primary,
+            opacity: pressed ? 0.8 : 1,
             borderWidth: loud ? 4 : 0, borderColor: theme.primary,
             transform: [{ scale: pressed ? 0.98 : 1 }],
           })}>
-          <ThemedText type="display" style={{ textAlign: 'center', color: loud ? theme.backgroundElement : theme.onPrimary }}>
+          <PixelArt source={Artwork.checkIn} />
+          <ThemedText type="display" style={{ textAlign: 'center', color: theme.onPrimary }}>
             {screen === 'armed' ? 'Check In' : loud ? 'Please answer now!' : 'Are you okay?'}
           </ThemedText>
         </Pressable>
@@ -182,7 +185,7 @@ function NightCheckIn({ view }: { view: NightView }) {
               alignItems: 'center', justifyContent: 'center',
               backgroundColor: screen === 'ended_true' ? theme.primary : 'transparent',
             }}>
-              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onPrimary : theme.primary }}>✓</ThemedText>
+              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onPrimary : theme.primary }}>âœ“</ThemedText>
             </View>
             <ThemedText type="heading" accessibilityLiveRegion="polite">Alert ended</ThemedText>
           </View>
@@ -223,7 +226,7 @@ function Countdown({ deadline, loud }: { deadline: number; loud: boolean }) {
 
 // The big tap target and the "Thanks!" panel share one shape so the card does not jump between states.
 const hero = {
-  minHeight: 120, padding: Spacing.card, borderRadius: Radius.control,
+  minHeight: 120, padding: Spacing.card,
   borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
 } as const;
 

@@ -3,19 +3,18 @@ import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
 import { AppFont, Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-// Righteous is for display type (title, heading, name, display, button). Reading text uses the system font.
+// Keep the established Righteous font throughout the artwork UI.
 export type ThemedTextProps = TextProps & {
   type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'heading' | 'name' | 'display' | 'button' | 'link' | 'code';
   themeColor?: ThemeColor;
 };
 
-const DISPLAY = ['title', 'subtitle', 'heading', 'name', 'display', 'button'];
 
 export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
   const theme = useTheme();
 
   return <Text maxFontSizeMultiplier={1.4} style={[{ color: theme[themeColor ?? 'text'] }, styles[type], style,
-    DISPLAY.includes(type) && { fontFamily: AppFont, fontWeight: '400' }]} {...rest} />;
+    type !== 'code' && { fontFamily: AppFont, fontWeight: '400' }]} {...rest} />;
 }
 
 const styles = StyleSheet.create({

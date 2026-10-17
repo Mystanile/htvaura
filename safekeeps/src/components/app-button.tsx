@@ -1,5 +1,6 @@
 import { Pressable, View } from 'react-native';
 
+import { Artwork, PixelArt } from '@/components/pixel-art';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing, TouchTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -26,14 +27,15 @@ export function AppButton({ label, onPress, variant = 'primary', disabled = fals
           minHeight: variant === 'quiet' ? TouchTarget : 52, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two,
           borderRadius: Radius.control, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
           flex: flex ? 1 : undefined,
-          backgroundColor: filled ? (disabled ? theme.primaryDisabled : pressed ? theme.primaryPressed : theme.primary)
+          backgroundColor: filled ? 'transparent'
             : pressed && variant !== 'quiet' ? theme.backgroundSelected : 'transparent',
-          borderWidth: variant === 'quiet' ? 0 : 1.5,
+          borderWidth: filled || variant === 'quiet' ? 0 : 1.5,
           borderColor: disabled ? theme.border : edge,
           opacity: disabled && !filled ? 0.5 : 1,
           transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
         };
       }}>
+      {variant === 'primary' && <PixelArt source={Artwork.checkIn} />}
       <View pointerEvents="none">
         <ThemedText type="button" style={{
           textAlign: 'center',

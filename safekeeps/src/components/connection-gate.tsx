@@ -13,7 +13,7 @@ import { useSafekeeps } from '@/state/safekeeps';
 
 // The same wordmark as the home header, so the app looks like itself before anyone is signed in.
 function Wordmark() {
-  return <ThemedText type="heading" accessibilityRole="header">SAFEKEEPS</ThemedText>;
+  return <ThemedText type="heading" accessibilityRole="header">HOMEBOUND</ThemedText>;
 }
 
 export function ConnectionGate({ children }: PropsWithChildren) {
@@ -28,7 +28,7 @@ export function ConnectionGate({ children }: PropsWithChildren) {
   if (!state.session) return (
     <AppScreen header={<Wordmark />}>
       <SectionCard tone="ink">
-        <ThemedText type="heading">Welcome to Safekeeps</ThemedText>
+        <ThemedText type="heading">Welcome to homebound</ThemedText>
         <ThemedText>Start as a guest. Each device gets its own identity. No sign-in needed.</ThemedText>
         {(state.error || (Platform.OS !== 'web' && !process.env.EXPO_PUBLIC_API_URL)) && (
           <Field label="Server address" value={url} onChangeText={setUrl} placeholder="http://YOUR_COMPUTER_IP:8000"

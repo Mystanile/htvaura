@@ -25,7 +25,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={navTheme}>
       <SafekeepsProvider>
-        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar style="dark" />
         <ConnectionGate><Stack screenOptions={{
           headerStyle: { backgroundColor: theme.background },
           headerTintColor: theme.text,

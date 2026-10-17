@@ -155,7 +155,7 @@ function useSafekeepsState() {
     friendRequests: data?.friendRequests ?? [], sentRequests: data?.sentRequests ?? [],
     hydrating, loading: !!session && !data, error: error ?? connectionError, busy, refresh, startGuest, reconnect,
     lastCheckIn, remindersEnabled, setRemindersEnabled, intervalMinutes, setIntervalMinutes, minutesRemaining,
-    night, serverOffset,
+    night, serverOffset, now,
     startNight: (config: NightConfig) => postNight('/night', config),
     sendNightEvent: (type: string, extra: object = {}) => postNight('/night/events', { type, ...extra }),
     sendNightEventRetry,
