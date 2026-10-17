@@ -42,18 +42,16 @@ Rules from the user for this repo:
 - The teammate owns `safekeeps/`. Preserve her design. Change her app only on a branch with a pull request, and only when the user asks.
 - Open question, not decided: rewriting `main` to remove the old Claude co-author lines needs a force push. Do not do it unless the user asks again.
 
-Not tested yet: the app on real iPhones (vibration, real taps), and the panel on real phones. Both wait for the Xcode build.
+Not tested yet on a real iPhone: the gestures, vibration, find them (compass, GPS, ping sound), and the panel. The app now runs on one iPhone through the Xcode build, so these can be tested.
 
-<<<<<<< ours
 Open pull requests: #1 (`checkin-screens` into `main`) and #2 (`find-them` into `checkin-screens`). Review #1 first. The worktree `~/Desktop/kaze-app` is now on `find-them`, which has everything.
-=======
+
 iPhone build (task 5.1, works on 2026-10-17 on one iPhone 15 Pro):
 - One time on the Mac: Xcode signed in with an Apple ID, `brew install cocoapods`. The Signing team is set in Xcode (Personal Team). The bundle id is `com.mystanile.safekeeps` in `safekeeps/app.json`.
 - One time per phone: plug in, Trust This Computer, turn on Developer Mode (Settings, Privacy & Security), and after the first install trust the developer (Settings, General, VPN & Device Management).
 - Build and install: `cd ~/Desktop/kaze-app/safekeeps && CI=1 EXPO_PUBLIC_API_URL=<tunnel address> npx expo run:ios --device <UDID> --configuration Release --no-bundler`. Get the UDID from `xcrun devicectl list devices`. Release mode puts the JavaScript inside the app, because the venue Wi-Fi blocks the phone from the Mac. Every code change needs a rebuild. If the tunnel address changes, enter the new one in the app's Settings under Connection, no rebuild needed.
 - `ios/` is generated and ignored by git. If `npx expo prebuild` runs again, it rewrites the `ios` and `android` npm scripts in `package.json`. Put them back, because the teammate uses Expo Go.
 - A free Apple ID install expires after 7 days.
->>>>>>> theirs
 
 Next steps, in order:
 1. Done: phase 4, find them. The app side waits for the teammate's review in its pull request, and its phone test waits for the Xcode build.
