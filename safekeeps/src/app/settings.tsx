@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AppButton } from '@/components/app-button';
 import { ServerAddress } from '@/components/server-address';
@@ -8,6 +8,7 @@ import { Choice, INTERVALS, SwitchRow } from '@/components/form';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
 import { useBand } from '@/hooks/use-band';
+import { api } from '@/services/demo-api';
 import { forgetBand, pairBand } from '@/services/band-relay';
 import { useSafekeeps } from '@/state/safekeeps';
 
@@ -47,6 +48,31 @@ function BandSection() {
   );
 }
 
+// Shown only when the server has push turned on. The contact subscribes to the topic in the free ntfy app.
+function PushSection() {
+  const { session } = useSafekeeps();
+  const [push, setPush] = useState<{ topic: string | null; url: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    let stale = false; // a newer session came in, so ignore this answer
+    api<{ topic: string | null; url: string | null }>(session.url, '/push', session.token)
+      .then((p) => { if (!stale) setPush(p); }, () => { if (!stale) setPush(null); });
+    return () => { stale = true; setPush(null); };
+  }, [session]);
+
+  if (!push?.topic) return null;
+  return (
+    <SectionCard>
+      <ThemedText type="heading">Get alerts when the app is closed</ThemedText>
+      <ThemedText themeColor="textSecondary">
+        Install the free ntfy app. Subscribe to this topic{push.url ? ' on ' + push.url : ''}.
+      </ThemedText>
+      <ThemedText type="name" selectable>{push.topic}</ThemedText>
+    </SectionCard>
+  );
+}
+
 export default function SettingsScreen() {
   const state = useSafekeeps();
   const band = useBand();
@@ -65,6 +91,7 @@ export default function SettingsScreen() {
           <ThemedText themeColor="textSecondary">No device connected.</ThemedText>
         </SectionCard>
       )}
+      <PushSection />
       <SectionCard>
         <ThemedText type="heading">Emergency contacts</ThemedText>
         <ThemedText themeColor="textSecondary">No contacts configured.</ThemedText>

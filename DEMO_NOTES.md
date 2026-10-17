@@ -50,7 +50,7 @@ Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most 
 
 ## What assumptions the concept relies upon
 
-- Contacts must have the app open to notice an alert. The prototype has no push notifications and no SMS. While the app is open, it polls every 2.5 s. A contact sees a new alert only at a poll.
+- Without push (`KAZE_NTFY_URL` unset), contacts must have the app open to notice an alert. The prototype has no SMS. Push through ntfy is optional (see below). While the app is open, it polls every 2.5 s. A contact sees a new alert only at a poll.
 - The timers are demo values: ask 30 s, grace 15 s, ack 20 s, ack hold 120 s. Production values are about ask 2 min, grace 1 min, ack 3 min, ack hold 10 min.
 - Location is uploaded all night while a night runs, not only during an alert. The server keeps it in memory and in the state file on the laptop (`server/kaze_state.pickle`, or the path in `KAZE_STATE`). Contacts see it only during an alert.
 - The server loads the state file without checks. Anyone who can write that file can run code on the server. This is fine for a laptop demo only.
@@ -128,4 +128,5 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 
 - Relay through friends' phones, and the encrypted payload it needs.
 - UWB precision finding.
-- Real SMS, calls, or push notifications.
+- Real SMS or calls.
+- Push to the phone is built through ntfy but only set up when `KAZE_NTFY_URL` is set. ntfy.sh is a third-party public server. The text says "A SafeKeeps alert is waiting for you. Open the app." and carries no name, no location and no personal data. Real phone delivery is untested until someone tries it on a phone.

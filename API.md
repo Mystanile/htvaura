@@ -856,6 +856,17 @@ POST /safekeeps/alerts/3f9a1c2e/ack
 
 Next poll, `acknowledged_by` in that alert is my id. The owner's other contacts stop seeing the button (see the table below).
 
+### GET /safekeeps/push
+
+I am a contact. Learn my own ntfy topic, so I can subscribe in the ntfy app and get a push when I am alerted. It needs my token and returns only my own topic.
+
+```
+GET /safekeeps/push
+{"topic": "kaze-3f9a1c2e7b41d0a85c66", "url": "https://ntfy.sh"}
+```
+
+When the server has push off (`KAZE_NTFY_URL` unset, or `KAZE_NTFY_SECRET` unset), the answer is `{"topic": null, "url": null}`. The push text is always "A SafeKeeps alert is waiting for you. Open the app." It has no name and no location. A duress alert pushes only to the duress contacts.
+
 ### POST /safekeeps/alerts/{owner_id}/ping
 
 I am a contact. Make the phone of `owner_id` ring loudly and flash, so I can find them. No body. Answer: `{"ok": true}`.

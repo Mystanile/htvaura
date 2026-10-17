@@ -23,6 +23,8 @@ cd server && KAZE_DEMO_KEY=pick-a-word .venv/bin/uvicorn kaze.app:app --host 0.0
 ```
 
 - `KAZE_DEMO_KEY` protects the demo panel data and the `/demo/*` routes. See "Demo panel and time skips" below.
+- `KAZE_NTFY_URL` turns on push to alerted contacts, for example `https://ntfy.sh`. It is off when unset. Contacts install the free ntfy app and subscribe to the topic they see in Settings.
+- `KAZE_NTFY_SECRET` is needed with `KAZE_NTFY_URL`. It makes each contact's topic impossible to guess. Without it the server sends no push.
 - `KAZE_STATE` is the file for saved nights. The default is `server/kaze_state.pickle`. The server saves its state to this file every second and at shutdown, and loads it at start. So a restart does not lose a running night or alert. Reset on the panel deletes the file. Git ignores it. To use another file, add `KAZE_STATE=/path/to/file` before the command.
 
 Run the tests:

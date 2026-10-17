@@ -18,6 +18,7 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 2.0 Server bridge for safekeeps (me), review findings fixed, see "Where we stopped"
 - [x] 2.1, 2.3, 2.4 Safekeeps app screens, built on branch `checkin-screens` while the teammate slept. Waiting for her review in the pull request. Tested in a web browser with two tabs. The app was installed on one iPhone 15 Pro. The rest is untested on phones.
 - [x] 2.5 Triggers: periodic, "ask a friend" and "be home by" work. Home-by: server `home_by` plus an optional field in Start a night. Tested in automated tests only (server tests, `home-by.test.ts`), not on a phone.
+- [x] 2.6 Push to alerted contacts through ntfy: `KAZE_NTFY_URL` and `KAZE_NTFY_SECRET`, `GET /safekeeps/push`, a block in Settings. Off by default. Tested with a faked sender only. Real phone delivery is untested.
 - [x] 3.1 Demo panel (`server/kaze/panel.py`, `server/panel/index.html`, `server/tests/test_panel.py`). Not yet tried on real phones.
 - [x] 4.1 to 4.2 Find them: server ping on `main`, app on branch `find-them` (pull request into `checkin-screens`). Tested in a web browser with a faked location. The compass arrow, real GPS, and the ping sound need a phone. See decisions 10 and 11.
 - [x] 5.1 iPhone Release build works (iPhone 15 Pro).
