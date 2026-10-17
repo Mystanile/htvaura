@@ -1,4 +1,4 @@
-import { Button, Column, Host, Picker, Switch, TextInput, useNativeState } from '@expo/ui';
+import { useNativeState } from '@expo/ui';
 import * as Location from 'expo-location';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
@@ -6,9 +6,11 @@ import { Platform, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { ConnectionStatus } from '@/components/connection-status';
+import { Avatar, Button, Divider, Segmented, SwitchRow, TextField } from '@/components/controls';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
-import { ButtonSeed, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { useSafekeeps } from '@/state/safekeeps';
 
 // 0 means "not a contact"
@@ -17,6 +19,7 @@ type Setup = { tier: number; duress: boolean };
 export default function NightScreen() {
   'use no memo'; // @expo/ui web TextInput only redraws when this screen re-renders, the compiler would skip that
   const state = useSafekeeps();
+  const theme = useTheme();
   const pin = useNativeState('');
   const pinAgain = useNativeState('');
   const [interval, setInterval] = useState(state.intervalMinutes);
@@ -57,14 +60,10 @@ export default function NightScreen() {
           If someone is watching, a wrong PIN shows a fake &quot;Alert ended&quot; with an outlined check, but help keeps coming.
           The correct PIN shows a filled check and really ends the alert.
         </ThemedText>
-        <Host matchContents seedColor={ButtonSeed}>
-          <Column spacing={12}>
-            <TextInput value={pin} placeholder="4-digit PIN" keyboardType="number-pad"
-              secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
-            <TextInput value={pinAgain} placeholder="Enter it again" keyboardType="number-pad"
-              secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
-          </Column>
-        </Host>
+        <TextField label="PIN" value={pin} placeholder="4 digits" keyboardType="number-pad"
+          secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
+        <TextField label="Enter it again" value={pinAgain} placeholder="4 digits" keyboardType="number-pad"
+          secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
       </SectionCard>
       <SectionCard>
         <ThemedText type="heading">Who helps</ThemedText>
@@ -75,20 +74,17 @@ export default function NightScreen() {
           Duress contacts are told silently when you use the secret signal. Nobody else in the group is ever told, and only you can see this list.
         </ThemedText>
         {state.friends.length === 0 && <ThemedText themeColor="textSecondary">Add your friends first to pick who helps.</ThemedText>}
-        {state.friends.map(friend => (
-          <View key={friend.id} style={{ gap: Spacing.two }}>
-            <ThemedText type="name">{friend.name}</ThemedText>
-            <Host matchContents seedColor={ButtonSeed}>
-              <Column spacing={8}>
-                <Picker selectedValue={get(friend.id).tier} onValueChange={tier => change(friend.id, { tier })}>
-                  <Picker.Item label="Not a contact" value={0} />
-                  <Picker.Item label="Tier 1" value={1} />
-                  <Picker.Item label="Tier 2" value={2} />
-                  <Picker.Item label="Tier 3" value={3} />
-                </Picker>
-                <Switch label="Duress contact" value={get(friend.id).duress} onValueChange={duress => change(friend.id, { duress })} />
-              </Column>
-            </Host>
+        {state.friends.map((friend, index) => (
+          <View key={friend.id} style={{ gap: Spacing.three }}>
+            {index > 0 && <Divider />}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.three }}>
+              <Avatar name={friend.name} />
+              <ThemedText type="name" style={{ flex: 1 }}>{friend.name}</ThemedText>
+            </View>
+            <Segmented value={get(friend.id).tier} onChange={tier => change(friend.id, { tier })} options={[
+              { label: 'None', value: 0 }, { label: 'Tier 1', value: 1 }, { label: 'Tier 2', value: 2 }, { label: 'Tier 3', value: 3 },
+            ]} />
+            <SwitchRow label="Duress contact" value={get(friend.id).duress} onValueChange={duress => change(friend.id, { duress })} />
           </View>
         ))}
       </SectionCard>
@@ -98,20 +94,13 @@ export default function NightScreen() {
         <ThemedText type="small" themeColor="textSecondary">
           While a night runs, this phone sends its location to the server. Your contacts only see it during an alert.
         </ThemedText>
-        <Host matchContents seedColor={ButtonSeed}>
-          <Column spacing={16}>
-            <Picker selectedValue={interval} onValueChange={setInterval}>
-              <Picker.Item label="Every 15 minutes" value={15} />
-              <Picker.Item label="Every 30 minutes" value={30} />
-              <Picker.Item label="Every hour" value={60} />
-              <Picker.Item label="Every 2 hours" value={120} />
-            </Picker>
-            <Button label={state.busy ? 'Starting...' : 'Start the night'} disabled={state.busy}
-              onPress={() => { void start(); }} />
-          </Column>
-        </Host>
+        <Segmented value={interval} onChange={setInterval} options={[
+          { label: '15 min', value: 15 }, { label: '30 min', value: 30 }, { label: '1 hour', value: 60 }, { label: '2 hours', value: 120 },
+        ]} />
+        <Button label={state.busy ? 'Starting...' : 'Start the night'} disabled={state.busy}
+          onPress={() => { void start(); }} />
         {(problem ?? state.error) && (
-          <ThemedText accessibilityLiveRegion="polite">{problem ?? state.error}</ThemedText>
+          <ThemedText style={{ color: theme.danger }} accessibilityLiveRegion="polite">{problem ?? state.error}</ThemedText>
         )}
       </SectionCard>
     </AppScreen>

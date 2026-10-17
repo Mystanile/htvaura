@@ -1,4 +1,3 @@
-import { Button, Column, Host } from '@expo/ui';
 import * as Location from 'expo-location';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { Stack } from 'expo-router/stack';
@@ -7,9 +6,10 @@ import { Platform, View } from 'react-native';
 
 import { useNameOf } from '@/components/alerts-section';
 import { AppScreen } from '@/components/app-screen';
+import { Button } from '@/components/controls';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
-import { ButtonSeed, Radius } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/services/demo-api';
 import { arrowRotation, bearingDegrees, compassWord, distanceMetres, formatDistance, smoothAngle, type LatLng } from '@/services/geo';
@@ -45,13 +45,18 @@ function useOwnPosition() {
   return { position, accuracy, heading, denied };
 }
 
+const DIAL = 224; // the arrow turns inside this circle, tall enough for its longest side
+
 function Arrow({ degrees }: { degrees: number }) {
   const theme = useTheme();
   return (
-    <View style={{ alignItems: 'center', transform: [{ rotate: `${degrees}deg` }] }} accessibilityLabel="Arrow pointing to your friend">
-      <View style={{ borderLeftWidth: 50, borderRightWidth: 50, borderBottomWidth: 80, borderLeftColor: 'transparent',
-        borderRightColor: 'transparent', borderBottomColor: theme.accent }} />
-      <View style={{ width: 36, height: 70, backgroundColor: theme.accent, borderBottomLeftRadius: Radius.control, borderBottomRightRadius: Radius.control }} />
+    <View style={{ width: DIAL, height: DIAL, borderRadius: Radius.round, backgroundColor: theme.backgroundSelected,
+      alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ alignItems: 'center', transform: [{ rotate: `${degrees}deg` }] }} accessibilityLabel="Arrow pointing to your friend">
+        <View style={{ borderLeftWidth: 50, borderRightWidth: 50, borderBottomWidth: 80, borderLeftColor: 'transparent',
+          borderRightColor: 'transparent', borderBottomColor: theme.accent }} />
+        <View style={{ width: 36, height: 56, backgroundColor: theme.accent, borderBottomLeftRadius: Radius.inner, borderBottomRightRadius: Radius.inner }} />
+      </View>
     </View>
   );
 }
@@ -60,6 +65,7 @@ export default function FindScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const state = useSafekeeps();
   const nameOf = useNameOf();
+  const theme = useTheme();
   const own = useOwnPosition();
   const [ping, setPing] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
@@ -69,8 +75,10 @@ export default function FindScreen() {
   if (!alert || alert.location === null) return (
     <AppScreen>
       <Stack.Screen options={{ title: 'Find them' }} />
-      <ThemedText>{state.night === null ? 'Loading...' : 'No location to follow right now. The alert may have ended.'}</ThemedText>
-      <Link href="/">Back to home</Link>
+      <SectionCard>
+        <ThemedText>{state.night === null ? 'Loading...' : 'No location to follow right now. The alert may have ended.'}</ThemedText>
+        <Link href="/"><ThemedText type="link">Back to home</ThemedText></Link>
+      </SectionCard>
     </AppScreen>
   );
 
@@ -97,29 +105,26 @@ export default function FindScreen() {
   return (
     <AppScreen>
       <Stack.Screen options={{ title: 'Find them' }} />
-      <SectionCard dark>
+      <SectionCard>
         <ThemedText type="heading">{name}</ThemedText>
         {own.denied ? (
           <ThemedText>Allow location in your settings to see how far away {name} is.</ThemedText>
         ) : own.position === null || bearing === null ? (
-          <ThemedText>Finding your position...</ThemedText>
+          <ThemedText themeColor="textSecondary">Finding your position...</ThemedText>
+        ) : tooClose ? (
+          <ThemedText type="name" style={{ textAlign: 'center' }}>{"You're close. GPS can't point closer than this. Use Ping."}</ThemedText>
         ) : (
-          <>
-            {tooClose ? (
-              <ThemedText type="name" style={{ textAlign: 'center' }}>{"You're close. GPS can't point closer than this. Use Ping."}</ThemedText>
-            ) : (
-              <>
-                {heading !== null && <View style={{ alignItems: 'center', paddingVertical: 24 }}><Arrow degrees={arrowRotation(bearing, heading)} /></View>}
-                <ThemedText style={{ fontSize: 28, lineHeight: 36, textAlign: 'center' }}>About {formatDistance(metres)} away (GPS is rough indoors)</ThemedText>
-                <ThemedText type="name" style={{ textAlign: 'center' }}>Head {compassWord(bearing)}</ThemedText>
-                {heading === null && (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {Platform.OS === 'web' ? 'The arrow needs a phone with a compass.' : 'Waiting for your compass.'}
-                  </ThemedText>
-                )}
-              </>
+          <View style={{ alignItems: 'center', gap: Spacing.three }}>
+            {heading !== null && <Arrow degrees={arrowRotation(bearing, heading)} />}
+            <ThemedText type="title" style={{ textAlign: 'center' }}>About {formatDistance(metres)} away</ThemedText>
+            <ThemedText type="name" style={{ textAlign: 'center' }}>Head {compassWord(bearing)}</ThemedText>
+            <ThemedText type="caption" themeColor="textSecondary" style={{ textAlign: 'center' }}>GPS is rough indoors.</ThemedText>
+            {heading === null && (
+              <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+                {Platform.OS === 'web' ? 'The arrow needs a phone with a compass.' : 'Waiting for your compass.'}
+              </ThemedText>
             )}
-          </>
+          </View>
         )}
       </SectionCard>
       {alert.kind === 'duress' ? (
@@ -127,14 +132,10 @@ export default function FindScreen() {
       ) : alert.acknowledged_by !== null && alert.acknowledged_by !== state.me?.id ? (
         <ThemedText type="small" themeColor="textSecondary">Another friend is already on it, so pinging is off.</ThemedText>
       ) : (
-        <Host matchContents seedColor={ButtonSeed}>
-          <Column spacing={8}>
-            <Button label={ping === 'sending' ? 'Pinging...' : 'Ping'} disabled={ping === 'sending'} onPress={() => { void sendPing(); }} />
-          </Column>
-        </Host>
+        <Button label={ping === 'sending' ? 'Pinging...' : 'Ping'} disabled={ping === 'sending'} onPress={() => { void sendPing(); }} />
       )}
       {ping === 'sent' && <ThemedText accessibilityLiveRegion="polite">Ping sent. If it counts, their phone rings.</ThemedText>}
-      {problem && <ThemedText accessibilityLiveRegion="polite">{problem}</ThemedText>}
+      {problem && <ThemedText style={{ color: theme.danger }} accessibilityLiveRegion="polite">{problem}</ThemedText>}
     </AppScreen>
   );
 }

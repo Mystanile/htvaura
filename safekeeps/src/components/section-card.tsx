@@ -1,19 +1,21 @@
 import type { PropsWithChildren } from 'react';
 import { View } from 'react-native';
-import { CardColors, Radius, Spacing } from '@/constants/theme';
-import { SurfaceThemeContext, useTheme } from '@/hooks/use-theme';
 
-export function SectionCard({ children, accent = false, dark = false }: PropsWithChildren<{ accent?: boolean; dark?: boolean }>) {
+import { Radius, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+
+// The one card in the app. `tone` tints it: accent for calm highlights, danger for alerts.
+export function SectionCard({ children, tone = 'plain' }: PropsWithChildren<{ tone?: 'plain' | 'accent' | 'danger' }>) {
   const theme = useTheme();
-  const surface = dark ? { ...theme, ...CardColors } : theme;
+  const look = {
+    plain: { bg: theme.backgroundElement, border: theme.border },
+    accent: { bg: theme.accentSoft, border: theme.accentSoft },
+    danger: { bg: theme.dangerSoft, border: theme.danger },
+  }[tone];
   return (
-    <SurfaceThemeContext value={surface}>
     <View style={{
       padding: Spacing.four, gap: Spacing.three, borderRadius: Radius.card,
-      borderCurve: 'continuous', backgroundColor: dark ? surface.backgroundElement : accent ? theme.accentSoft : theme.backgroundElement,
-      borderWidth: 1, borderColor: surface.border,
+      borderCurve: 'continuous', backgroundColor: look.bg, borderWidth: 1, borderColor: look.border,
     }}>{children}</View>
-    </SurfaceThemeContext>
   );
 }
-

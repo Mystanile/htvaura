@@ -1,17 +1,19 @@
-import { Button, Column, Host, TextInput, useNativeState, type TextInputRef } from '@expo/ui';
+import { useNativeState, type TextInputRef } from '@expo/ui';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { Pressable, Vibration, View } from 'react-native';
 
+import { Button, TextField } from '@/components/controls';
 import { ThemedText } from '@/components/themed-text';
-import { ButtonSeed, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing, TouchTarget } from '@/constants/theme';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 import { createGestureDecoder, type GestureResult } from '@/services/gesture';
 import type { NightView } from '@/services/demo-api';
 import { useSafekeeps } from '@/state/safekeeps';
 
-// Goes inside her dark "Safekeeping check in :3" SectionCard, in place of the big button and the
-// "Next check-in" line. Her heading, last check-in, requests and friend code stay as they are.
-// With no night running (or a night that has ended) it is exactly her old button.
+// Goes inside the "Check in" card on the home screen, in place of the big button and the
+// "Next check-in" line. The heading, last check-in, requests and friend code stay as they are.
+// With no night running (or a night that has ended) it is the plain button.
 // With a night it follows the server view.
 export function CheckInCard() {
   const view = useSafekeeps().night?.view ?? null;
@@ -21,24 +23,33 @@ export function CheckInCard() {
 const SETTLE_MS = 4000; // how long "Thanks!" and "Alert ended" stay before the armed look returns
 const SETTLES = ['thanks', 'ended_true', 'ended_fake'];
 
+// The big check-in surface. Calm is accent, loud is the danger tone. Same size in every state.
+function bigStyle(colors: { fill: string; border: string }, pressed: boolean, scale: boolean) {
+  return {
+    minHeight: 120, padding: Spacing.four, borderRadius: Radius.control, borderCurve: 'continuous',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.fill, borderWidth: 2, borderColor: colors.border,
+    transform: [{ scale: pressed && scale ? 0.985 : 1 }],
+  } as const;
+}
+
 function PlainCheckIn() {
   const state = useSafekeeps();
   const theme = useTheme();
+  const reduceMotion = useReduceMotion();
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="CHECK IN !!"
+        accessibilityLabel="Check in"
         accessibilityState={{ disabled: state.busy, busy: state.busy }}
         disabled={state.busy}
         onPress={() => { void state.recordCheckIn(); }}
-        style={({ pressed }) => ({
-          minHeight: 112, padding: Spacing.four, borderRadius: Radius.card,
-          borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
-          backgroundColor: state.busy ? theme.primaryDisabled : pressed ? theme.primaryPressed : theme.primary,
-        })}>
-        <ThemedText style={{ fontSize: 32, lineHeight: 40, fontWeight: '700', color: theme.onPrimary }}>
-          {state.busy ? 'Saving...' : 'Check In'}
+        style={({ pressed }) => bigStyle(
+          state.busy ? { fill: theme.disabled, border: theme.disabled } : pressed
+            ? { fill: theme.accentPressed, border: theme.accentPressed } : { fill: theme.accent, border: theme.accent },
+          pressed, !reduceMotion)}>
+        <ThemedText type="subtitle" style={{ color: state.busy ? theme.onDisabled : theme.onAccent }}>
+          {state.busy ? 'Saving...' : 'Check in'}
         </ThemedText>
       </Pressable>
       <ThemedText themeColor="textSecondary">
@@ -52,6 +63,7 @@ function PlainCheckIn() {
 function NightCheckIn({ view }: { view: NightView }) {
   const state = useSafekeeps();
   const theme = useTheme();
+  const reduceMotion = useReduceMotion();
   const [decoder] = useState(createGestureDecoder);
   const decoderTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [timedOut, setTimedOut] = useState<string | null>(null); // a "Thanks!"-type screen that has run its time
@@ -122,29 +134,28 @@ function NightCheckIn({ view }: { view: NightView }) {
       {(screen === 'armed' || screen === 'asking' || screen === 'alarm') && (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={screen === 'armed' ? 'CHECK IN !!' : 'Are you okay?'}
+          accessibilityLabel={screen === 'armed' ? 'Check in' : 'Are you okay?'}
           onPressIn={() => { answer(decoder.pressIn(Date.now())); watch(); }}
           onPressOut={() => { answer(decoder.pressOut(Date.now())); watch(); }}
-          style={({ pressed }) => ({
-            minHeight: 112, padding: Spacing.four, borderRadius: Radius.card,
-            borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: loud ? theme.text : pressed ? theme.primaryPressed : theme.primary,
-            borderWidth: loud ? 4 : 0, borderColor: theme.primary,
-          })}>
-          <ThemedText style={{ fontSize: 32, lineHeight: 40, fontWeight: '700', color: loud ? theme.backgroundElement : theme.onPrimary }}>
-            {screen === 'armed' ? 'Check In' : loud ? 'Please answer now!' : 'Are you okay?'}
+          style={({ pressed }) => bigStyle(
+            loud ? { fill: theme.danger, border: theme.danger } : pressed
+              ? { fill: theme.accentPressed, border: theme.accentPressed } : { fill: theme.accent, border: theme.accent },
+            pressed, !reduceMotion)}>
+          <ThemedText type="subtitle" style={{ color: loud ? theme.onDanger : theme.onAccent, textAlign: 'center' }}>
+            {screen === 'armed' ? 'Check in' : loud ? 'Please answer now!' : 'Are you okay?'}
           </ThemedText>
         </Pressable>
       )}
       {screen === 'armed' && (
         <>
-          {/* the server checks on its own schedule during a night, so her local countdown does not apply */}
+          {/* the server checks on its own schedule during a night, so the local countdown does not apply */}
           <ThemedText themeColor="textSecondary">{"We'll check in on you during the night"}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">Tap 3 times quickly to check in</ThemedText>
-          <Pressable accessibilityRole="button" onPress={() => setPinOpen(open => !open)}>
-            <ThemedText type="small" themeColor="textSecondary">Cancel an alert</ThemedText>
+          <Pressable accessibilityRole="button" onPress={() => setPinOpen(open => !open)}
+            style={{ minHeight: TouchTarget, justifyContent: 'center', alignSelf: 'flex-start' }}>
+            <ThemedText type="smallBold" themeColor="accent">Cancel an alert</ThemedText>
           </Pressable>
-          {retryArmed && <ThemedText accessibilityLiveRegion="polite">Incorrect PIN, try again</ThemedText>}
+          {retryArmed && <ThemedText style={{ color: theme.danger }} accessibilityLiveRegion="polite">Incorrect PIN, try again</ThemedText>}
           {(pinOpen || retryArmed) && <PinEntry onSent={pinSent} />}
         </>
       )}
@@ -155,17 +166,17 @@ function NightCheckIn({ view }: { view: NightView }) {
         </>
       )}
       {screen === 'thanks' && (
-        <View accessibilityLiveRegion="polite" style={{ ...panel, backgroundColor: theme.primary }}>
-          <ThemedText style={{ fontSize: 32, lineHeight: 40, fontWeight: '700', color: theme.onPrimary }}>Thanks!</ThemedText>
+        <View accessibilityLiveRegion="polite" style={{ ...panel, backgroundColor: theme.accentSoft }}>
+          <ThemedText type="subtitle" style={{ color: theme.accent }}>Thanks!</ThemedText>
         </View>
       )}
       {(screen === 'alert_active' || screen === 'pin_retry') && (
         <>
-          <Panel>
-            <ThemedText type="heading" accessibilityLiveRegion="polite">
+          <View style={{ ...panel, backgroundColor: theme.dangerSoft, borderWidth: 2, borderColor: theme.danger }}>
+            <ThemedText type="heading" style={{ color: theme.danger, textAlign: 'center' }} accessibilityLiveRegion="polite">
               {screen === 'pin_retry' ? 'Incorrect PIN, try again' : 'Your contacts have been alerted'}
             </ThemedText>
-          </Panel>
+          </View>
           <PinEntry onSent={pinSent} />
         </>
       )}
@@ -173,11 +184,12 @@ function NightCheckIn({ view }: { view: NightView }) {
         <Panel>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.three }}>
             <View style={{
-              width: 40, height: 40, borderRadius: 20, borderWidth: 3, borderColor: theme.primary,
+              width: 44, height: 44, borderRadius: Radius.round, borderWidth: 3, borderColor: theme.accent,
               alignItems: 'center', justifyContent: 'center',
-              backgroundColor: screen === 'ended_true' ? theme.primary : 'transparent',
+              backgroundColor: screen === 'ended_true' ? theme.accent : 'transparent',
             }}>
-              <ThemedText type="name" style={{ color: screen === 'ended_true' ? theme.onPrimary : theme.primary }}>✓</ThemedText>
+              <ThemedText type="name" maxFontSizeMultiplier={1.2}
+                style={{ color: screen === 'ended_true' ? theme.onAccent : theme.accent }}>✓</ThemedText>
             </View>
             <ThemedText type="heading" accessibilityLiveRegion="polite">Alert ended</ThemedText>
           </View>
@@ -186,9 +198,7 @@ function NightCheckIn({ view }: { view: NightView }) {
       {inAlert ? (
         <ThemedText type="small" themeColor="textSecondary">Enter your PIN to end the alert first.</ThemedText>
       ) : (
-        <Host matchContents seedColor={ButtonSeed}>
-          <Button label="Leave night" variant="outlined" onPress={() => { void state.sendNightEvent('Leave'); }} />
-        </Host>
+        <Button label="Leave night" variant="outline" onPress={() => { void state.sendNightEvent('Leave'); }} />
       )}
     </>
   );
@@ -197,6 +207,7 @@ function NightCheckIn({ view }: { view: NightView }) {
 // Its own component, keyed by the deadline, so every new ask starts from a fresh clock reading.
 function Countdown({ deadline, loud }: { deadline: number; loud: boolean }) {
   const { serverOffset } = useSafekeeps();
+  const theme = useTheme();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -204,14 +215,15 @@ function Countdown({ deadline, loud }: { deadline: number; loud: boolean }) {
   }, []);
   const secondsLeft = Math.max(0, Math.ceil((deadline * 1000 - (now + serverOffset)) / 1000));
   return (
-    <ThemedText themeColor="textSecondary" accessibilityLiveRegion="polite">
+    <ThemedText type={loud ? 'name' : 'default'} themeColor={loud ? undefined : 'textSecondary'}
+      style={loud ? { color: theme.danger } : undefined} accessibilityLiveRegion="polite">
       {loud ? `Your contacts will be told in ${secondsLeft} s` : `Answer in ${secondsLeft} s`}
     </ThemedText>
   );
 }
 
 const panel = {
-  minHeight: 112, padding: Spacing.four, borderRadius: Radius.card,
+  minHeight: 120, padding: Spacing.four, borderRadius: Radius.control,
   borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
 } as const;
 
@@ -238,15 +250,10 @@ function PinEntry({ onSent }: { onSent: () => void }) {
 
   return (
     <>
-      <ThemedText type="small" themeColor="textSecondary">Enter your PIN to end the alert.</ThemedText>
-      {problem !== '' && <ThemedText type="small" accessibilityLiveRegion="polite">{problem}</ThemedText>}
-      <Host matchContents seedColor={ButtonSeed}>
-        <Column spacing={12}>
-          <TextInput ref={input} value={pin} placeholder="4-digit PIN" keyboardType="number-pad"
-            secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
-          <Button label="End alert" disabled={state.busy} onPress={() => { void end(); }} />
-        </Column>
-      </Host>
+      <TextField ref={input} label="Your PIN" hint="Enter your PIN to end the alert." error={problem === '' ? undefined : problem}
+        value={pin} placeholder="4 digits" keyboardType="number-pad"
+        secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
+      <Button label="End alert" disabled={state.busy} onPress={() => { void end(); }} />
     </>
   );
 }

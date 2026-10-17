@@ -1,45 +1,64 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://unistyl.es/), etc.
+ * Every color, font, radius and spacing value in the app lives here.
+ * Read colors through the useTheme hook, never import a palette directly in a screen.
+ *
+ * Look: cool slate neutrals and one cobalt accent. Dark mode is a real second palette
+ * (no pure black or white). A red "danger" tone exists only for alarms, errors and removing things.
+ * Contrast checked: body text 6:1 or better, buttons 6:1 or better, input borders 3:1 or better.
  */
 
 import '@/global.css';
 
 import { Platform } from 'react-native';
 
-const Palette = {
-  text: '#162224',
-  background: '#f8ffe8',
-  backgroundElement: '#FFFFFF',
-  backgroundSelected: '#E3EECF',
-  textSecondary: '#56604C',
-  accent: '#4D651C',
-  accentSoft: '#E5F0CC',
-  onAccent: '#FFFFFF',
-  border: '#D6E2C4',
-  primary: '#B1CF58',
-  primaryPressed: '#9AB744',
-  primaryDisabled: '#D3DCC0',
-  onPrimary: '#162224',
+const light = {
+  background: '#EDF0F6', // screen
+  backgroundElement: '#F9FAFD', // cards
+  backgroundSelected: '#DCE2EE', // pressed rows, sunken fills, unselected chips
+  text: '#111A2B',
+  textSecondary: '#4A566B',
+  border: '#CBD2DF', // hairlines and card edges
+  borderStrong: '#6F7A8D', // input and control edges, 3:1 against every surface
+  accent: '#2150D8',
+  accentPressed: '#1A41B3',
+  accentSoft: '#DDE6FB',
+  onAccent: '#F8FAFF',
+  danger: '#B3261E',
+  dangerSoft: '#FBE4E1',
+  onDanger: '#FFF6F5',
+  disabled: '#CDD3DF',
+  onDisabled: '#515C72',
 } as const;
 
-// Keep the requested brand palette in both system appearance modes.
-export const Colors = { light: Palette, dark: Palette } as const;
-export const CardColors = {
-  text: '#f8ffe8', textSecondary: '#C4CEBD',
-  backgroundElement: '#162224', backgroundSelected: '#243638',
-  border: '#162224', accent: '#B1CF58', accentSoft: '#304137',
+const dark = {
+  background: '#0C1018',
+  backgroundElement: '#151B27',
+  backgroundSelected: '#222A3B',
+  text: '#E9EDF5',
+  textSecondary: '#A2ADC0',
+  border: '#2A3347',
+  borderStrong: '#68758C',
+  accent: '#86A7FF',
+  accentPressed: '#A5BEFF',
+  accentSoft: '#1B2A52',
+  onAccent: '#0A1228',
+  danger: '#FF8F86',
+  dangerSoft: '#3A1B1B',
+  onDanger: '#2A0A08',
+  disabled: '#232B3B',
+  onDisabled: '#97A2B6',
 } as const;
-export const AppFont = 'Righteous';
 
-export const FriendsColors = {
-  backgroundElement: '#9ebd64', backgroundSelected: '#90AD59',
-  text: '#162224', textSecondary: '#162224', accent: '#162224',
-  border: '#9ebd64',
+export type Theme = { [Key in keyof typeof light]: string };
+export const Colors: { light: Theme; dark: Theme } = { light, dark };
+export type ThemeColor = keyof Theme;
+
+// Figtree (OFL), three static weights loaded in the root layout. Pick the weight by family name, not fontWeight.
+export const Font = {
+  regular: 'Figtree-Regular',
+  semibold: 'Figtree-SemiBold',
+  bold: 'Figtree-Bold',
 } as const;
-
-
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
   ios: {
@@ -66,6 +85,7 @@ export const Fonts = Platform.select({
   },
 });
 
+// 4 point grid.
 export const Spacing = {
   half: 2,
   one: 4,
@@ -76,8 +96,14 @@ export const Spacing = {
   six: 64,
 } as const;
 
+/**
+ * One soft corner system. A control inside a card is one step smaller than the card,
+ * a chip inside a control is one step smaller again. Circles use `round`.
+ */
+export const Radius = { card: 20, control: 14, inner: 11, round: 999 } as const;
+
+export const TouchTarget = 48; // Apple asks for 44 pt at least
+export const ScreenGutter = 20;
+
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
-
-export const Radius = { card: 20, control: 12, avatar: 16 } as const;
-export const ButtonSeed = '#657F25';

@@ -1,24 +1,24 @@
 import { router } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import { Pressable } from 'react-native';
+
+import { ThemedText } from '@/components/themed-text';
+import { Radius, Spacing, TouchTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
+// Gear icon on iPhone. Other platforms have no SF Symbols, so they show the word.
 export function SettingsButton() {
   const theme = useTheme();
   return (
-      <Pressable accessibilityRole="button" accessibilityLabel="Settings and device"
-        onPress={() => router.push('/settings')}
-        hitSlop={8} style={({ pressed }) => ({
-          width: 48, height: 48, alignItems: 'center', justifyContent: 'center',
-          borderRadius: 12, flexShrink: 0,
-          backgroundColor: pressed ? '#243638' : '#162224',
-        })}>
-        <View pointerEvents="none" style={{ width: 24, gap: 5, flexDirection: 'column' }}>
-          {[0, 1, 2].map(line => (
-            <View key={line} style={{ width: 24, height: 3, flexShrink: 0,
-              borderRadius: 1, backgroundColor: theme.background }} />
-          ))}
-        </View>
-      </Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Settings"
+      onPress={() => router.push('/settings')}
+      style={({ pressed }) => ({
+        minWidth: TouchTarget, height: TouchTarget, paddingHorizontal: Spacing.two, alignItems: 'center', justifyContent: 'center',
+        borderRadius: Radius.round, flexShrink: 0, borderWidth: 1, borderColor: theme.border,
+        backgroundColor: pressed ? theme.backgroundSelected : theme.backgroundElement,
+      })}>
+      <SymbolView name="gearshape" size={22} tintColor={theme.text}
+        fallback={<ThemedText type="smallBold">Settings</ThemedText>} />
+    </Pressable>
   );
 }
-

@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Vibration, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { Spacing } from '@/constants/theme';
 import { api } from '@/services/demo-api';
 import { distanceMetres } from '@/services/geo';
 import { useSafekeeps } from '@/state/safekeeps';
+import { useReduceMotion } from '@/hooks/use-reduce-motion';
 import { useTheme } from '@/hooks/use-theme';
 
 const SEND_EVERY_MS = 30_000;
@@ -65,6 +67,7 @@ function useLocationSender() {
 function PingOverlay() {
   const { night } = useSafekeeps();
   const theme = useTheme();
+  const reduceMotion = useReduceMotion();
   const player = useAudioPlayer(require('@/assets/sounds/ping.wav'));
   const seen = useRef<number | null | undefined>(undefined); // undefined: nothing seen yet
   const [ringing, setRinging] = useState(false);
@@ -87,16 +90,18 @@ function PingOverlay() {
     beep();
     const replay = setInterval(beep, 1200);
     Vibration.vibrate([0, 500, 200, 500], true);
-    const flash = setInterval(() => setLit(value => !value), 250);
+    // The screen blinks between two blues unless Reduce Motion is on. Sound and vibration still happen.
+    const flash = reduceMotion ? undefined : setInterval(() => setLit(value => !value), 250);
     const stop = setTimeout(() => setRinging(false), RING_MS);
-    return () => { clearInterval(flash); clearInterval(replay); clearTimeout(stop); player.pause(); Vibration.cancel(); };
-  }, [ringing, player]);
+    return () => { clearInterval(flash); setLit(true); clearInterval(replay); clearTimeout(stop); player.pause(); Vibration.cancel(); };
+  }, [ringing, player, reduceMotion]);
 
   if (!ringing) return null;
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 100, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: theme.primary, opacity: lit ? 1 : 0.35 }]}>
-      <ThemedText style={{ fontSize: 40, lineHeight: 48, color: theme.onPrimary, textAlign: 'center' }}>A friend is looking for you</ThemedText>
+    <View pointerEvents="none" accessibilityViewIsModal accessibilityLiveRegion="assertive"
+      style={[StyleSheet.absoluteFill, { zIndex: 100, alignItems: 'center', justifyContent: 'center',
+        paddingHorizontal: Spacing.five, backgroundColor: lit ? theme.accent : theme.accentPressed }]}>
+      <ThemedText type="title" style={{ color: theme.onAccent, textAlign: 'center' }}>A friend is looking for you</ThemedText>
     </View>
   );
 }
