@@ -78,15 +78,31 @@ def test_restart_during_live_alert_is_409_and_keeps_old_session(client):
     assert client.get(f"/sessions/{user}/view", params={"viewer": contact}).json()["active"] is True
 
 
-def test_restart_during_duress_is_409_but_armed_session_is_replaced(client):
+def test_new_night_during_duress_carries_the_hidden_alert(client):
+    """Same answer as for an honest user (200, since the view says armed). The duress alert moves over."""
     user, contact = make_user(client, "u"), make_user(client, "c")
     assert start_night(client, user, contact).status_code == 200
     assert start_night(client, user, contact).status_code == 200  # armed: replaced
     client.post(f"/sessions/{user}/events", json={"type": "Duress"})
-    assert start_night(client, user, contact).status_code == 409
+    r = start_night(client, user, contact)
+    assert r.status_code == 200 and r.json()["view"] == {"state": "armed", "screen": "armed", "deadline": None}
+    alerts = client.get("/alerts", params={"viewer": contact}).json()["alerts"]
+    assert len(alerts) == 1 and alerts[0]["kind"] == "duress"
+    client.post("/demo/skip", json={"seconds": 100})  # it keeps escalating in the new session
+    assert client.get(f"/sessions/{user}/view", params={"viewer": user}).json()["state"] == "armed"
     client.post(f"/sessions/{user}/events", json={"type": "Resolve", "by": user, "pin": "1234"})
-    client.post("/demo/skip", json={"seconds": 1})
-    assert start_night(client, user, contact).status_code == 200  # resolved and armed again
+    assert client.get("/alerts", params={"viewer": contact}).json() == {"alerts": []}
+
+
+def test_hidden_alert_keeps_ticking_after_the_user_left(client):
+    user, c1, c2 = make_user(client, "u"), make_user(client, "c1"), make_user(client, "c2")
+    start_night(client, user, c1, duress_contacts=[c1, c2])
+    client.post(f"/sessions/{user}/events", json={"type": "Duress"})
+    client.post(f"/sessions/{user}/events", json={"type": "Leave"})
+    assert client.get(f"/sessions/{user}/view", params={"viewer": user}).json()["state"] == "ended"
+    assert client.get("/alerts", params={"viewer": c2}).json() == {"alerts": []}
+    client.post("/demo/skip", json={"seconds": 25})  # past the ack window of duress contact 1
+    assert len(client.get("/alerts", params={"viewer": c2}).json()["alerts"]) == 1
 
 
 def test_empty_duress_contacts_is_400(client):
@@ -142,3 +158,120 @@ def test_alerts_lists_only_active_alerts_for_that_viewer(client):
     assert client.get("/alerts", params={"viewer": user}).json() == {"alerts": []}
     client.post(f"/sessions/{user}/events", json={"type": "Resolve", "by": user, "pin": "1234"})
     assert client.get("/alerts", params={"viewer": contact}).json() == {"alerts": []}
+
+
+def test_user_cannot_be_their_own_contact(client):
+    user, contact = make_user(client, "u"), make_user(client, "c")
+    body = {"user_id": user, "pin": "1234"}
+    r = client.post("/sessions", json=body | {"tiers": [[contact, user]], "duress_contacts": [contact]})
+    assert r.status_code == 400
+    r = client.post("/sessions", json=body | {"tiers": [[contact]], "duress_contacts": [user, contact]})
+    assert r.status_code == 400
+    assert client.get(f"/sessions/{user}/view", params={"viewer": user}).status_code == 404  # no session made
+
+
+@pytest.mark.parametrize("tiers", [[], [[]], [["c"], []]])
+def test_tiers_need_a_contact_in_every_tier(client, tiers):
+    user, contact = make_user(client, "u"), make_user(client, "c")
+    tiers = [[contact if c == "c" else c for c in t] for t in tiers]
+    r = client.post("/sessions", json={"user_id": user, "pin": "1234", "tiers": tiers, "duress_contacts": [contact]})
+    assert r.status_code == 400
+
+
+def test_stuck_contact_socket_does_not_slow_the_duress_request(client):
+    """Duress sends to a contact and ConfirmOk does not. The user's request must take the same time."""
+    import asyncio
+    import time
+
+    from kaze import app as app_module
+
+    class StuckSocket:
+        async def send_json(self, message):
+            await asyncio.sleep(1)
+
+    user, contact = make_user(client, "u"), make_user(client, "c")
+    start_night(client, user, contact)
+    client.post(f"/sessions/{user}/events", json={"type": "Trigger", "kind": "manual"})
+    app_module.sockets[contact] = [StuckSocket()]
+    began = time.time()
+    r = client.post(f"/sessions/{user}/events", json={"type": "Duress"})
+    assert r.status_code == 200 and time.time() - began < 0.5
+
+
+def test_stuck_contact_socket_does_not_delay_other_contacts_in_the_same_batch(client):
+    """Tier 1 has two contacts. The first one's socket is stuck. The second must hear at once."""
+    import asyncio
+    import time
+
+    from kaze import app as app_module
+
+    got = []
+
+    class StuckSocket:
+        async def send_json(self, message):
+            await asyncio.sleep(2)
+
+    class GoodSocket:
+        async def send_json(self, message):
+            got.append(message["kind"])
+
+    user, stuck, good = make_user(client, "u"), make_user(client, "s"), make_user(client, "g")
+    body = {"user_id": user, "pin": "1234", "tiers": [[stuck, good]], "duress_contacts": [good]}
+    client.post("/sessions", json=body | {"ask_seconds": 1, "grace_seconds": 1})
+    client.post(f"/sessions/{user}/events", json={"type": "Trigger", "kind": "manual"})
+    app_module.sockets[stuck] = [StuckSocket()]
+    app_module.sockets[good] = [GoodSocket()]
+    client.post("/demo/skip", json={"seconds": 5})
+    time.sleep(0.5)
+    assert got == ["alert"]
+
+
+@pytest.mark.parametrize("lat,lng", [
+    ("NaN", "0"), ("0", "NaN"), ("Infinity", "0"), ("0", "-Infinity"), ('"43.6"', "0"), ("true", "0"),
+    ("91", "0"), ("0", "181"), ("null", "0"),
+])
+def test_bad_location_is_400_and_does_not_break_the_alerts_list(client, lat, lng):
+    """One bad location used to make GET /alerts fail for the contact, for every user."""
+    u1, u2, contact = make_user(client, "u1"), make_user(client, "u2"), make_user(client, "c")
+    for u in (u1, u2):
+        start_night(client, u, contact, ask_seconds=1, grace_seconds=1)
+        client.post(f"/sessions/{u}/events", json={"type": "Trigger", "kind": "manual"})
+    client.post("/demo/skip", json={"seconds": 5})
+    r = client.post(f"/sessions/{u1}/events", content='{"type": "LocationUpdate", "lat": %s, "lng": %s}' % (lat, lng),
+                    headers={"content-type": "application/json"})
+    assert r.status_code == 400
+    r = client.get("/alerts", params={"viewer": contact})
+    assert r.status_code == 200 and len(r.json()["alerts"]) == 2
+    assert all(v["location"] is None for v in r.json()["alerts"])
+
+
+def test_good_location_is_stored(client):
+    user, contact = make_user(client, "u"), make_user(client, "c")
+    start_night(client, user, contact, ask_seconds=1, grace_seconds=1)
+    client.post(f"/sessions/{user}/events", json={"type": "Trigger", "kind": "manual"})
+    client.post("/demo/skip", json={"seconds": 5})
+    r = client.post(f"/sessions/{user}/events", json={"type": "LocationUpdate", "lat": 43, "lng": -79.38})
+    assert r.status_code == 200
+    assert client.get(f"/sessions/{user}/view", params={"viewer": contact}).json()["location"] == [43, -79.38]
+
+
+@pytest.mark.parametrize("field", ["ask_seconds", "grace_seconds", "ack_seconds", "night_ends_at"])
+@pytest.mark.parametrize("value", ["NaN", "1e999", "-1e999"])
+def test_nan_and_infinite_timers_are_rejected(client, field, value):
+    user, contact = make_user(client, "u"), make_user(client, "c")
+    content = '{"user_id": "%s", "pin": "1", "tiers": [["%s"]], "duress_contacts": ["%s"], "%s": %s}' % (
+        user, contact, contact, field, value)
+    r = client.post("/sessions", content=content, headers={"content-type": "application/json"})
+    assert r.status_code == 422
+    assert client.get(f"/sessions/{user}/view", params={"viewer": user}).status_code == 404  # nothing started
+
+
+def test_negative_timer_is_rejected_and_zero_is_not(client):
+    user, contact = make_user(client, "u"), make_user(client, "c")
+    assert start_night(client, user, contact, ack_seconds=-1).status_code == 422
+    assert start_night(client, user, contact, ack_seconds=0).status_code == 200
+
+
+def test_demo_skip_rejects_nan(client):
+    r = client.post("/demo/skip", content='{"seconds": NaN}', headers={"content-type": "application/json"})
+    assert r.status_code == 422

@@ -149,11 +149,13 @@ Errors:
 - 404 if `group_code` is unknown.
 - 400 if `share_location_with` is not `"alerted"` or `"acknowledger"`.
 - 400 if the user or any contact id is unknown. Example: `{"detail": "unknown user ffffffff"}`.
+- 400 if `tiers` is empty or any tier is empty. The response is `{"detail": "tiers must not be empty and every tier needs a contact"}`.
+- 400 if `user_id` is in `tiers` or `duress_contacts`. The response is `{"detail": "the user cannot be their own contact"}`. Leave the user out when you build the lists from the group members.
 - 400 if `duress_contacts` is empty. The response is `{"detail": "duress_contacts must not be empty"}`. Always ask the user to pick at least one duress contact.
-- 409 if this user already has a live alert. The response is `{"detail": "session busy"}`. The old session stays as it was, and nothing is replaced. A live alert means the state is `escalating`, `acknowledged`, or duress. The user's own view cannot tell you this. A duress alert looks like `armed`. So always be ready for a 409 when you start a night, and show a neutral message such as "Could not start right now". Do not retry in a loop. The alert must end first.
-- 422 if a required field is missing. Example: `{"detail": [{"type": "missing", "loc": ["body", "pin"], "msg": "Field required", "input": {...}}]}`.
+- 409 if the user's own view shows `escalating` or `acknowledged`. The response is `{"detail": "session busy"}`. The old session stays as it was, and nothing is replaced. Be ready for a 409 when you start a night, and show a neutral message such as "Could not start right now". Do not retry in a loop. The alert must end first. A user with a hidden alert (duress, or a fake end) gets the same answer as any other user in the same view.
+- 422 if a required field is missing. Example: `{"detail": [{"type": "missing", "loc": ["body", "pin"], "msg": "Field required", "input": {...}}]}`. A 422 also comes if a timer is negative, NaN, or infinite.
 
-Starting a session for a user whose old session is not in a live alert replaces the old session. This is how a new night starts.
+Starting a session for a user whose view is not `escalating` or `acknowledged` replaces the old session. This is how a new night starts. A hidden alert that still runs moves to the new session and keeps escalating. The new night shows nothing about it.
 
 ### POST /sessions/{user_id}/events
 
@@ -180,6 +182,7 @@ Errors:
 - 400 if `pin` is present and is not a string. Example: `{"detail": "pin must be a string"}`. The PIN must be a JSON string, like `"0042"`. The server does not turn a number into a string, because a number loses its leading zeros. A `pin` of `null` is allowed, and counts as no PIN.
 - 400 if the fields do not fit the event. Example: `{"detail": "bad fields for Ack: Ack.__init__() missing 1 required positional argument: 'contact_id'"}`.
 - 400 if a Trigger `kind` is not one of the four allowed kinds. Example: `{"detail": "kind must be one of ('home_by', 'separation', 'periodic', 'manual')"}`.
+- 400 if a `LocationUpdate` has a `lat` or `lng` that is not a real number, or is off the map (`lat` beyond 90, `lng` beyond 180). Example: `{"detail": "lat and lng must be numbers on the map"}`.
 
 ### GET /sessions/{user_id}/view?viewer={id}
 
@@ -409,7 +412,7 @@ What this means in practice:
 {"state": "armed", "screen": "ended_true", "deadline": null}
 ```
 
-- If a user whose alert is hidden gets another trigger, the check runs the normal way. The user sees the same `asking`, `alarm`, and `alert_active` screens as any user. The view follows the screen. The check on the user's phone does not alert anyone new. The contacts were already alerted. Here is the view during such a check:
+- A trigger works the same way whether or not a hidden alert runs. The user sees the normal `asking`, `alarm`, and `alert_active` screens. If the user does not answer, the normal contacts are alerted too. Here is the view during a check:
 
 ```json
 {"state": "asking", "screen": "asking", "deadline": 1792204873.217752}
@@ -429,7 +432,7 @@ What this means in practice:
 {"state": "ended", "screen": "thanks", "deadline": null}
 ```
 
-- If a contact resolves an alert that was hidden, the user's phone gets no message and the view does not change. The user keeps the screen they had. Only the user's own correct PIN gives `ended_true`.
+- If a contact resolves an alert that was hidden, the user's phone gets no message and the view does not change. The user keeps the screen they had. Only the user's own correct PIN gives `ended_true`. That PIN also ends every hidden alert.
 
 Other examples:
 
@@ -483,7 +486,7 @@ Send these with `POST /sessions/{user_id}/events`. Put the event name in `type`.
 | Type | Fields | Who sends it | Meaning |
 |---|---|---|---|
 | `Trigger` | `kind`: `home_by`, `separation`, `periodic`, or `manual` | The user's app (the demo panel sends `separation`) | Start the check. Send it to start a check. The server ignores it if a check or an alert the user can see is already running. |
-| `ConfirmOk` | none | The user | One tap on "I'm okay". Works in `asking` and `waiting`. |
+| `ConfirmOk` | none | The user | One tap on "I'm okay". Works in `asking` and `waiting`. In `armed` it only shows `thanks`. |
 | `Duress` | none | The user | The hidden gesture (hold 3 s, then two taps). Send it at any time. Where it has no effect, the server ignores it. |
 | `Ack` | `contact_id` | A contact | "I'm on it". Send your own id as `contact_id`. |
 | `Resolve` | `by`, `pin` (user only) | The user or a contact | End the alert. |
@@ -533,10 +536,11 @@ A contact resolves. Leave out `pin`:
 
 Who can do what:
 
+- A contact who is alerted by more than one alert acts on the one on their screen. That is the duress alert first, else the newest. An alert that another contact already took comes last. `Ack` and `Resolve` change only that alert.
 - `Ack` works only for a contact the server alerted. In `duress`, only the first tap counts. Any later `Ack` is ignored.
-- `Resolve` by the user needs the right PIN. A missing PIN counts as a wrong PIN. The PIN must be a JSON string. A `by` of `null` is ignored.
-- `Resolve` by a contact works only if that contact tapped "I'm on it" first. In duress, any duress contact can resolve it.
-- `Leave` is ignored while the user sees `alert_active`. It is also ignored during a normal alert, even at `pin_retry`. The user must cancel with the PIN first. At other times it works. In duress, or after `ended_fake`, it works too, and the alert keeps running. Group members get `left` either way.
+- `Resolve` by the user needs the right PIN. A missing PIN counts as a wrong PIN. The PIN must be a JSON string. A `by` of `null` is ignored. The user can send the PIN in every state except `ended`, where it is ignored. When no alert runs, it only changes `screen` to `pin_retry`, `ended_fake`, or `ended_true`.
+- `Resolve` by a contact works only if that contact tapped "I'm on it" first. In duress, any duress contact can resolve it, even one who was not alerted yet.
+- `Leave` is ignored while the view says `escalating` or `acknowledged`, even at `pin_retry`. The user must cancel with the PIN first. At other times it works. If a hidden alert runs (duress, or after `ended_fake`), it works too, and the alert keeps running. Group members get `left`. After `Leave` the PIN is ignored until the next night.
 
 ## 7. User screens
 
@@ -550,8 +554,8 @@ The user's phone shows one screen at a time. The `screen` field in the view and 
 | `alert_active` | "Your contacts are alerted." A way to cancel with the PIN. | `screen` message after the alarm runs out. |
 | `thanks` | "Thanks!" for a moment, then the armed screen. | `screen` message after a tap on "I'm okay". Also after the duress gesture. |
 | `pin_retry` | "Incorrect PIN, try again." A new PIN entry. | The first wrong PIN. Nothing else changed. |
-| `ended_true` | "Alert ended" with a filled check mark. | The correct PIN, or a contact resolved. The alert is really over. |
-| `ended_fake` | "Alert ended" with an outlined check mark. | The second and later wrong PIN. The alert is still running. |
+| `ended_true` | "Alert ended" with a filled check mark. | The correct PIN (also when no alert runs), or a contact resolved the user's own alert. |
+| `ended_fake` | "Alert ended" with an outlined check mark. | The second wrong PIN in a row. The alert, if there is one, is still running. |
 
 Important points for the screens:
 
@@ -595,7 +599,7 @@ Names: Alice is the user (`3f9a1c2e`). Ben is tier 1 (`7b21d0a4`). Cara is tier 
 
 ### Duress
 
-1. Alice is in `asking` (or `armed`). She does the hidden gesture. The app sends `{"type": "Duress"}`.
+1. Alice is in `armed`, `asking`, or `waiting`. She does the hidden gesture. The app sends `{"type": "Duress"}`.
 2. Alice's socket gets `screen` with `thanks`. This is the exact message she gets after a normal tap.
 3. Fia's socket gets `alert` with `kind` set to `duress`. Nobody else gets anything. Ben, Cara, and the group see nothing.
 4. If Fia does not tap "I'm on it" within `ack_seconds`, the next duress contact gets the alert.
@@ -607,7 +611,7 @@ Names: Alice is the user (`3f9a1c2e`). Ben is tier 1 (`7b21d0a4`). Cara is tier 
 
 1. An alert is running. Alice sends `{"type": "Resolve", "by": "3f9a1c2e", "pin": "0000"}`.
 2. Her socket gets `screen` with `pin_retry`. Nobody else gets anything.
-3. She sends a wrong PIN again. Her socket gets `screen` with `ended_fake`. Every alerted contact gets `wrong_pin_warning`. The alert keeps running.
+3. She sends a wrong PIN again. Her socket gets `screen` with `ended_fake`. Every alerted contact gets `wrong_pin_warning`. The alert keeps running. The counter starts over, so the next wrong PIN shows `pin_retry` again.
 4. She sends the right PIN. Her socket gets `ended_true`. Contacts get `resolved`.
 
 ### Leaving

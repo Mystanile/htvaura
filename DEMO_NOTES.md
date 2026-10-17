@@ -4,7 +4,7 @@ This file lists what the prototype really does, what the demo fakes, and what th
 
 ## Demonstrated
 
-- The check-in loop on the server: triggers, ask and grace timers, ranked tiers, acknowledgement, PIN cancel with one silent retry, duress, and privacy views. The 7 KAZE scenarios pass as automated tests (102 server tests in total).
+- The check-in loop on the server: triggers, ask and grace timers, ranked tiers, acknowledgement, PIN cancel with one silent retry, duress, and privacy views. The 7 KAZE scenarios pass as automated tests (100 server tests in total).
 - Timers keep running on the server after a phone disconnects (scenario 4, tested over a real WebSocket).
 
 ## Simulated
@@ -22,6 +22,7 @@ This file lists what the prototype really does, what the demo fakes, and what th
 - The demo band uses BLE only. On the Uno R4 WiFi, BLE and Wi-Fi share one radio chip, so we did not build a direct band-to-server path over Wi-Fi.
 - iOS background limits still let the check-in reach the user.
 - GPS is accurate to 5 to 10 m outdoors only.
+- Nobody can read another person's session without a token. The prototype has no auth. A phone knows the ids of its own contacts, so a person holding that phone could read the session as a duress contact and see a hidden alert. A real build needs per-user auth tokens.
 
 ## Not built
 

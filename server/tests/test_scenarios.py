@@ -3,7 +3,7 @@ import pytest
 
 from helpers import (
     ACK, ASK, EVERYONE_ELSE, GRACE, GROUP, INACTIVE, PIN, U,
-    advance, advance_until, flat, has_word, make, others, recipients, send, start, to,
+    active, advance, advance_until, alert, flat, has_word, make, others, recipients, send, start, to,
 )
 from kaze.cards import card_for
 from kaze.loop import (
@@ -85,18 +85,18 @@ def test_3_duress():
     fx = send(s, Duress(), now)
     fx_ok = send(twin, ConfirmOk(), now)
 
-    assert s.state == "duress"
+    assert alert(s).state == "duress"
     assert view_for(s, U) == view_for(twin, U), "user view must match a normal ok"
     assert flat(to(fx, U)) == flat(to(fx_ok, U)), "user-directed effects must match a normal ok"
     assert not has_word([flat(to(fx, U))])
 
     # Duress contact 1 gets a silent alert with the duress card. Nobody else.
     assert recipients(others(fx)) == {"x"}
-    alert = to(fx, "x", "alert")
-    assert len(alert) == 1
-    assert alert[0].data["user_id"] == "u"
-    assert alert[0].data["kind"] == "duress"
-    assert alert[0].data["card"] == card_for("duress")
+    sent = to(fx, "x", "alert")
+    assert len(sent) == 1
+    assert sent[0].data["user_id"] == "u"
+    assert sent[0].data["kind"] == "duress"
+    assert sent[0].data["card"] == card_for("duress")
 
     # Run a long time: contact 2 gets alerted, all duress contacts get re-alerted,
     # but no group member and no tier contact ever receives anything.
@@ -104,7 +104,7 @@ def test_3_duress():
     now, later = advance(s, now, 300)
     _, twin_later = advance(twin, t0, 300)
     everything = fx + later
-    assert s.state == "duress"
+    assert alert(s).state == "duress"
     assert recipients(others(everything)) == {"x", "y"}
     for who in GROUP + ["d", "stranger"]:
         assert to(everything, who) == []
@@ -149,9 +149,9 @@ def test_4_connectivity_failure():
 def test_5_unacknowledged_alert():
     """Tier 1 stays silent: tier 2 gets alerted. Tier 2 acks: acknowledged, others told who owns it."""
     s, now, fx = make("escalating")
-    assert s.alerted == ["a"]
+    assert alert(s).alerted == ["a"]
 
-    now, f = advance_until(s, now, lambda s: "b" in s.alerted, limit=ACK + 3)
+    now, f = advance_until(s, now, lambda s: "b" in alert(s).alerted, limit=ACK + 3)
     fx += f
     assert s.state == "escalating"
     assert len(to(fx, "a", "alert")) == 1, "tier 1 is not re-alerted yet"
@@ -161,12 +161,12 @@ def test_5_unacknowledged_alert():
         assert alerts[0].data["user_id"] == "u"
         assert alerts[0].data["card"] == card_for("manual")
     assert to(fx, "d") == [], "tier 3 not alerted yet"
-    assert s.alerted == ["a", "b", "c"]
+    assert alert(s).alerted == ["a", "b", "c"]
 
     ack_fx = send(s, Ack("b"), now)
     assert s.state == "acknowledged"
-    assert s.acknowledged_by == "b"
-    assert s.deadline is None
+    assert alert(s).acknowledged_by == "b"
+    assert alert(s).deadline is None
     assert recipients(ack_fx, "owner") == {"a", "c"}
     for e in to(ack_fx, "a", "owner") + to(ack_fx, "c", "owner"):
         assert e.data == {"user_id": "u", "acknowledged_by": "b"}
@@ -189,7 +189,7 @@ def test_6_false_alarm_user_resolves(state):
     """User cancels with the correct PIN: resolved, contacts told, location stops."""
     s, now, _ = make(state)
     send(s, LocationUpdate(LAT, LNG), now)
-    alerted = list(s.alerted)
+    alerted = list(alert(s).alerted)
     assert alerted
 
     fx = send(s, Resolve(U, PIN), now)
@@ -209,7 +209,7 @@ def test_6_false_alarm_user_resolves(state):
 def test_6_false_alarm_acknowledging_contact_resolves():
     """Only the contact who acked can resolve. Another alerted contact is ignored."""
     s, now, _ = make("escalating")
-    now, _ = advance_until(s, now, lambda s: "b" in s.alerted, limit=ACK + 3)
+    now, _ = advance_until(s, now, lambda s: "b" in alert(s).alerted, limit=ACK + 3)
     send(s, Ack("b"), now)
     send(s, LocationUpdate(LAT, LNG), now)
 
@@ -226,10 +226,10 @@ def test_6_false_alarm_acknowledging_contact_resolves():
 
 
 def test_6_wrong_pin_fake_ending():
-    """1st wrong PIN: plain retry, nobody told. 2nd+: fake ended screen, contacts warned, alert goes on."""
+    """1st wrong PIN: plain retry, nobody told. 2nd: fake ended screen, contacts warned, alert goes on."""
     s, now, _ = make("escalating")
-    now, _ = advance_until(s, now, lambda s: "b" in s.alerted, limit=ACK + 3)
-    alerted = list(s.alerted)
+    now, _ = advance_until(s, now, lambda s: "b" in alert(s).alerted, limit=ACK + 3)
+    alerted = list(alert(s).alerted)
     views_before = {w: view_for(s, w) for w in EVERYONE_ELSE}
 
     fx = send(s, Resolve(U, "0000"), now)
@@ -238,28 +238,35 @@ def test_6_wrong_pin_fake_ending():
     assert s.screen == "pin_retry"
     assert {w: view_for(s, w) for w in EVERYONE_ELSE} == views_before
 
-    for _ in range(2):  # second and third wrong PIN behave the same
+    for _ in range(2):  # the counter starts over after a fake end, so it takes 2 wrong PINs each time
         fx = send(s, Resolve(U, "9999"), now)
-        assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_fake"})]
+        if _ == 0:
+            assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_fake"})]
+        else:  # first wrong PIN of the next round: only a retry, nobody told
+            assert flat(fx) == [(U, "screen", {"screen": "pin_retry"})]
+            fx = send(s, Resolve(U, "9999"), now)
+            assert flat(to(fx, U)) == [(U, "screen", {"screen": "ended_fake"})]
         assert recipients(others(fx), "wrong_pin_warning") == set(alerted)
         assert recipients(others(fx)) == set(alerted)
         for e in others(fx):
             assert e.data["user_id"] == "u"
-        assert s.state == "escalating"
+        # The front acts as if the alert ended. The alert itself is still escalating.
         assert s.screen == "ended_fake"
+        assert s.wrong_pins == 0
+        assert alert(s).state == "escalating" and alert(s).hidden is True
         # The watcher sees a calm armed screen; contacts still see a live alert.
         assert view_for(s, U)["state"] == "armed"
         for who in alerted:
             assert view_for(s, who)["active"] is True
 
     # The alert really keeps going: next tier still gets alerted.
-    now, f = advance_until(s, now, lambda s: "d" in s.alerted, limit=ACK + 3)
+    now, f = advance_until(s, now, lambda s: "d" in alert(s).alerted, limit=ACK + 3)
     assert len(to(f, "d", "alert")) == 1
-    assert s.state == "escalating"
+    assert alert(s).state == "escalating"
 
     # The true PIN still works afterwards.
     send(s, Resolve(U, PIN), now)
-    assert s.state == "resolved"
+    assert active(s) == []
     assert s.screen == "ended_true"
     assert s.wrong_pins == 0
 
@@ -282,7 +289,7 @@ def test_7_privacy():
     assert tuple(view_for(s, "a")["location"]) == (LAT, LNG)
     for who in ["b", "c", "d", "x", "y", "g1", "g2", "stranger"]:
         assert view_for(s, who) == INACTIVE
-    now, f = advance_until(s, now, lambda s: "b" in s.alerted, limit=ACK + 3)
+    now, f = advance_until(s, now, lambda s: "b" in alert(s).alerted, limit=ACK + 3)
     fx += f
     for who in ["a", "b", "c"]:
         assert tuple(view_for(s, who)["location"]) == (LAT, LNG)
@@ -303,7 +310,7 @@ def test_7_privacy():
 
     # share_location_with = "acknowledger": only the contact who took it sees location.
     s, now, _ = make("escalating", share_location_with="acknowledger")
-    now, _ = advance_until(s, now, lambda s: "b" in s.alerted, limit=ACK + 3)
+    now, _ = advance_until(s, now, lambda s: "b" in alert(s).alerted, limit=ACK + 3)
     send(s, LocationUpdate(LAT, LNG), now)
     for who in ["a", "b", "c"]:
         v = view_for(s, who)

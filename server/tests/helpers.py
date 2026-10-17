@@ -124,3 +124,13 @@ def has_word(thing, word="duress"):
 
 def location_of(view):
     return view.get("location")
+
+
+def active(s):
+    """Alerts that have not been resolved."""
+    return [a for a in s.alerts if a.state != "resolved"]
+
+
+def alert(s):
+    """The newest active alert."""
+    return active(s)[-1]

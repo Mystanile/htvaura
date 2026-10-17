@@ -4,13 +4,17 @@ All state changes go through `run`, which calls loop.step and pushes the effects
 """
 import asyncio
 import dataclasses
+import math
 import secrets
 import time
 import traceback
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from . import loop
 from .loop import Config, view_for
@@ -32,14 +36,37 @@ def now() -> float:
     return time.time() + offset
 
 
-async def push(effects) -> None:
-    """Send each effect to its id's open sockets. No socket means dropped (the app can GET the view)."""
+background: set[asyncio.Task] = set()   # keeps the send tasks alive until they finish
+
+
+async def send_all(ws, messages) -> None:
+    for m in messages:
+        try:
+            await ws.send_json(m)
+        except Exception:
+            return  # a dead socket: the app can GET the view
+
+
+async def deliver(effects) -> None:
+    """Each socket gets its own messages in order. Sockets are sent to at the same time,
+    so one stuck socket delays nobody else."""
+    per_socket: dict = {}
     for e in effects:
         for ws in list(sockets.get(e.to, [])):
-            try:
-                await ws.send_json({"kind": e.kind, "data": e.data})
-            except Exception:
-                pass
+            per_socket.setdefault(ws, []).append({"kind": e.kind, "data": e.data})
+    await asyncio.gather(*(send_all(ws, m) for ws, m in per_socket.items()))
+
+
+async def push(effects) -> None:
+    """Send each effect to its id's open sockets. No socket means dropped (the app can GET the view).
+
+    The sends run in the background. A stuck contact socket must not slow the user's request,
+    or the user's phone would answer slower when a hidden alert sends to that contact.
+    """
+    if effects:
+        task = asyncio.create_task(deliver(effects))
+        background.add(task)
+        task.add_done_callback(background.discard)
 
 
 async def run(user_id: str, event) -> None:
@@ -67,6 +94,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+@app.exception_handler(RequestValidationError)
+async def bad_body(request: Request, exc: RequestValidationError):
+    """The usual 422. A NaN or infinity that the client sent is shown as text, because JSON cannot hold it."""
+    errors = [
+        e | {"input": str(e["input"])} if isinstance(e.get("input"), float) and not math.isfinite(e["input"]) else e
+        for e in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": errors})
+
+
 def need_user(user_id: str) -> None:
     if user_id not in users:
         raise HTTPException(400, f"unknown user {user_id}")
@@ -86,6 +123,9 @@ class GroupIn(BaseModel):
     user_id: str
 
 
+Seconds = Annotated[float, Field(ge=0, allow_inf_nan=False)]  # NaN and infinity would stop a timer
+
+
 class SessionIn(BaseModel):
     user_id: str
     pin: str
@@ -93,14 +133,14 @@ class SessionIn(BaseModel):
     duress_contacts: list[str] = []
     group_code: str | None = None
     share_location_with: str = "alerted"
-    ask_seconds: float = 30
-    grace_seconds: float = 15
-    ack_seconds: float = 20
-    night_ends_at: float | None = None
+    ask_seconds: Seconds = 30
+    grace_seconds: Seconds = 15
+    ack_seconds: Seconds = 20
+    night_ends_at: Annotated[float, Field(allow_inf_nan=False)] | None = None
 
 
 class SkipIn(BaseModel):
-    seconds: float
+    seconds: Annotated[float, Field(allow_inf_nan=False)]
 
 
 @app.post("/users")
@@ -139,10 +179,15 @@ def start_session(body: SessionIn):
         raise HTTPException(400, "share_location_with must be 'alerted' or 'acknowledger'")
     if not body.duress_contacts:
         raise HTTPException(400, "duress_contacts must not be empty")
+    if not body.tiers or not all(body.tiers):
+        raise HTTPException(400, "tiers must not be empty and every tier needs a contact")
+    contacts = [c for t in body.tiers for c in t] + body.duress_contacts
+    if body.user_id in contacts:
+        raise HTTPException(400, "the user cannot be their own contact")
     old = sessions.get(body.user_id)
-    if old and old.state in ("escalating", "acknowledged", "duress"):
+    if old and old.state in ("escalating", "acknowledged"):  # what the user's own view shows
         raise HTTPException(409, "session busy")
-    for c in [c for t in body.tiers for c in t] + body.duress_contacts:
+    for c in contacts:
         need_user(c)
     members = groups[body.group_code] if body.group_code else []
     config = Config(
@@ -153,10 +198,15 @@ def start_session(body: SessionIn):
         ask_seconds=body.ask_seconds, grace_seconds=body.grace_seconds,
         ack_seconds=body.ack_seconds, night_ends_at=body.night_ends_at,
     )
-    session = loop.new_session(config, now())
+    session = loop.new_session(config, now(), carry=old)  # hidden alerts keep running
     session.connected = bool(sockets.get(body.user_id))
     sessions[body.user_id] = session
     return {"user_id": body.user_id, "view": view_for(session, body.user_id)}
+
+
+def _coord(v, limit: float) -> bool:
+    """A real number within +-limit. NaN, infinity, strings and booleans are not."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and abs(v) <= limit
 
 
 @app.post("/sessions/{user_id}/events")
@@ -174,6 +224,8 @@ async def post_event(user_id: str, body: dict):
         raise HTTPException(400, f"bad fields for {name}: {err}")
     if name == "Trigger" and event.kind not in TRIGGER_KINDS:
         raise HTTPException(400, f"kind must be one of {TRIGGER_KINDS}")
+    if name == "LocationUpdate" and not (_coord(event.lat, 90) and _coord(event.lng, 180)):
+        raise HTTPException(400, "lat and lng must be numbers on the map")
     await run(user_id, event)
     return {"ok": True}
 
