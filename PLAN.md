@@ -35,7 +35,7 @@ Where the code is:
 How the demo runs (these processes die when the session that started them ends, so check and restart them):
 1. Server: `cd ~/Desktop/kaze-app/server && KAZE_DEMO_KEY=<pick one> ~/Desktop/kaze/server/.venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000`. The key protects `/panel` data and `/demo/*` through the `X-Demo-Key` header. The user knows the current key. Never commit it.
 2. Tunnel, because the venue Wi-Fi blocks phone-to-laptop traffic (checked: Safari on a phone could not reach the laptop): `cloudflared tunnel --url http://localhost:8000`. The address changes on every start, so the phones and the panel need the new one.
-3. App: `cd ~/Desktop/kaze-app/safekeeps && EXPO_PUBLIC_API_URL=<tunnel address> npx expo start --tunnel`, then Expo Go on the iPhones.
+3. App, for now in a web browser: `cd ~/Desktop/kaze-app/safekeeps && EXPO_PUBLIC_API_URL=<tunnel address> npx expo start`, press `w`, and use two tabs as two phones. Expo Go on two iPhones is skipped on purpose: it needs both phones signed in to the same Expo account. Real-phone testing waits for the Xcode development build (step 2 below).
 4. Panel: `<tunnel address>/panel`, then type the key.
 
 Rules from the user for this repo:
@@ -43,12 +43,12 @@ Rules from the user for this repo:
 - The teammate owns `safekeeps/`. Preserve her design. Change her app only on a branch with a pull request, and only when the user asks.
 - Open question, not decided: rewriting `main` to remove the old Claude co-author lines needs a force push. Do not do it unless the user asks again.
 
-Not tested yet: the app on real iPhones (vibration, real taps, `expo start --tunnel`), and the panel on real phones.
+Not tested yet: the app on real iPhones (vibration, real taps), and the panel on real phones. Both wait for the Xcode build.
 
 Next steps, in order:
-1. Two real iPhones through the tunnel, running the `checkin-screens` app. Fix what breaks.
-2. Phase 4, find them (4.1 GPS arrow with expo-location and heading, 4.2 "ping" that makes the person's phone ring and flash). Give the user a short plan and wait for a go first.
-3. Phase 5 on the user's Mac: a development build of the teammate's app in Xcode (5.1, try one plain build on one iPhone early), then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
+1. Phase 4, find them (4.1 GPS arrow with expo-location and heading, 4.2 "ping" that makes the person's phone ring and flash). Give the user a short plan and wait for a go first. Test what a browser can show, and list the rest for the phone test.
+2. Phase 5 on the user's Mac: a development build of the teammate's app in Xcode (5.1). Install it on both iPhones over a cable. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
+3. (was step 1) Fix what breaks on the real phones.
 4. Task 2.5: the home-by-time trigger.
 5. Before judging: update `README.md` and `DEMO_NOTES.md` (Demonstrated, Simulated, Assumed).
 
