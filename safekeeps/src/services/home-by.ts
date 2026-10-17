@@ -19,6 +19,6 @@ export function nextAt(h: number, m: number, nowMs: number): number {
 
 // A local time (ms) as "23:30".
 export function clockText(ms: number): string {
-  const at = new Date(ms);
+  const at = new Date(Math.round(ms / 60_000) * 60_000); // the server time is a few ms off the clock time: round, never floor
   return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
 }

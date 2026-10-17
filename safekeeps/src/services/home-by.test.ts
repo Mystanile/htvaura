@@ -45,3 +45,9 @@ test('clockText pads to 24-hour HH:MM', () => {
   assert.equal(clockText(at(9, 5)), '09:05');
   assert.equal(clockText(at(23, 30)), '23:30');
 });
+
+test('clockText rounds a time a few ms early to the minute the user typed', () => {
+  const typed = new Date(2026, 9, 17, 23, 30).getTime();
+  assert.equal(clockText(typed - 3), '23:30');
+  assert.equal(clockText(typed + 3), '23:30');
+});
