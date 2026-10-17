@@ -15,7 +15,7 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 1.4 API.md for the app
 - [x] 1.5 Hidden-alert refactor: the session is a front plus alerts, see Phase 1 interface
 - [x] 1.6 Fix the two open findings from the third review, and add periodic check-ins to the loop
-- [x] 2.0 Server bridge for safekeeps (me), 3 review findings open, see "Where we stopped"
+- [x] 2.0 Server bridge for safekeeps (me), review findings fixed, see "Where we stopped"
 - [ ] 2.1 to 2.5 Safekeeps app screens (teammate)
 - [ ] 3.1 Demo panel
 - [ ] 4.1 to 4.2 Find them
@@ -34,11 +34,17 @@ Not fixed on purpose: the demo-panel path has no auth. Any client can send event
 
 On 2026-10-17 the teammate pushed an Expo app in `safekeeps/` with its own server module, `server/kaze/safekeeps.py`. It has token logins, friends added by code, and manual check-ins, but it did not use the loop. The next work is task 2.0, which bridges her app to the loop. Phase 3 (the demo panel) comes after that.
 
-Task 2.0 (the bridge) is done: `server/kaze/bridge.py` and `server/tests/test_bridge.py`, with 184 server tests passing. Two small planned edits went into the teammate's `server/kaze/safekeeps.py`: `record_check_in()`, and the manual trigger when a friend asks for a check. The final bridge review left three open findings. None is fixed yet. The repro scripts are in `/private/tmp/kaze_bridge_review/round3/`.
+Task 2.0 (the bridge) is done: `server/kaze/bridge.py` and `server/tests/test_bridge.py`, with 184 server tests passing. Two small planned edits went into the teammate's `server/kaze/safekeeps.py`: `record_check_in()`, and the manual trigger when a friend asks for a check. The final bridge review left three findings. All three are fixed now, with 189 server tests passing. The bridge checks callers against the night's own config (decision 9) and `reaches()` is gone. The repro scripts are in `/private/tmp/kaze_bridge_review/round3/`.
 
-1. (high) Removing friends cancels a fake-ended alert for every contact. `reaches()` in `bridge.py` only protects alerts whose kind is "duress". A fake-ended alert is hidden too but keeps its trigger kind. Fixed by decision 9, see finding 2.
-2. (medium) A removed friend who is also a duress contact still gets the duress alert, which is on purpose. But through it, they can also ack or resolve the user's normal alert, which an honest twin would refuse with 404. That is a tell. This and finding 1 come from the same question, now settled by decision 9. Fix for both: the bridge checks contacts against the night's config, not the current friends list, so removal changes nothing until the next night. Remove `reaches()` and the duress-only special case.
-3. (low) `POST /safekeeps/alerts/{owner}/ack` and `/resolve` answer 200 when the owner has a night and 404 when not, so any friend can learn whether a night is running. Fix: answer the same for both.
+1. (high) Removing friends cancelled a fake-ended alert for every contact. Fixed. Tests in `test_bridge.py`: `test_f1_removing_a_friend_does_not_cancel_a_fake_ended_alert` and the fake end half of `test_http_twin_a_hidden_alert_looks_like_an_honest_one_after_a_friend_is_removed`.
+2. (medium) A removed friend who is also a duress contact could ack or resolve the normal alert, which an honest twin refused. Fixed. Tests: `test_f2_a_removed_duress_contact_acts_the_same_in_a_hidden_and_an_honest_night`, `test_r1_a_removed_shared_contact_cannot_tell_the_phone_holder_apart`, `test_a_removed_friend_keeps_the_running_night_until_it_ends` (it replaces `test_a_removed_friend_cannot_see_ack_or_resolve_a_running_night`), and the duress half of the HTTP twin test.
+3. (low) Ack and resolve answered 200 or 404 depending on whether the owner had a night. Fixed. They now always answer 200 with `{"ok": true}` (401 only for a bad token, 400 for your own id). Test: `test_f3_ack_and_resolve_answer_the_same_for_anyone`. `test_a_friend_who_was_not_alerted_cannot_ack_or_resolve` now expects 200 for an unknown owner.
+
+A fourth review left three low findings, all fixed, with 192 server tests passing.
+
+1. `GET /safekeeps/night` and `GET /alerts` walked `sessions` lazily, so a night starting in another thread could give a 500. They now walk a copy. Test: `test_a_poll_survives_a_night_starting_in_another_thread`.
+2. The docs said a removal applies from the next night, but a hidden alert carries over. The code stays (decision 9). The docs now state the exception. Test: `test_a_hidden_alert_carries_into_the_next_night_for_a_removed_friend`.
+3. The token-less phase 1 endpoints refused an id only after its night started, which told a friend that a night exists. `profile_ids` is gone. `app.is_profile()` looks the id up in the Safekeeps `people` table, so the answer never depends on a night. Test: `test_token_less_endpoints_answer_the_same_before_and_after_a_night_starts`. A last review found that `POST /groups`, `POST /groups/{code}/join` and `POST /sessions` still checked `need_user` first, and its answer changed once a night named an id. They now refuse profile ids first. The same test now probes those three endpoints with a real group code.
 
 The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/`, which looks like an accident. We flag it to her and do not delete it.
 
@@ -54,7 +60,7 @@ The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/
 6. Duress contacts are a separate private list. Duress never goes to the group.
 7. Team phones are all iPhones. Phases 1 to 4 run in Expo Go. BLE (phase 5) needs a custom dev build from Xcode on a Mac.
 8. Band hardware (phase 5): Arduino Uno R4 WiFi with ArduinoBLE, one Grove button, one Grove touch sensor, a Grove buzzer, and an LED. The button and the touch sensor use the same gestures as the app (decision 1). Ping plays the buzzer and blinks the LED. The full spec is in `Hardware/kaze_band/HARDWARE.md`: pins, BLE UUIDs, event bytes, ask and ping behavior, and RSSI measured at the venue.
-9. Removing a friend during a night (decided 2026-10-17). Contacts are fixed when the night starts. If the user removes a friend while a night is running, the removal applies from the next night. For the rest of the current night, the removed friend still gets alerts, location, ack, and resolve exactly as before. Reason: if removal applied at once, a person holding the phone could remove contacts to cancel a hidden alert, and every workaround for that created a new tell. Cost: a friend removed mid-night can still see that night's alerts and location until the night ends.
+9. Removing a friend during a night (decided 2026-10-17). Contacts are fixed when the night starts. If the user removes a friend while a night is running, the removal applies from the next night. For the rest of the current night, the removed friend still gets alerts, location, ack, and resolve exactly as before. Reason: if removal applied at once, a person holding the phone could remove contacts to cancel a hidden alert, and every workaround for that created a new tell. Cost: a friend removed mid-night can still see that night's alerts and location until the night ends. Exception: a hidden alert (duress or fake end) carries into the next night with its contacts, so a removed friend keeps it, with live location, until it is resolved. Test: `test_a_hidden_alert_carries_into_the_next_night_for_a_removed_friend`.
 
 ## Architecture
 

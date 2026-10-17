@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from . import safekeeps
 from .safekeeps import router as safekeeps_router
 from pydantic import BaseModel, Field
 
@@ -31,13 +32,20 @@ TRIGGER_KINDS = ("home_by", "separation", "periodic", "manual")
 users: dict[str, str] = {}              # user_id -> name
 groups: dict[str, list[str]] = {}       # code -> member ids
 sessions: dict[str, loop.Session] = {}  # user_id -> session
-profile_ids: set[str] = set()           # ids of Safekeeps phones (set by the bridge). They act only with a token.
 sockets: dict[str, list[WebSocket]] = {}  # id -> open sockets
 offset = 0.0                            # demo time skip, seconds
 
 
 def now() -> float:
     return time.time() + offset
+
+
+def is_profile(user_id: str) -> bool:
+    """True for any Safekeeps profile, whether or not it has a night, so no answer depends on a night."""
+    if not safekeeps.DB_PATH.exists():
+        return False
+    with safekeeps.connect() as db:
+        return db.execute("SELECT 1 FROM people WHERE id = ?", (user_id,)).fetchone() is not None
 
 
 background: set[asyncio.Task] = set()   # keeps the send tasks alive until they finish
@@ -56,7 +64,7 @@ async def deliver(effects) -> None:
     so one stuck socket delays nobody else."""
     per_socket: dict = {}
     for e in effects:
-        if e.to in profile_ids:
+        if is_profile(e.to):
             continue  # a socket opened on this id before it was protected has no token, so it gets nothing
         for ws in list(sockets.get(e.to, [])):
             per_socket.setdefault(ws, []).append({"kind": e.kind, "data": e.data})
@@ -122,7 +130,7 @@ def need_user(user_id: str) -> None:
 
 def refuse_profiles(*ids: str) -> None:
     """The phase 1 endpoints have no token, so they refuse an id that the bridge protects."""
-    if any(i in profile_ids for i in ids):
+    if any(is_profile(i) for i in ids):
         raise HTTPException(403, "that id belongs to a Safekeeps phone: use /safekeeps with its token")
 
 
@@ -170,8 +178,8 @@ def create_user(body: UserIn):
 
 @app.post("/groups")
 def create_group(body: GroupIn):
+    refuse_profiles(body.user_id)  # before need_user, whose answer changes once a night names this id
     need_user(body.user_id)
-    refuse_profiles(body.user_id)
     code = secrets.token_hex(2).upper()
     while code in groups:
         code = secrets.token_hex(2).upper()
@@ -183,8 +191,8 @@ def create_group(body: GroupIn):
 def join_group(code: str, body: GroupIn):
     if code not in groups:
         raise HTTPException(404, f"unknown group {code}")
-    need_user(body.user_id)
     refuse_profiles(body.user_id)
+    need_user(body.user_id)
     if body.user_id not in groups[code]:
         groups[code].append(body.user_id)
     return {"code": code, "members": groups[code]}
@@ -222,8 +230,8 @@ def begin_night(user_id: str, members: list[str], **fields) -> dict:
 
 @app.post("/sessions")
 def start_session(body: SessionIn):
-    need_user(body.user_id)
     refuse_profiles(body.user_id, *(c for t in body.tiers for c in t), *body.duress_contacts)
+    need_user(body.user_id)
     if body.group_code is not None and body.group_code not in groups:
         raise HTTPException(404, f"unknown group {body.group_code}")
     members = groups[body.group_code] if body.group_code else []
@@ -278,7 +286,7 @@ def get_group(code: str):
 def get_alerts(viewer: str):
     """Active alerts this viewer may see, for a contact whose socket dropped."""
     refuse_profiles(viewer)
-    views = (view_for(s, viewer) for s in sessions.values())
+    views = (view_for(s, viewer) for s in list(sessions.values()))  # a copy: another request may start a night
     return {"alerts": [v for v in views if v.get("active") is True]}
 
 
@@ -290,7 +298,7 @@ def get_view(user_id: str, viewer: str):
 
 @app.websocket("/ws/{id}")
 async def ws_endpoint(ws: WebSocket, id: str):
-    if id in profile_ids:
+    if is_profile(id):
         await ws.close(code=1008)  # Safekeeps phones poll with a token
         return
     await ws.accept()
@@ -327,7 +335,6 @@ def demo_reset():
     global offset
     offset = 0.0
     users.clear()
-    profile_ids.clear()
     groups.clear()
     sessions.clear()
     return {"ok": True}

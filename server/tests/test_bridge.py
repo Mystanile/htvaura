@@ -165,7 +165,7 @@ def test_a_friend_who_was_not_alerted_cannot_ack_or_resolve(client):
         assert client.post(f"/safekeeps/alerts/{alice['id']}/{action}", headers=d).status_code == 200
     assert client.get(NIGHT, headers=a).json()["view"]["state"] == "escalating"
     assert alerts(client, d) == [] and alerts(client, b)[0]["acknowledged_by"] is None
-    assert client.post("/safekeeps/alerts/nobody/ack", headers=d).status_code == 404
+    assert client.post("/safekeeps/alerts/nobody/ack", headers=d).status_code == 200  # the same answer for any owner
 
 
 def test_periodic_check_fires_and_escalates_with_no_polling(client):
@@ -202,16 +202,164 @@ def escalate(client, a, b, alice):
     assert client.get(NIGHT, headers=a).json()["view"]["state"] == "escalating"
 
 
-def test_a_removed_friend_cannot_see_ack_or_resolve_a_running_night(client):
+def test_a_removed_friend_keeps_the_running_night_until_it_ends(client):
+    """Replaces test_a_removed_friend_cannot_see_ack_or_resolve_a_running_night (decision 9)."""
     (alice, a), (bob, b), (carol, c) = people(client, "Alice", "Bob", "Carol")
     start(client, a, [[bob["id"]]], [carol["id"]])
     escalate(client, a, b, alice)
-    assert alerts(client, b)[0]["location"] == [43.7, -79.4]
+    before = alerts(client, b)
+    assert before[0]["location"] == [43.7, -79.4]
     client.post(f"/safekeeps/friends/{bob['id']}/remove", headers=a)
+    assert alerts(client, b) == before
+    assert client.post(f"/safekeeps/alerts/{alice['id']}/ack", headers=b).status_code == 200
+    assert client.get(NIGHT, headers=a).json()["view"]["state"] == "acknowledged"
+    assert client.post(f"/safekeeps/alerts/{alice['id']}/resolve", headers=b).status_code == 200
+    assert client.get(NIGHT, headers=a).json()["view"]["state"] == "armed"
     assert alerts(client, b) == []
-    for action in ("ack", "resolve"):
-        assert client.post(f"/safekeeps/alerts/{alice['id']}/{action}", headers=b).status_code == 404
-    assert client.get(NIGHT, headers=a).json()["view"]["state"] == "escalating"
+    # The next night needs a current friend.
+    assert start(client, a, [[bob["id"]]], [carol["id"]]).status_code == 400
+
+
+def skip(client, seconds):
+    client.post("/demo/skip", json={"seconds": seconds})
+
+
+def test_f1_removing_a_friend_does_not_cancel_a_fake_ended_alert(client):
+    (x, hx), (a, ha), (b, hb) = people(client, "X", "A", "B")
+    start(client, hx, [[a["id"]]], [b["id"]])
+    client.post(f"/safekeeps/friends/{x['id']}/requests", headers=ha, json={})
+    skip(client, 31)
+    skip(client, 16)
+    for pin in ("0000", "1111"):  # two wrong PINs: the screen says "Alert ended", the alert goes on
+        client.post(NIGHT + "/events", headers=hx, json={"type": "Resolve", "pin": pin})
+    before = alerts(client, ha)
+    assert [v["kind"] for v in before] == ["manual"]
+    client.post(f"/safekeeps/friends/{a['id']}/remove", headers=hx)
+    assert alerts(client, ha) == before
+    skip(client, 100)
+    assert [v["kind"] for v in alerts(client, ha)] == ["manual"]
+
+
+def test_f2_a_removed_duress_contact_acts_the_same_in_a_hidden_and_an_honest_night(client):
+    def world(event):
+        (x, hx), (a, ha), (b, hb) = people(client, "X", "A", "B")
+        start(client, hx, [[b["id"]], [a["id"]]], [b["id"]], check_every_minutes=1)
+        client.post(NIGHT + "/events", headers=hx, json={"type": event})
+        skip(client, 61)
+        skip(client, 31)
+        skip(client, 16)
+        client.post(f"/safekeeps/friends/{b['id']}/remove", headers=hx)
+        ack = client.post(f"/safekeeps/alerts/{x['id']}/ack", headers=hb)
+        after_ack = client.get(NIGHT, headers=hx).json()["view"]
+        skip(client, 21)
+        return [(ack.status_code, ack.json()), after_ack, alerts(client, ha),
+                client.post(f"/safekeeps/alerts/{x['id']}/resolve", headers=hb).status_code,
+                client.get(NIGHT, headers=hx).json()["view"]]
+
+    hidden = world("Duress")
+    client.post("/demo/reset")
+    honest = world("ConfirmOk")
+    assert hidden == honest
+    assert honest[1]["state"] == "acknowledged"  # B was a tier 1 contact all night, so the ack counts
+    assert honest[2] == []                       # and tier 2 is not called
+
+
+def test_r1_a_removed_shared_contact_cannot_tell_the_phone_holder_apart(client, monkeypatch):
+    monkeypatch.setattr("kaze.bridge.MANUAL_COOLDOWN", 0)  # the cooldown reads the real clock
+
+    def world(event):
+        (u, uh), (e, eh), (b, bh) = people(client, "U", "E", "Bob")
+        start(client, uh, [[e["id"]], [b["id"]]], [e["id"]], ask_seconds=5, grace_seconds=5, ack_seconds=20)
+        client.post(NIGHT + "/events", headers=uh, json={"type": event})
+        client.post(f"/safekeeps/friends/{e['id']}/remove", headers=uh)
+        client.post(f"/safekeeps/friends/{u['id']}/requests", headers=bh, json={})
+        skip(client, 6)
+        skip(client, 6)
+        ack = client.post(f"/safekeeps/alerts/{u['id']}/ack", headers=eh)
+        skip(client, 21)
+        res = client.post(f"/safekeeps/alerts/{u['id']}/resolve", headers=eh)
+        again = start(client, uh, [[b["id"]]], [b["id"]]).status_code
+        return [(ack.status_code, ack.json()), (res.status_code, res.json()), again,
+                client.get(NIGHT, headers=uh).json()["view"]]
+
+    hidden = world("Duress")
+    client.post("/demo/reset")
+    honest = world("ConfirmOk")
+    assert hidden == honest
+
+
+def test_f3_ack_and_resolve_answer_the_same_for_anyone(client):
+    (x, hx), (a, ha), (b, hb), (c, hc) = people(client, "X", "A", "B", "C")
+    seen = set()
+
+    def probe():
+        for who in (hc, ha):
+            for owner in (x["id"], "nobody"):
+                for act in ("ack", "resolve"):
+                    r = client.post(f"/safekeeps/alerts/{owner}/{act}", headers=who)
+                    seen.add((r.status_code, str(r.json())))
+
+    probe()  # no night
+    start(client, hx, [[a["id"]]], [b["id"]])
+    probe()  # a quiet night, and C is not a contact
+    client.post(NIGHT + "/events", headers=hx, json={"type": "Leave"})
+    probe()  # the night is over
+    assert seen == {(200, str({"ok": True}))}
+    assert client.post(f"/safekeeps/alerts/{x['id']}/ack", headers={}).status_code == 401
+
+
+def hidden_twin_world(client, how):
+    """Alice, Bob (tier 1), Carol (duress contact) and Dan (a friend, no part in the night). Alice's phone is held:
+    `how` is "duress" or "fake_end" for the hidden world and "honest" for the twin. Everything after the hiding step
+    is the same in both. Returns every step: what each person's screen and data show and each response."""
+    (alice, a), (bob, b), (carol, c), (dan, d) = people(client, "Alice", "Bob", "Carol", "Dan")
+    who = {"alice": a, "bob": b, "carol": c, "dan": d}
+    start(client, a, [[bob["id"]]], [carol["id"]])
+    client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={})
+    if how in ("duress", "honest_duress"):
+        client.post(NIGHT + "/events", headers=a, json={"type": "Duress" if how == "duress" else "ConfirmOk"})
+    else:
+        skip(client, 31)
+        skip(client, 16)
+        pins = ("0000", "1111") if how == "fake_end" else ("1234",)
+        for pin in pins:
+            client.post(NIGHT + "/events", headers=a, json={"type": "Resolve", "pin": pin})
+    sees = {"carol"} if how in ("duress", "honest_duress") else {"bob"}  # who may legitimately see an alert
+    steps = []
+
+    def snap(label, response=None):
+        shot = {}
+        for name, h in who.items():
+            mine = client.get(NIGHT, headers=h).json()
+            shot[name] = {"view": mine["view"], "state": friends_view(client, h)}
+            shot[name]["alerts"] = "skipped" if name in sees else mine["alerts"]
+        steps.append((label, shot, response))
+
+    snap("hidden")
+    for name in ("bob", "carol"):
+        client.post(f"/safekeeps/friends/{locals()[name]['id']}/remove", headers=a)
+    snap("removed")
+    skip(client, 100)
+    snap("later")
+    for name in ("carol", "bob", "dan"):
+        for act in ("ack", "resolve"):
+            r = client.post(f"/safekeeps/alerts/{alice['id']}/{act}", headers=who[name])
+            snap(f"{name} {act}", (r.status_code, r.json()))
+    return steps
+
+
+def test_http_twin_a_hidden_alert_looks_like_an_honest_one_after_a_friend_is_removed(client):
+    for hidden, honest in (("duress", "honest_duress"), ("fake_end", "honest_fake_end")):
+        client.post("/demo/reset")
+        a_steps = hidden_twin_world(client, hidden)
+        client.post("/demo/reset")
+        b_steps = hidden_twin_world(client, honest)
+        assert [s[0] for s in a_steps] == [s[0] for s in b_steps]
+        for x, y in zip(a_steps, b_steps):
+            for step in (x, y):  # only Alice may know the check mark is outlined: ended_fake is her private cue
+                if step[1]["alice"]["view"]["screen"] == "ended_fake":
+                    step[1]["alice"]["view"]["screen"] = "ended_true"
+            assert x == y, (hidden, x[0])
 
 
 def test_a_contact_cannot_ack_or_resolve_their_own_night(client):
@@ -335,3 +483,62 @@ def test_a_huge_skip_is_a_400_and_never_breaks_the_clock(client):
     assert client.post("/demo/skip", json={"seconds": 1e308}).status_code == 400
     assert client.get("/time").status_code == 200
     assert client.get(NIGHT, headers=a).status_code == 200
+
+
+def test_token_less_endpoints_answer_the_same_before_and_after_a_night_starts(client):
+    """A friend who was never alerted must not learn that a night started (API.md). The old answers came from a set
+    that the bridge filled at night start."""
+    (x, hx), (a, ha), (b, hb) = people(client, "X", "A", "B")
+
+    plain = client.post("/users", json={"name": "plain"}).json()["user_id"]  # a token-less phase 1 user
+    code = client.post("/groups", json={"user_id": plain}).json()["code"]
+
+    def probe():
+        out = []
+        for pid in (x["id"], a["id"]):  # the owner and a contact named by the night
+            out += [client.get("/alerts", params={"viewer": pid}).status_code,
+                    client.get(f"/sessions/{pid}/view", params={"viewer": "z"}).status_code,
+                    client.post("/groups", json={"user_id": pid}).status_code,
+                    client.post(f"/groups/{code}/join", json={"user_id": pid}).status_code,
+                    client.post("/sessions", json={"user_id": pid, "pin": "1234", "tiers": [[plain]],
+                                                   "duress_contacts": [plain]}).status_code]
+        return out
+
+    before = probe()
+    assert set(before) == {403}  # a profile id is refused the same way, never by night
+    start(client, hx, [[a["id"]]], [b["id"]])
+    assert probe() == before
+    client.post(NIGHT + "/events", headers=hx, json={"type": "Leave"})
+    assert probe() == before
+
+
+def test_a_poll_survives_a_night_starting_in_another_thread(client, monkeypatch):
+    """GET /safekeeps/night and GET /alerts run in worker threads while a POST can add a session."""
+    from kaze import app as app_module, bridge
+    (alice, a), (bob, b) = people(client, "Alice", "Bob")
+    start(client, a, [[bob["id"]]], [bob["id"]])
+    real = bridge.view_for
+
+    def adding(session, viewer):
+        app_module.sessions["late"] = session  # a new night appears mid-walk
+        return real(session, viewer)
+
+    monkeypatch.setattr(bridge, "view_for", adding)
+    assert client.get(NIGHT, headers=b).status_code == 200
+    app_module.sessions.pop("late", None)
+    monkeypatch.setattr(bridge, "view_for", real)
+    monkeypatch.setattr(app_module, "view_for", adding)
+    assert client.get("/alerts", params={"viewer": "someone"}).status_code == 200
+
+
+def test_a_hidden_alert_carries_into_the_next_night_for_a_removed_friend(client):
+    """Decision 9 exception, in API.md: a hidden alert outlives the night, so cutting the friend off by
+    remove, Leave, new night would cancel it."""
+    (x, hx), (a, ha), (b, hb) = people(client, "X", "A", "B")
+    start(client, hx, [[a["id"]]], [b["id"]])
+    client.post(NIGHT + "/events", headers=hx, json={"type": "Duress"})
+    assert [v["kind"] for v in alerts(client, hb)] == ["duress"]
+    client.post(f"/safekeeps/friends/{b['id']}/remove", headers=hx)
+    client.post(NIGHT + "/events", headers=hx, json={"type": "Leave"})
+    assert start(client, hx, [[a["id"]]], [a["id"]]).status_code == 200
+    assert [v["kind"] for v in alerts(client, hb)] == ["duress"]

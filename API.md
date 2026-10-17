@@ -659,7 +659,7 @@ The examples below come from real calls to the server. The ids here are shortene
 
 ### POST /safekeeps/night
 
-Start a night for me. The group is all my accepted friends. Every contact must be an accepted friend.
+Start a night for me. The group is all my accepted friends. Every contact must be an accepted friend. The contacts are fixed when the night starts. If I remove a friend during the night, the removal applies from the next night. For the rest of this night that friend sees, acks and resolves alerts exactly as before. One exception: a hidden alert (duress, or after `ended_fake`) moves into the next night with its contacts. A friend who was removed keeps seeing it, keeps getting the user's live location from the new night, and can still ack or resolve it, until someone resolves it. This is on purpose: if it ended with the night, "remove the contact, Leave, start a new night" would cancel a hidden alert.
 
 ```json
 {
@@ -717,7 +717,7 @@ Poll this. It returns my own state and the alerts I should act on.
 | `view` | My own view. Same shape as section 5. It is `null` when I have no night. |
 | `alerts` | The alerts where a friend needs me. It is a list. It is empty most of the time. |
 
-My own night is never in my `alerts`. A friend of mine only appears when the server alerted me for that friend and that person is still my friend. If a friend is removed, the alerts about them or from them disappear from the next poll. The one exception is a duress alert: a duress contact that was removed during the night still sees it and can ack and resolve it, because removing a friend must not cancel a silent alert. A person who is not alerted sees nothing, not even that a night exists. During a duress alert only the chosen duress contacts see it.
+My own night is never in my `alerts`. A friend of mine only appears when the server alerted me for that friend, by the contacts the night had when it started. Removing a friend changes nothing for the running night. The removal applies from the next night, except for a hidden alert that carries over (see `POST /safekeeps/night`). A person who is not alerted sees nothing, not even that a night exists. During a duress alert only the chosen duress contacts see it.
 
 An alert from `alerts`:
 
@@ -795,7 +795,7 @@ I am a contact. End the alert about `owner_id`. No body. Answer: `{"ok": true}`.
 
 The loop decides if this counts. It counts only if I tapped "I'm on it" first. In a duress alert any duress contact can resolve it. If it does not count, the answer is still `200` and nothing changes. The next poll shows the truth.
 
-Both alert endpoints give `404` if `owner_id` has no night, and also if `owner_id` is not my friend now (the same answer, so it tells nothing). They give `400` if `owner_id` is my own id: use `/safekeeps/night/events` for my own night. They give `200` for a friend who was not alerted, and ignore the action.
+Both alert endpoints give the same answer, `200` with `{"ok": true}`, whether or not `owner_id` exists, has a night, or lists me as a contact. So the answer tells nothing about any night. Only a missing or bad token gives `401`. They give `400` if `owner_id` is my own id: use `/safekeeps/night/events` for my own night. If I am not a contact of that night, the action is ignored.
 
 ### The polling loop
 

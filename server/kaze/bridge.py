@@ -10,7 +10,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from . import loop
-from .app import Seconds, apply_event, begin_night, need_session, now, profile_ids, run, sessions, users
+from .app import Seconds, apply_event, begin_night, need_session, now, run, sessions, users
 from .loop import view_for
 from .safekeeps import connect, identity, record_check_in
 
@@ -40,17 +40,6 @@ async def ask_to_check_in(sender: str, target: str) -> None:
         await run(target, loop.Trigger("manual"))
 
 
-def reaches(view: dict, is_friend: bool) -> bool:
-    """An alert is mine if it is active for me and its owner is still my friend. A duress alert is mine even after
-    the owner's phone removed me: removing a friend must not be a way to cancel a silent alert."""
-    return view.get("active") is True and (is_friend or view["kind"] == "duress")
-
-
-def friend_ids(db, me: str) -> set[str]:
-    """Who is my friend now. A night keeps the list from when it started, so every read and act checks this."""
-    return {r["friend"] for r in db.execute("SELECT friend FROM friendships WHERE owner = ?", (me,))}
-
-
 class NightIn(BaseModel):
     pin: str
     tiers: list[list[str]]
@@ -73,7 +62,6 @@ def start_night(body: NightIn, authorization: str | None = Header(default=None))
     if not set(c for t in body.tiers for c in t) | set(body.duress_contacts) <= ids:
         raise HTTPException(400, "every contact must be an accepted friend")
     users[me["id"]] = me["name"]
-    profile_ids.update(ids | {me["id"]})
     users.update({f["id"]: f["name"] for f in friends})
     fields = body.model_dump(exclude={"check_every_minutes"})
     if body.check_every_minutes is not None:
@@ -85,13 +73,12 @@ def start_night(body: NightIn, authorization: str | None = Header(default=None))
 def get_night(authorization: str | None = Header(default=None)):
     with connect() as db:
         me = identity(db, authorization)["id"]
-        friends = friend_ids(db, me)
     mine = sessions.get(me)
-    views = ((uid, view_for(s, me)) for uid, s in sessions.items() if uid != me)  # never my own night
+    views = (view_for(s, me) for uid, s in list(sessions.items()) if uid != me)  # never my own night. A copy: another request may start a night
     return {
         "now": now(),
         "view": view_for(mine, me) if mine else None,
-        "alerts": [v for uid, v in views if reaches(v, uid in friends)],
+        "alerts": [v for v in views if v.get("active") is True],  # the loop decides from the night's own contacts
     }
 
 
@@ -114,15 +101,13 @@ async def night_event(body: dict, authorization: str | None = Header(default=Non
 
 
 async def act_on_alert(owner_id: str, authorization, event) -> dict:
+    """The answer is always the same, so it cannot tell a caller whether the owner has a night. The loop decides
+    whether the act counts, from the contacts the night started with."""
     with connect() as db:
         me = identity(db, authorization)["id"]
-        friends = friend_ids(db, me)
     if owner_id == me:
         raise HTTPException(400, "that is your own night: use /safekeeps/night/events")
-    if owner_id not in friends and not (owner_id in sessions and reaches(view_for(sessions[owner_id], me), False)):
-        raise HTTPException(404, f"no session for {owner_id}")  # the same answer as for no night, so it tells nothing
-    need_session(owner_id)
-    await run(owner_id, event(me))
+    await send(owner_id, event(me))
     return {"ok": True}
 
 

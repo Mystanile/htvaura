@@ -23,7 +23,7 @@ This file lists what the prototype really does, what the demo fakes, and what th
 - iOS background limits still let the check-in reach the user.
 - GPS is accurate to 5 to 10 m outdoors only.
 - Nobody can read another person's session without a token. On the Safekeeps path every call has a per-user token, and the old phase 1 endpoints refuse the ids of Safekeeps phones. On the demo-panel path (ids from `POST /users`) there is no auth, so a person who holds such a phone and knows a contact's id could read a hidden alert. `POST /demo/reset` and `POST /demo/skip` have no auth either and affect every night. A real build needs auth on those.
-- A friend who is removed during a night stays in that night's contact lists. They can no longer see, ack or resolve its normal alerts, but the alert still waits for them for one ack window before it moves on. A removed duress contact keeps seeing, acking and resolving the duress alert, so removing a friend cannot cancel it.
+- Contacts are fixed when a night starts. A friend who is removed during a night keeps seeing, acking and resolving that night's alerts, and their location, until the night ends. The removal applies from the next night. This is on purpose: if removal worked at once, a person holding the phone could cancel a hidden alert by removing the contacts. A hidden alert (duress, or after a fake end) also carries into the next night. The removed friend keeps seeing it, with the user's live location, until someone resolves it. Without that, remove, Leave, and a new night would cancel it.
 
 ## Not built
 
