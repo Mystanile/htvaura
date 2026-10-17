@@ -18,7 +18,7 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 2.0 Server bridge for safekeeps (me), review findings fixed, see "Where we stopped"
 - [x] 2.1, 2.3, 2.4 Safekeeps app screens, built on branch `checkin-screens` while the teammate slept. Waiting for her review in the pull request. Tested in a web browser with two tabs, not yet on a real iPhone.
 - [ ] 2.5 Triggers: periodic and "ask a friend" work. Home-by time is not built.
-- [ ] 3.1 Demo panel
+- [x] 3.1 Demo panel (`server/kaze/panel.py`, `server/panel/index.html`, `server/tests/test_panel.py`). Not yet tried on real phones.
 - [ ] 4.1 to 4.2 Find them
 - [ ] 5.1 to 5.4 BLE band
 
@@ -290,7 +290,7 @@ A teammate owns `safekeeps/` and tasks 2.1 to 2.5. Do not edit anything in `safe
 - 2.5 (teammate) Triggers: periodic now runs on the server. "Ask a friend" is the manual trigger. Home-by time comes later. Separation comes from the demo panel only.
 
 Phase 3: demo panel (`/panel` served by FastAPI)
-- 3.1 Live list of all sessions and states. Buttons: fire trigger, disconnect phone, separate friend, contact ignores, skip time ahead, reset.
+- 3.1 Done. A one-file web page at `/panel`. It polls `GET /demo/state` every second and shows every night: front state, screen, countdown, connected badge, next periodic check, location, and every alert (hidden ones too, marked). Each night has buttons for Trigger (manual, periodic, separation, home_by), Disconnect or Reconnect, and a sample location. The top bar has skip buttons (+15 s, +30 s, +60 s, +15 min) and a reset with an in-page confirm. A privacy table per night shows what `view_for` gives each person. A scenario guide lists the 7 KAZE scenarios as steps. Endpoints: `GET /panel`, `GET /demo/state`, `POST /demo/event` (Trigger, Disconnect, Reconnect, LocationUpdate for any session, Safekeeps ones too), `POST /demo/skip`, `POST /demo/reset`. If `KAZE_DEMO_KEY` is set, the four data routes need it as the header `X-Demo-Key` (not in the URL, so it stays out of logs). The page asks for the key. Safekeeps nights count as connected, since phones poll. `POST /safekeeps/night` takes `share_location_with`. Reset leaves the Safekeeps SQLite profiles alone. "Contact ignores" needs no button: nobody taps "I'm on it" and time skips ahead. "Separate friend" is Trigger "separation".
 
 Phase 4: find them
 - 4.1 During an active alert, the acknowledging friend sees a GPS arrow (expo-location position + heading) and distance.

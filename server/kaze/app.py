@@ -5,14 +5,16 @@ All state changes go through `run`, which calls loop.step and pushes the effects
 import asyncio
 import dataclasses
 import json
+import logging
 import math
+import os
 import secrets
 import time
 import traceback
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -100,6 +102,8 @@ async def ticker() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not os.environ.get("KAZE_DEMO_KEY"):
+        logging.getLogger("uvicorn.error").warning("KAZE_DEMO_KEY is not set: /demo/state, /demo/event, /demo/skip and /demo/reset are open to anyone who can reach this server")
     task = asyncio.create_task(ticker())
     yield
     task.cancel()
@@ -223,7 +227,7 @@ def begin_night(user_id: str, members: list[str], **fields) -> dict:
     for c in contacts:
         need_user(c)
     session = loop.new_session(config, now(), carry=old)  # hidden alerts keep running
-    session.connected = bool(sockets.get(user_id))
+    session.connected = is_profile(user_id) or bool(sockets.get(user_id))  # Safekeeps phones poll, they never open a socket
     sessions[user_id] = session
     return {"user_id": user_id, "view": view_for(session, user_id)}
 
@@ -316,10 +320,18 @@ async def ws_endpoint(ws: WebSocket, id: str):
             await run(id, loop.Disconnect())
 
 
+def demo_key(x_demo_key: str | None = Header(default=None)) -> None:
+    """The demo routes need the header X-Demo-Key to match KAZE_DEMO_KEY when that variable is set.
+    Header only: a key in the URL would land in access logs, browser history and screen shares."""
+    want = os.environ.get("KAZE_DEMO_KEY")
+    if want and not secrets.compare_digest((x_demo_key or "").encode(), want.encode()):
+        raise HTTPException(401, "a demo key is needed")
+
+
 MAX_SKIP = 1e9  # about 30 years: a bigger total makes deadlines overflow to infinity
 
 
-@app.post("/demo/skip")
+@app.post("/demo/skip", dependencies=[Depends(demo_key)])
 async def demo_skip(body: SkipIn):
     global offset
     if abs(offset + body.seconds) > MAX_SKIP:
@@ -330,7 +342,7 @@ async def demo_skip(body: SkipIn):
     return {"offset": offset}
 
 
-@app.post("/demo/reset")
+@app.post("/demo/reset", dependencies=[Depends(demo_key)])
 def demo_reset():
     global offset
     offset = 0.0
@@ -343,6 +355,8 @@ def demo_reset():
 # Safekeeps mobile demo: persistent profiles, friends, and check-ins.
 # The bridge imports from this module, so it is included last.
 from .bridge import router as bridge_router  # noqa: E402
+from .panel import router as panel_router  # noqa: E402
 
 app.include_router(safekeeps_router)
 app.include_router(bridge_router)
+app.include_router(panel_router)
