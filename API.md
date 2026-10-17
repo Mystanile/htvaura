@@ -19,7 +19,7 @@ Rules that apply everywhere:
 
 - There is no login. A user id is the only identity. Anyone who knows an id can act as that user.
 - All REST bodies and responses are JSON.
-- All state lives in server memory. If the server restarts, every user, group, and session is gone. Handle a 400 or 404 by sending the user back to setup.
+- The phase 1 users, groups, and sessions live in server memory. If the server restarts, they are gone. Handle a 400 or 404 by sending the user back to setup. The Safekeeps profiles and friends (section 10) are different. They persist in SQLite. The environment variable `SAFEKEEPS_DB` sets the path of the database file.
 - Ids are short hex strings. A user id looks like `3f9a1c2e`. A group code looks like `A3F9`.
 - Time is in seconds, as floating point numbers. A `deadline` is a Unix timestamp on the server clock. Section 9 shows how to count down with it.
 
@@ -431,7 +431,7 @@ What this means in practice:
 {"state": "escalating", "screen": "alert_active", "deadline": null, "ping_at": null}
 ```
 
-- After a user leaves, `state` is `ended`. This is also true when the user leaves during duress. The alert keeps running in the background.
+- After a user leaves, `state` is `ended`. This is also true when the user leaves during duress. The alert keeps running in the background. `screen` stays whatever the last screen was, for example `armed` or `thanks`. The next example shows `thanks`.
 
 ```json
 {"state": "ended", "screen": "thanks", "deadline": null, "ping_at": null}
@@ -880,7 +880,7 @@ The duress gesture works at any time, not only during a check. Use it on the `ar
 
 `POST /safekeeps/friends/{friend_id}/requests` still records the request as before. If the friend has a night running, it now also starts a real check on their phone. Their `view` becomes `asking` on the next poll. If they stay silent, the check escalates like any other: `alarm`, then `alert_active`, then their contacts are alerted. The kind of the alert is `manual`.
 
-If the friend has no night, nothing else happens. Only the request is recorded. If a check or an alert is already running for that friend, the new trigger is ignored. The trigger is also ignored when the person who asks is not named by the night (not a contact, and not a friend from when the night started), or when the friend checked in less than 30 seconds ago.
+If the friend has no night, nothing else happens. Only the request is recorded. If a check or an alert is already running for that friend, the new trigger is ignored. The trigger is also ignored when the person who asks is not named by the night (not a contact, and not a friend from when the night started).
 
 So the friend's phone should show the check screen when `view.state` is `asking`. The old `incoming` list from `/state` is not enough.
 

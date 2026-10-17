@@ -18,7 +18,7 @@ The friend's phone needs a cable to get the Release build. Without it, the frien
 
 ## Before the judges arrive (15 minutes)
 
-1. Start the server with a demo key: `cd ~/Desktop/kaze-app/server && KAZE_DEMO_KEY=<key> ~/Desktop/kaze/server/.venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000`.
+1. Start the server with a demo key: `cd ~/Desktop/kaze-band/server && KAZE_DEMO_KEY=<key> ~/Desktop/kaze/server/.venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000`. The folder `~/Desktop/kaze-band` has the newest code (branch `home-by`) but no `.venv`, so the command uses the venv from `~/Desktop/kaze`. After the pull requests are merged, the main folder has the newest code and becomes the place to run this.
 2. Start the tunnel: `cloudflared tunnel --url http://localhost:8000`. Write down the address.
 3. If the tunnel address changed, enter it on each phone in Settings, Connection.
 4. Band: set `QUIET_MODE = false` in `kaze_band.ino` and flash it. Power it from the power bank.
@@ -60,7 +60,7 @@ End it: on the friend's phone, tap "I'm on it", then "Resolve".
 ### 4. No answer, then the next contact, scenarios 2 and 5 (60 s)
 
 1. Trigger a check. Do not answer.
-2. Press +60 s on the panel. The wearer's phone shows "Please answer now!", then "Your contacts have been alerted".
+2. Press +30 s on the panel. The wearer's phone shows "Please answer now!". Then press +15 s. The phone shows "Your contacts have been alerted". One +60 s skip jumps past "Please answer now!", so use the two smaller skips.
 3. The friend's phone shows the alert banner and a response card: what to do, what not to do, and who is on it.
 4. Do not tap "I'm on it". Press +30 s. The panel shows the alert move to the next tier.
 
@@ -88,8 +88,9 @@ Say: "The band is the point: you answer without taking out your phone. When a kn
 
 ### 7. Connection lost, scenario 4 (30 s)
 
-1. Trigger a check. On the panel, press "Disconnect phone".
+1. Trigger a check. On the panel, press "Disconnect phone". This only marks the phone offline on the panel, because the phones poll the server. The phone itself keeps working.
 2. Press +60 s. The server still escalates. The friend still gets the alert.
+3. To end it, the friend taps "I'm on it", then "Resolve". Step 8 needs a new alert.
 
 Say: "The countdown lives on the server, not the phone. A dead battery or no signal is not a way out."
 

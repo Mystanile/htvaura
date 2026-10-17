@@ -2,7 +2,7 @@
 
 The band is the physical way to answer check-ins. It does not decide anything. It sends taps and receives commands. The server owns all timing and escalation.
 
-Sketch: `hardware/kaze_band/kaze_band.ino`
+Sketch: `Hardware/kaze_band/kaze_band.ino`
 
 ## Parts
 

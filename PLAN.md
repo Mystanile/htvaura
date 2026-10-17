@@ -16,12 +16,12 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 1.5 Hidden-alert refactor: the session is a front plus alerts, see Phase 1 interface
 - [x] 1.6 Fix the two open findings from the third review, and add periodic check-ins to the loop
 - [x] 2.0 Server bridge for safekeeps (me), review findings fixed, see "Where we stopped"
-- [x] 2.1, 2.3, 2.4 Safekeeps app screens, built on branch `checkin-screens` while the teammate slept. Waiting for her review in the pull request. Tested in a web browser with two tabs, not yet on a real iPhone.
+- [x] 2.1, 2.3, 2.4 Safekeeps app screens, built on branch `checkin-screens` while the teammate slept. Waiting for her review in the pull request. Tested in a web browser with two tabs. The app was installed on one iPhone 15 Pro. The rest is untested on phones.
 - [x] 2.5 Triggers: periodic, "ask a friend" and "be home by" work. Home-by: server `home_by` plus an optional field in Start a night. Tested in automated tests only (server tests, `home-by.test.ts`), not on a phone.
 - [x] 3.1 Demo panel (`server/kaze/panel.py`, `server/panel/index.html`, `server/tests/test_panel.py`). Not yet tried on real phones.
 - [x] 4.1 to 4.2 Find them: server ping on `main`, app on branch `find-them` (pull request into `checkin-screens`). Tested in a web browser with a faked location. The compass arrow, real GPS, and the ping sound need a phone. See decisions 10 and 11.
 - [x] 5.1 iPhone Release build works (iPhone 15 Pro).
-- [x] 5.2 Band firmware, plus a heartbeat (0x03 every 20 s while connected) and advertising again on connect. Compiles. Not flashed or tested on the board yet.
+- [x] 5.2 Band firmware. The gestures, ask and ping were tested in nRF Connect. The heartbeat (0x03 every 20 s while connected) and advertising again on connect compile but are not tested on the board.
 - [x] 5.3 Band relay in the app, on branch `band`: pair in Settings, band ok and duress go to the server through one code path, the app writes `ask` and `ping`, iOS background mode and state restoration, and the heartbeat wakes the app to check the server. Unit tests pass. Not tested on a phone with the band yet.
 - [x] 5.4 Hotter and colder on Find them, on branch `band`. Unit tests pass. Needs the finder's phone on a Release build, and is not tested on a phone yet.
 
@@ -30,21 +30,26 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 A new session continues from this section. Read it first, then the Status list above.
 
 Where the code is:
-- `main` has the server: loop, bridge, demo panel. 213 server tests pass (`cd server && .venv/bin/pytest -q`).
+- `main` has the server: loop, bridge, demo panel. 223 server tests pass on the newest branch, `home-by` (`cd server && .venv/bin/pytest -q`). The app has 52 node tests.
 - Branch `checkin-screens` has the teammate's app with tasks 2.1, 2.3, 2.4 added, plus `main` merged in. Pull request #1 (https://github.com/Mystanile/htvaura/pull/1) is open and waits for the teammate's review. Do not merge it without the user.
 - Branch `find-them` (pull request #2, into `checkin-screens`) adds find them and ping.
 - Branch `test-fixes` (pull request #3, into `find-them`) fixes the first phone test: Find them hides the arrow below about 30 m because indoor GPS is off by 20 to 50 m, "Open in Maps" is a picker (Apple Maps, Google Maps, Waze), and you can rename a friend who added you (`POST /safekeeps/friends/{friend_id}/name`). 214 server tests pass.
-- Two redesigns to compare, both from `test-fixes`, both with a real dark theme and labeled inputs, both without new native packages:
-  - `ui-refine` (pull request #4, worktree `~/Desktop/kaze-refine`) keeps the teammate's brand: her greens, Righteous, her wording.
-  - `ui-fresh` (pull request #5, worktree `~/Desktop/kaze-fresh`) is a new look: slate and cobalt, Figtree.
-  The user and the teammate pick one. Merge that one and close the other. Do not pick for them.
-- `~/Desktop/kaze-app` is a git worktree on `test-fixes`, with `node_modules` installed. The server runs from there. Each worktree needs `safekeeps/expo-env.d.ts` (ignored by git, made by Expo) for `tsc`. Copy it from `kaze-app` if it is missing.
-- `Hardware/kaze_band/kaze_band.ino` has uncommitted changes by the user in the main folder. Do not commit or touch them.
+- Two redesigns were compared, both from `test-fixes`, both with a real dark theme and labeled inputs, both without new native packages:
+  - Option A, chosen: `ui-refine` (pull request #4, into `test-fixes`, worktree `~/Desktop/kaze-refine`) keeps the teammate's brand: her greens, Righteous, her wording. The user picked this one.
+  - Option B, rejected: `ui-fresh` (pull request #5, worktree `~/Desktop/kaze-fresh`) is a new look: slate and cobalt, Figtree. The pull request is still open. Closing it is the user's call.
+- Branch `band` (pull request #6, into `ui-refine`, phase 5) adds the band relay in the app, the heartbeat wake, and hotter and colder on Find them.
+- Branch `home-by` (pull request #7, into `band`, task 2.5) adds the "be home by" check. It is the newest branch and has everything.
+- The merge order is #1, #2, #3, #4, #6, #7. Each pull request targets the branch before it.
+- `~/Desktop/kaze-band` is the git worktree on `home-by`. Run the newest code from there. It has no `.venv`, so start the server with `~/Desktop/kaze/server/.venv/bin/uvicorn`. After the pull requests are merged, the main folder becomes the place to run the newest code.
+- `~/Desktop/kaze-app` is an older git worktree on `test-fixes`. Do not run the newest code from it. Each worktree needs `safekeeps/expo-env.d.ts` (ignored by git, made by Expo) for `tsc`. Copy it from another worktree if it is missing.
+- The user changed `Hardware/kaze_band/kaze_band.ino` (debounce) and left it uncommitted in the main folder `~/Desktop/kaze`. That change is already in `band`. Before merging, discard the main-folder copy with `git checkout -- Hardware/kaze_band/kaze_band.ino` there. Do not commit or touch it until then.
 
 How the demo runs (these processes die when the session that started them ends, so check and restart them):
-1. Server: `cd ~/Desktop/kaze-app/server && KAZE_DEMO_KEY=<pick one> ~/Desktop/kaze/server/.venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000`. The key protects `/panel` data and `/demo/*` through the `X-Demo-Key` header. The user knows the current key. Never commit it.
+1. Server: `cd ~/Desktop/kaze-band/server && KAZE_DEMO_KEY=<pick one> ~/Desktop/kaze/server/.venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000`. The key protects `/panel` data and `/demo/*` through the `X-Demo-Key` header. The user knows the current key. Never commit it.
 2. Tunnel, because the venue Wi-Fi blocks phone-to-laptop traffic (checked: Safari on a phone could not reach the laptop): `cloudflared tunnel --url http://localhost:8000`. The address changes on every start, so the phones and the panel need the new one.
-3. App, for now in a web browser: `cd ~/Desktop/kaze-app/safekeeps && EXPO_PUBLIC_API_URL=<tunnel address> npx expo start`, press `w`, and use two tabs as two phones. Expo Go on two iPhones is skipped on purpose: it needs both phones signed in to the same Expo account. Real-phone testing waits for the Xcode development build (step 2 below).
+3. App. The app now needs a native build (`react-native-ble-plx`, `expo-location`, `expo-audio`), so Expo Go cannot run the band features. Two ways:
+   - Web version: `cd ~/Desktop/kaze-band/safekeeps && EXPO_PUBLIC_API_URL=<tunnel address> npx expo start`, press `w`, and use two tabs as two phones. It works for everything except Bluetooth.
+   - iPhone Release build: see "iPhone build" below.
 4. Panel: `<tunnel address>/panel`, then type the key.
 
 Rules from the user for this repo:
@@ -52,17 +57,21 @@ Rules from the user for this repo:
 - The teammate owns `safekeeps/`. Preserve her design. Change her app only on a branch with a pull request, and only when the user asks.
 - Open question, not decided: rewriting `main` to remove the old Claude co-author lines needs a force push. Do not do it unless the user asks again.
 
-Not tested yet: the app on real iPhones (vibration, real taps), and the panel on real phones. Both wait for the Xcode build.
+The app was installed on one iPhone 15 Pro. The rest is untested on phones: vibration, real taps, the panel with real phones, and everything with the band. The list is in `DEMO_NOTES.md`, under "Needs manual testing".
 
 iPhone build (task 5.1, works on 2026-10-17 on one iPhone 15 Pro):
 - One time on the Mac: Xcode signed in with an Apple ID, `brew install cocoapods`. The Signing team is set in Xcode (Personal Team). The bundle id is `com.mystanile.safekeeps` in `safekeeps/app.json`.
 - One time per phone: plug in, Trust This Computer, turn on Developer Mode (Settings, Privacy & Security), and after the first install trust the developer (Settings, General, VPN & Device Management).
-- Build and install: `cd ~/Desktop/kaze-app/safekeeps && CI=1 EXPO_PUBLIC_API_URL=<tunnel address> npx expo run:ios --device <UDID> --configuration Release --no-bundler`. Get the UDID from `xcrun devicectl list devices`. Release mode puts the JavaScript inside the app, because the venue Wi-Fi blocks the phone from the Mac. Every code change needs a rebuild. If the tunnel address changes, enter the new one in the app's Settings under Connection, no rebuild needed.
-- `ios/` is generated and ignored by git. If `npx expo prebuild` runs again, it rewrites the `ios` and `android` npm scripts in `package.json`. Put them back, because the teammate uses Expo Go.
+- Build and install: `cd ~/Desktop/kaze-band/safekeeps && CI=1 EXPO_PUBLIC_API_URL=<tunnel address> npx expo run:ios --device <UDID> --configuration Release --no-bundler`. Get the UDID from `xcrun devicectl list devices`. Release mode puts the JavaScript inside the app, because the venue Wi-Fi blocks the phone from the Mac. Every code change needs a rebuild. If the tunnel address changes, enter the new one in the app's Settings under Connection, no rebuild needed.
+- `ios/` is generated and ignored by git. If `npx expo prebuild` runs again, it rewrites the `ios` and `android` npm scripts in `package.json`. Put them back.
 - A free Apple ID install expires after 7 days.
 
 Next steps, in order:
-0. Phase 5 is on branch `band` (pull request into `ui-refine`, worktree `~/Desktop/kaze-band`). The user picked option A (`ui-refine`). Hold off on color changes: the teammate is redoing the palette. Next: build `band` onto the iPhone 15 Pro and run the band tests in DEMO_NOTES "Needs manual testing". The friend's phone needs a Release build for hotter and colder, so it needs a cable. The demo script is `DEMO_SCRIPT.md`. Before merging `band`, the user runs `git checkout -- Hardware/kaze_band/kaze_band.ino` in `~/Desktop/kaze`, because the branch already has their debounce change.
+0. The newest code is on branch `home-by` (worktree `~/Desktop/kaze-band`). The user picked option A (`ui-refine`). Hold off on color changes: the teammate is redoing the palette. In order:
+   - The user runs the full hardware test: build `home-by` onto the iPhone 15 Pro, flash the band, and run the list in DEMO_NOTES "Needs manual testing". The friend's phone needs a Release build for hotter and colder, so it needs a cable. The demo script is `DEMO_SCRIPT.md`.
+   - Then fix what breaks.
+   - Then merge the chain in order: #1, #2, #3, #4, #6, #7. Before merging, discard the main-folder copy of `kaze_band.ino` (see "Where the code is").
+   - Closing #5 is the user's call.
 0b. Done: the user picked `ui-refine`. Earlier step: install `ui-refine` and `ui-fresh` on the iPhone 15 Pro one at a time (same bundle id, so each install replaces the other) with the build command in "iPhone build", run from `~/Desktop/kaze-refine/safekeeps` or `~/Desktop/kaze-fresh/safekeeps`. The user compares them and picks one.
 1. Done: phase 4, find them. The app side waits for the teammate's review in its pull request, and its phone test waits for the Xcode build.
 2. Phase 5 on the user's Mac: 5.1 works on one iPhone (see "iPhone build" above). Install it on the second iPhone the same way. This is also when the app gets its first real-phone test (gestures, vibration, find them). Then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
@@ -108,7 +117,7 @@ The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/
    - Night out: tier 1 one chosen friend, tier 2 the whole group, tier 3 the sober contact who is not at the event.
    - Everyday: tier 1 contact A, tier 2 contact B.
 6. Duress contacts are a separate private list. Duress never goes to the group.
-7. Team phones are all iPhones. Phases 1 to 4 run in Expo Go. BLE (phase 5) needs a custom dev build from Xcode on a Mac.
+7. Team phones are all iPhones. The app needs a native build from Xcode on a Mac for Bluetooth, location and sound (phase 5). The web version works for everything except Bluetooth. Expo Go cannot run the band features.
 8. Band hardware (phase 5): Arduino Uno R4 WiFi with ArduinoBLE, one Grove button, one Grove touch sensor, a Grove buzzer, and an LED. The button and the touch sensor use the same gestures as the app (decision 1). Ping plays the buzzer and blinks the LED. The full spec is in `Hardware/kaze_band/HARDWARE.md`: pins, BLE UUIDs, event bytes, ask and ping behavior, and RSSI measured at the venue.
 9. Removing a friend during a night (decided 2026-10-17). Contacts are fixed when the night starts. If the user removes a friend while a night is running, the removal applies from the next night. For the rest of the current night, the removed friend still gets alerts, location, ack, and resolve exactly as before. Reason: if removal applied at once, a person holding the phone could remove contacts to cancel a hidden alert, and every workaround for that created a new tell. Cost: a friend removed mid-night can still see that night's alerts and location until the night ends. Exception: a hidden alert (duress or fake end) carries into the next night with its contacts, so a removed friend keeps it, with live location, until it is resolved. Test: `test_a_hidden_alert_carries_into_the_next_night_for_a_removed_friend`.
 
@@ -126,7 +135,7 @@ server/
   tests/test_scenarios.py   the 7 KAZE scenarios
   tests/test_loop.py        a few edge transitions and the hidden alert rules
   tests/test_twin.py        a watcher cannot tell a hidden alert: random twin test and the n1 to n4 cases
-safekeeps/            Expo (React Native) app, Expo Go (teammate)
+safekeeps/            Expo (React Native) app, native iPhone build or web (teammate)
 server/kaze/safekeeps.py   profiles, tokens, friends in SQLite (teammate)
 server/kaze/bridge.py      links safekeeps profiles and friends to the loop (me)
 ```
@@ -330,7 +339,7 @@ Phase 1: loop and server
 - 1.2 `test_scenarios.py` + `test_loop.py`. Can be written in parallel with 1.1 against the interface above.
 - 1.3 `app.py`: create/join group by code, start/end night, events over REST, WebSocket push, ticker. One integration test that runs scenario 4 over a real WebSocket with FastAPI's TestClient.
 
-Phase 2: app (Expo Go) and bridge
+Phase 2: app and bridge
 
 A teammate owns `safekeeps/` and tasks 2.1 to 2.5. Do not edit anything in `safekeeps/`. She builds against the "Safekeeps bridge" section of `API.md`. Her app polls the server. It does not use WebSockets.
 
@@ -372,4 +381,4 @@ The server runs on a laptop. If the venue Wi-Fi blocks phone-to-laptop traffic, 
 
 - `cd server && pytest` runs the 7 scenarios and the loop tests. All must pass before each commit.
 - Phase 1: start uvicorn, connect two WebSocket clients with a small script, and watch scenario 2 happen live.
-- Phase 2 to 4: manual test on real iPhones in Expo Go. Each scenario is listed in `DEMO_NOTES.md` with how to trigger it from the panel. Real phones, BLE, and the Arduino band cannot be tested automatically. They are listed as manual tests.
+- Phase 2 to 4: manual test on real iPhones with the Release build. Each scenario is listed in `DEMO_NOTES.md` with how to trigger it from the panel. Real phones, BLE, and the Arduino band cannot be tested automatically. They are listed as manual tests.

@@ -4,10 +4,11 @@ This file lists what the prototype really does, what the demo fakes, and what th
 
 ## Demonstrated
 
-- The check-in loop on the server: triggers, ask and grace timers, ranked tiers, acknowledgement, PIN cancel with one silent retry, duress, and privacy views. The 7 KAZE scenarios pass as automated tests (213 server tests in total).
+- The check-in loop on the server: triggers, ask and grace timers, ranked tiers, acknowledgement, PIN cancel with one silent retry, duress, and privacy views. The 7 KAZE scenarios pass as automated tests (223 server tests in total).
 - Timers keep running on the server after a phone disconnects (scenario 4, tested over a real WebSocket).
 - Location is sent all night, about every 30 s while the app is open, and shown to contacts only during an active alert. It is cleared when the alert ends (tested). Duress contacts get a location this way, because the phone never knows a duress alert is running.
 - Ping (a contact makes the person's phone ring) works only on visible alerts, and never on a duress or fake-ended alert, because a ringing phone would show a hidden alert to a watcher. The server side is tested. The sound and flash on a real phone are not tested yet.
+- Automated tests only, not on hardware: the home-by checks, the band relay logic in the app, and the hotter and colder logic (52 app node tests).
 
 ## Simulated
 
@@ -20,6 +21,9 @@ This file lists what the prototype really does, what the demo fakes, and what th
 ## Assumed
 
 - Some path from the band to the server always exists: the owner's phone, a friend's phone as a relay, or home Wi-Fi.
+- Only one band is near. Every band has the same name, so hotter and colder follows any KAZE band.
+- The app is not swiped away. iOS does not relaunch an app that the user swiped away, so the band cannot wake it.
+- An ask or a ping reaches the band up to 20 s late when the phone is locked, because the heartbeat wakes the app every 20 s.
 - The demo band uses BLE only. On the Uno R4 WiFi, BLE and Wi-Fi share one radio chip, so we did not build a direct band-to-server path over Wi-Fi.
 - iOS background limits still let the check-in reach the user.
 - GPS is accurate to 5 to 10 m outdoors only.
@@ -49,5 +53,3 @@ Automated tests cannot cover real phones, BLE, or the Arduino band. We list each
   - State restoration: background the app, stop it from the Mac (`xcrun devicectl`), then tap the band. The event must still reach the server. A swiped-away app is not relaunched by iOS, by Apple's rule.
   - Advertising while connected: with the wearer's phone connected, a second phone still sees KAZE-Band.
   - Hotter and colder on the friend's phone: the three zones and Warmer or Colder.
-- On web, the `@expo/ui` Switch labels render white on white (pre-existing, also in her Settings screen).
-- On web, her `ServerAddress` input has the same typing bug that was fixed elsewhere with `'use no memo'`. We left it alone because it is her component and native iPhone is unaffected. Verify on a device.
