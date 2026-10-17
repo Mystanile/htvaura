@@ -36,8 +36,8 @@ On 2026-10-17 the teammate pushed an Expo app in `safekeeps/` with its own serve
 
 Task 2.0 (the bridge) is done: `server/kaze/bridge.py` and `server/tests/test_bridge.py`, with 184 server tests passing. Two small planned edits went into the teammate's `server/kaze/safekeeps.py`: `record_check_in()`, and the manual trigger when a friend asks for a check. The final bridge review left three open findings. None is fixed yet. The repro scripts are in `/private/tmp/kaze_bridge_review/round3/`.
 
-1. (high) Removing friends cancels a fake-ended alert for every contact. `reaches()` in `bridge.py` only protects alerts whose kind is "duress". A fake-ended alert is hidden too but keeps its trigger kind. Fix: protect every hidden alert, not just duress ones.
-2. (medium) A removed friend who is also a duress contact still gets the duress alert, which is on purpose. But through it, they can also ack or resolve the user's normal alert, which an honest twin would refuse with 404. That is a tell. This and finding 1 come from one open product question: does removing a friend change a night that is already running?
+1. (high) Removing friends cancels a fake-ended alert for every contact. `reaches()` in `bridge.py` only protects alerts whose kind is "duress". A fake-ended alert is hidden too but keeps its trigger kind. Fixed by decision 9, see finding 2.
+2. (medium) A removed friend who is also a duress contact still gets the duress alert, which is on purpose. But through it, they can also ack or resolve the user's normal alert, which an honest twin would refuse with 404. That is a tell. This and finding 1 come from the same question, now settled by decision 9. Fix for both: the bridge checks contacts against the night's config, not the current friends list, so removal changes nothing until the next night. Remove `reaches()` and the duress-only special case.
 3. (low) `POST /safekeeps/alerts/{owner}/ack` and `/resolve` answer 200 when the owner has a night and 404 when not, so any friend can learn whether a night is running. Fix: answer the same for both.
 
 The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/`, which looks like an accident. We flag it to her and do not delete it.
@@ -54,6 +54,7 @@ The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/
 6. Duress contacts are a separate private list. Duress never goes to the group.
 7. Team phones are all iPhones. Phases 1 to 4 run in Expo Go. BLE (phase 5) needs a custom dev build from Xcode on a Mac.
 8. Band hardware (phase 5): Arduino Uno R4 WiFi with ArduinoBLE, one Grove button, one Grove touch sensor, a Grove buzzer, and an LED. The button and the touch sensor use the same gestures as the app (decision 1). Ping plays the buzzer and blinks the LED. The full spec is in `Hardware/kaze_band/HARDWARE.md`: pins, BLE UUIDs, event bytes, ask and ping behavior, and RSSI measured at the venue.
+9. Removing a friend during a night (decided 2026-10-17). Contacts are fixed when the night starts. If the user removes a friend while a night is running, the removal applies from the next night. For the rest of the current night, the removed friend still gets alerts, location, ack, and resolve exactly as before. Reason: if removal applied at once, a person holding the phone could remove contacts to cancel a hidden alert, and every workaround for that created a new tell. Cost: a friend removed mid-night can still see that night's alerts and location until the night ends.
 
 ## Architecture
 
