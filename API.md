@@ -413,6 +413,7 @@ The user's view always looks like the view of a user with no hidden trouble. The
 What this means in practice:
 
 - `ping_at` is the server time of the last ping that counted, or `null`. A contact can ping only the visible alert (decision 11). Hidden alerts never set it, so it cannot show that one exists. It goes back to `null` when the front alert ends.
+- `next_check` is the server time of the next periodic check while the state is `armed` and the night has a check interval. Otherwise, and when it falls after the end of the night, it is `null`. The app uses it to plan a local reminder on the phone. Duress and ok re-arm the same way, so it is the same after both (a twin test checks it).
 - After the duress gesture, the view is the same as after a normal tap on "I'm okay". The word "duress" never appears.
 
 ```json
@@ -865,7 +866,7 @@ GET /safekeeps/push
 {"topic": "kaze-3f9a1c2e7b41d0a85c66", "url": "https://ntfy.sh"}
 ```
 
-When the server has push off (`KAZE_NTFY_URL` unset, or `KAZE_NTFY_SECRET` unset), the answer is `{"topic": null, "url": null}`. The push text is always "A SafeKeeps alert is waiting for you. Open the app." It has no name and no location. A duress alert pushes only to the duress contacts.
+When the server has push off (`KAZE_NTFY_URL` unset, or `KAZE_NTFY_SECRET` unset), the answer is `{"topic": null, "url": null}`. The push text is always "A Homebound alert is waiting for you. Open the app." It has no name and no location. A duress alert pushes only to the duress contacts.
 
 ### POST /safekeeps/alerts/{owner_id}/ping
 

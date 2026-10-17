@@ -353,7 +353,7 @@ def hidden_twin_world(client, how):
     is the same in both. Returns every step: what each person's screen and data show and each response."""
     (alice, a), (bob, b), (carol, c), (dan, d) = people(client, "Alice", "Bob", "Carol", "Dan")
     who = {"alice": a, "bob": b, "carol": c, "dan": d}
-    start(client, a, [[bob["id"]]], [carol["id"]], duress_pin="9876")
+    start(client, a, [[bob["id"]]], [carol["id"]], duress_pin="9876", check_every_seconds=3600)  # a real next_check in the view
     client.post(f"/safekeeps/friends/{alice['id']}/requests", headers=b, json={})
     response = None
     if how in ("duress", "honest_duress"):
@@ -391,7 +391,8 @@ def hidden_twin_world(client, how):
     return steps
 
 
-def test_http_twin_a_hidden_alert_looks_like_an_honest_one_after_a_friend_is_removed(client):
+def test_http_twin_a_hidden_alert_looks_like_an_honest_one_after_a_friend_is_removed(client, monkeypatch):
+    monkeypatch.setattr("kaze.app.time.time", lambda: 1_700_000_000.0)  # two worlds, one clock: next_check can be compared
     for hidden, honest in (("duress", "honest_duress"), ("fake_end", "honest_fake_end"), ("duress_pin", "honest_duress_pin")):
         client.post("/demo/reset")
         a_steps = hidden_twin_world(client, hidden)
@@ -660,7 +661,7 @@ def test_contact_view_has_location_time_stale_ack_and_final_step(client):
     for _ in range(4):  # one re-alert round per skip, the 4th is the simulated final step
         client.post("/demo/skip", json={"seconds": 400})
     assert alerts(client, d)[0]["final_step"] is True
-    assert set(client.get(NIGHT, headers=a).json()["view"]) == {"state", "screen", "deadline", "ping_at"}
+    assert set(client.get(NIGHT, headers=a).json()["view"]) == {"state", "screen", "deadline", "ping_at", "next_check"}
 
 
 @pytest.mark.parametrize("value", ["NaN", "1e999", "-1"])

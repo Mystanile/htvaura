@@ -95,8 +95,8 @@ async def send_ntfy(url: str, topic: str) -> None:
     """One push. The text carries no name, no location, nothing personal. A failure is logged and dropped."""
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.post(f"{url.rstrip('/')}/{topic}", content="A SafeKeeps alert is waiting for you. Open the app.",
-                                  headers={"Title": "SafeKeeps", "Priority": "high", "Tags": "warning"})
+            r = await client.post(f"{url.rstrip('/')}/{topic}", content="A Homebound alert is waiting for you. Open the app.",
+                                  headers={"Title": "Homebound", "Priority": "high", "Tags": "warning"})
             r.raise_for_status()  # a 429 or 5xx from ntfy is a failed send too
     except Exception:
         logging.getLogger("uvicorn.error").warning("ntfy push failed", exc_info=True)

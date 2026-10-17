@@ -482,7 +482,8 @@ def view_for(session: Session, viewer_id: str) -> dict:
     if viewer_id == c.user_id:  # the front only
         state = "armed" if s.state == "resolved" else s.state
         deadline = s.deadline if s.state in ("asking", "waiting") else None
-        view = {"state": state, "screen": s.screen, "deadline": deadline, "ping_at": s.ping_at}
+        view = {"state": state, "screen": s.screen, "deadline": deadline, "ping_at": s.ping_at,
+                "next_check": s.next_check if s.state == "armed" and s.next_check is not None and not _night_over(s, s.next_check) else None}  # the server clock, for the phone's own reminders; none past the end of the night
         if c.home_by is not None and not s.home_by_done:
             view["home_by"] = c.home_by  # only in the user's own view, and only while the check waits
         return view

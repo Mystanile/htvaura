@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import type { BleManager, Subscription } from 'react-native-ble-plx';
 
+import { notifyCheckNow } from '@/services/check-now';
 import { ApiError, api, fetchNight, type Night } from '@/services/demo-api';
 import { loadSession, type DemoSession } from '@/services/demo-session';
 import {
@@ -218,6 +219,7 @@ function write(uuid: string) {
 export function onNight(night: Night | null) {
   void flushPending();
   const view = night?.view;
+  notifyCheckNow(view);
   if (!night || !view || !connected) return;
   const key = askKey(view);
   if (key !== null && key !== askedKey) {

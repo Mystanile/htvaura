@@ -121,7 +121,7 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 | Band signal at 5 m | State shown |  |  |
 | Advertising while connected | A second phone sees KAZE-Band. Pass or fail | Pass | 2026-10-17 |
 | New text colours and VoiceOver | Look at every screen. VoiceOver on: three double-taps on Check in | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the text reads well in the teammate's colours, the outlined check shows, VoiceOver reads the button and hint, three double-taps check in and it says "Thanks!" | 2026-10-17 |
-| ntfy push to a contact's phone | The phone is the contact, subscribed in the ntfy app. The person in a web browser stays silent, phone locked | Pass (branch `ntfy`, iPhone 13): the lock screen showed "SafeKeeps: A SafeKeeps alert is waiting for you. Open the app." | 2026-10-17 |
+| ntfy push to a contact's phone | The phone is the contact, subscribed in the ntfy app. The person in a web browser stays silent, phone locked | Pass (branch `ntfy`, iPhone 13): the lock screen showed "Homebound: A Homebound alert is waiting for you. Open the app." | 2026-10-17 |
 
 ### Built, but checked only by automated tests
 
@@ -132,6 +132,7 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
   - "Night ends at" and "Who sees your location during an alert".
   - The two-person retest ran this build on two iPhones (see "Hardware test results").
 - The duress PIN fields in Start a night: "Duress PIN" and "Repeat duress PIN". The live hints too: "The PINs do not match" and "Use a different PIN from your normal PIN".
+- Local reminders for the user's own checks (periodic and home-by), so a phone in a pocket with the app in the background gets a notification. Built with `expo-notifications`, local only: no push server, no `aps-environment` entitlement (a free Apple Personal Team cannot sign it). The text is always title "Homebound", body "Open the app.", with no buttons, and it is the same after duress and after ok (twin tests cover `next_check`; `reminders.test.ts` covers the schedule). Tested only in unit tests until tried on a phone. Limits: a check started by a friend or the panel reaches a pocket phone only if the band wakes the app or the app is open. Focus or Do Not Disturb can silence it.
 - A restart of a real server process (Ctrl+C, then start again). Only the test client restart is tested.
 - With "Only whoever says I'm on it", nobody sees the location between an "I'm on it" that went stale and the next "I'm on it".
 
@@ -140,4 +141,4 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 - Relay through friends' phones, and the encrypted payload it needs.
 - UWB precision finding.
 - Real SMS or calls.
-- Push to the phone is built through ntfy but only set up when `KAZE_NTFY_URL` is set. ntfy.sh is a third-party public server. The text says "A SafeKeeps alert is waiting for you. Open the app." and carries no name, no location and no personal data. Delivery to a locked iPhone passed on 2026-10-17.
+- Push to the phone is built through ntfy but only set up when `KAZE_NTFY_URL` is set. ntfy.sh is a third-party public server. The text says "A Homebound alert is waiting for you. Open the app." and carries no name, no location and no personal data. Delivery to a locked iPhone passed on 2026-10-17.

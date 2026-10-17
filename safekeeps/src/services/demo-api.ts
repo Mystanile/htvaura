@@ -19,6 +19,7 @@ export type NightView = {
   deadline: number | null; // server Unix seconds, only set while asking or waiting
   ping_at?: number | null; // server Unix seconds of the last counted ping, null if none
   home_by?: number; // server Unix seconds, only in the user's own view while a home-by check has not started
+  next_check?: number | null; // server Unix seconds of the next periodic check, only while armed with a check interval
 };
 export type NightAlert = {
   user_id: string; active: boolean;

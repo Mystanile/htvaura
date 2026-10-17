@@ -69,8 +69,8 @@ def test_send_text_has_nothing_personal(client, monkeypatch):
     monkeypatch.setattr(app_module.httpx, "AsyncClient", Fake)
     import asyncio
     asyncio.run(app_module.send_ntfy("https://ntfy.example/", "kaze-abc"))
-    assert posts == [("https://ntfy.example/kaze-abc", "A SafeKeeps alert is waiting for you. Open the app.",
-                      {"Title": "SafeKeeps", "Priority": "high", "Tags": "warning"})]
+    assert posts == [("https://ntfy.example/kaze-abc", "A Homebound alert is waiting for you. Open the app.",
+                      {"Title": "Homebound", "Priority": "high", "Tags": "warning"})]
 
 
 def test_off_without_url(client, sent, monkeypatch):

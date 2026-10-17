@@ -39,9 +39,10 @@
       "expo-status-bar",
       "expo-web-browser",
       "expo-secure-store",
+      "./plugins/no-push-entitlement.js",
       ["expo-location", {
-        "locationWhenInUsePermission": "Safekeeps shares your location with your contacts only during an alert.",
-        "locationAlwaysAndWhenInUsePermission": "Safekeeps shares your location with your contacts only during an alert."
+        "locationWhenInUsePermission": "Homebound shares your location with your contacts only during an alert.",
+        "locationAlwaysAndWhenInUsePermission": "Homebound shares your location with your contacts only during an alert."
       }],
       ["expo-audio", {
         "microphonePermission": false,
@@ -51,7 +52,7 @@
       ["react-native-ble-plx", {
         "isBackgroundEnabled": true,
         "modes": ["central"],
-        "bluetoothAlwaysPermission": "Safekeeps connects to your KAZE band so you can answer check-ins with it."
+        "bluetoothAlwaysPermission": "Homebound connects to your KAZE band so you can answer check-ins with it."
       }]
     ],
     "experiments": {

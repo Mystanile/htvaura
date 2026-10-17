@@ -127,7 +127,7 @@ def test_3_duress_pin_looks_like_a_real_cancel_but_alerts_the_duress_contacts():
     fx = send(s, Resolve(U, "9876"), now)
     fx_real = send(twin, Resolve(U, PIN), now)
 
-    assert view_for(s, U) == view_for(twin, U) == {"state": "armed", "screen": "ended_true", "deadline": None, "ping_at": None}
+    assert view_for(s, U) == view_for(twin, U) == {"state": "armed", "screen": "ended_true", "deadline": None, "ping_at": None, "next_check": None}
     assert flat(to(fx, U)) == flat(to(fx_real, U))
     assert not has_word([flat(to(fx, U)), view_for(s, U)])
     # The real cancel tells "a" it is over. The duress PIN tells "a" nothing and alerts duress contact 1.
@@ -338,7 +338,7 @@ def test_7_privacy():
         send(s, LocationUpdate(LAT, LNG), now)
         for who in EVERYONE_ELSE:
             assert view_for(s, who) == INACTIVE, (state, who)
-        assert set(view_for(s, U)) == {"state", "screen", "deadline", "ping_at"}
+        assert set(view_for(s, U)) == {"state", "screen", "deadline", "ping_at", "next_check"}
 
     # share_location_with = "alerted": every alerted contact sees it, nobody else does.
     s, now, fx = make("escalating", share_location_with="alerted")

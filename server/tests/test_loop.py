@@ -268,7 +268,7 @@ def test_realert_all_tiers_after_last_tier_backs_off_then_reaches_the_final_step
         assert view_for(s, who)["final_step"] is True
     for who in ["x", "g1", "stranger"]:
         assert view_for(s, who) == INACTIVE
-    assert set(view_for(s, U)) == {"state", "screen", "deadline", "ping_at"}
+    assert set(view_for(s, U)) == {"state", "screen", "deadline", "ping_at", "next_check"}
 
 
 def test_final_step_is_false_until_then_and_an_ack_stops_the_rounds():
@@ -651,7 +651,7 @@ def test_hidden_alert_keeps_escalating_after_leave(kind):
     assert alert(s).state != "resolved"
     assert view_for(s, later_contact)["active"] is True
     assert_ignored(s, Resolve(U, PIN), now)  # the front is ended, so the PIN does nothing
-    assert view_for(s, U) == {"state": "ended", "screen": s.screen, "deadline": None, "ping_at": None}
+    assert view_for(s, U) == {"state": "ended", "screen": s.screen, "deadline": None, "ping_at": None, "next_check": None}
 
 
 @pytest.mark.parametrize("kind", KINDS)
@@ -671,7 +671,7 @@ def test_new_session_carries_hidden_alert_and_pin_resolves_it():
     send(s, Leave(), now)
     n = new_session(make_config(pin="9876"), now, carry=s)
     assert n.state == "armed" and n.alerts == s.alerts and n.location is None
-    assert view_for(n, U) == {"state": "armed", "screen": "armed", "deadline": None, "ping_at": None}
+    assert view_for(n, U) == {"state": "armed", "screen": "armed", "deadline": None, "ping_at": None, "next_check": None}
     assert view_for(n, "x")["location"] == (LAT, LNG)
     now, later = advance(n, now, 120)  # it keeps escalating in the new session
     assert recipients(later, "alert") == {"x", "y"}
@@ -1332,3 +1332,10 @@ def test_no_duress_pin_means_no_pin_raises_help():
     for pin in (None, "", "9876"):
         assert not any(a.state == "duress" for a in s.alerts)
         send(s, Resolve(U, pin), now)
+
+
+def test_next_check_is_hidden_when_it_falls_after_the_night_ends():
+    s, now = start(check_every_seconds=EVERY, night_ends_at=EVERY - 10)
+    assert view_for(s, U)["next_check"] is None
+    s, now = start(check_every_seconds=EVERY, night_ends_at=EVERY + 1000)
+    assert view_for(s, U)["next_check"] == now + EVERY
