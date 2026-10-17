@@ -72,14 +72,16 @@ export function SwitchRow({ label, value, onValueChange, disabled = false }: {
   label: string; value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean;
 }) {
   const theme = useTheme();
+  const offTrack = theme.scheme === 'dark' ? '#3B4A4C' : '#B4BBAA'; // a grey, so off never looks like the green on track
   return (
     <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: value, disabled }}
       disabled={disabled} onPress={() => onValueChange(!value)}
       style={{ minHeight: TouchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three }}>
       <ThemedText style={{ flex: 1 }}>{label}</ThemedText>
       <Switch value={value} onValueChange={onValueChange} disabled={disabled} accessible={false}
-        trackColor={{ false: theme.fieldBorder, true: theme.accent }} ios_backgroundColor={theme.fieldBorder}
-        thumbColor="#FBFFF0" />
+        trackColor={{ false: offTrack, true: theme.accent }} ios_backgroundColor={offTrack}
+        thumbColor="#FBFFF0"
+        {...({ activeThumbColor: '#FBFFF0' } as object) /* web only: without it the on thumb is react-native-web's teal */} />
     </Pressable>
   );
 }

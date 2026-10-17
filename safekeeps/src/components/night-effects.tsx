@@ -103,7 +103,7 @@ function PingOverlay() {
   if (!ringing) return null;
   return (
     <View pointerEvents="none" accessibilityRole="alert" style={[StyleSheet.absoluteFill, { zIndex: 100, alignItems: 'center', justifyContent: 'center',
-      padding: Spacing.five, backgroundColor: theme.primary, opacity: lit || calm ? 1 : 0.35 }]}>
+      padding: Spacing.five, backgroundColor: lit || calm ? theme.primary : theme.primaryPressed }]}>
       <ThemedText type="title" style={{ fontSize: 40, lineHeight: 48, color: theme.onPrimary, textAlign: 'center' }}>A friend is looking for you</ThemedText>
     </View>
   );

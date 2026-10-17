@@ -98,11 +98,11 @@ export default function FindScreen() {
     <AppScreen>
       <Stack.Screen options={{ title: 'Find them' }} />
       <SectionCard tone="ink">
-        <ThemedText type="heading">{name}</ThemedText>
+        <ThemedText type="heading" style={{ textAlign: 'center' }}>{name}</ThemedText>
         {own.denied ? (
-          <ThemedText>Allow location in your settings to see how far away {name} is.</ThemedText>
+          <ThemedText style={{ textAlign: 'center' }}>Allow location in your settings to see how far away {name} is.</ThemedText>
         ) : own.position === null || bearing === null ? (
-          <ThemedText>Finding your position...</ThemedText>
+          <ThemedText style={{ textAlign: 'center' }}>Finding your position...</ThemedText>
         ) : (
           <>
             {tooClose ? (
@@ -114,7 +114,7 @@ export default function FindScreen() {
                 <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>GPS is rough indoors.</ThemedText>
                 <ThemedText type="name" style={{ textAlign: 'center' }}>Head {compassWord(bearing)}</ThemedText>
                 {heading === null && (
-                  <ThemedText type="small" themeColor="textSecondary">
+                  <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
                     {Platform.OS === 'web' ? 'The arrow needs a phone with a compass.' : 'Waiting for your compass.'}
                   </ThemedText>
                 )}

@@ -5,8 +5,9 @@ import { ActionSheetIOS, Linking, Platform, View } from 'react-native';
 import { AppButton } from '@/components/app-button';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
 import { useSafekeeps } from '@/state/safekeeps';
 
 export function useNameOf() {
@@ -44,6 +45,7 @@ function List({ title, items }: { title: string; items: string[] }) {
 export function AlertsSection() {
   const state = useSafekeeps();
   const scheme = useColorScheme();
+  const theme = useTheme();
   const nameOf = useNameOf();
   const [picking, setPicking] = useState<string | null>(null); // user_id of the alert whose map list is open (not iOS)
   const alerts = state.night?.alerts ?? [];
@@ -74,10 +76,16 @@ export function AlertsSection() {
                     index => { if (index < MAP_APPS.length) void openMap(location, index); });
                 }} />
               )}
-              {alert.location !== null && picking === alert.user_id && MAP_APPS.map((maps, index) => (
-                <AppButton key={maps.name} label={maps.name} variant="secondary"
-                  onPress={() => { setPicking(null); void openMap(alert.location!, index); }} />
-              ))}
+              {alert.location !== null && picking === alert.user_id && (
+                <View accessibilityLabel="Choose a maps app" style={{ gap: Spacing.two, padding: Spacing.three, borderRadius: Radius.control,
+                  borderCurve: 'continuous', backgroundColor: theme.backgroundSelected }}>
+                  <ThemedText type="smallBold">Open with</ThemedText>
+                  {MAP_APPS.map((maps, index) => (
+                    <AppButton key={maps.name} label={maps.name} variant="quiet"
+                      onPress={() => { setPicking(null); void openMap(alert.location!, index); }} />
+                  ))}
+                </View>
+              )}
               {alert.acknowledged_by === null && (
                 <AppButton label="I'm on it" disabled={state.busy} onPress={() => { void state.ackAlert(alert.user_id); }} />
               )}

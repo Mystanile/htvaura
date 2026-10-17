@@ -165,7 +165,7 @@ function NightCheckIn({ view }: { view: NightView }) {
               {screen === 'pin_retry' ? 'Incorrect PIN, try again' : 'Your contacts have been alerted'}
             </ThemedText>
           </Panel>
-          <PinEntry onSent={pinSent} />
+          <PinEntry onSent={pinSent} hideHelper />
         </>
       )}
       {(screen === 'ended_true' || screen === 'ended_fake') && (
@@ -218,7 +218,8 @@ function Panel({ children }: PropsWithChildren) {
   return <View style={{ ...hero, backgroundColor: theme.backgroundSelected }}>{children}</View>;
 }
 
-function PinEntry({ onSent }: { onSent: () => void }) {
+// hideHelper: the card already says to enter the PIN, so the field does not say it twice.
+function PinEntry({ onSent, hideHelper = false }: { onSent: () => void; hideHelper?: boolean }) {
   const state = useSafekeeps();
   const theme = useTheme();
   const [pin, setPin] = useState('');
@@ -235,7 +236,7 @@ function PinEntry({ onSent }: { onSent: () => void }) {
 
   return (
     <>
-      <Field label="Your PIN" helper="Enter your PIN to end the alert." value={pin} onChangeText={setPin}
+      <Field label="Your PIN" helper={hideHelper ? undefined : 'Enter your PIN to end the alert.'} value={pin} onChangeText={setPin}
         placeholder="4 digits" keyboardType="number-pad" secureTextEntry autoCorrect={false}
         editable={!state.busy} maxLength={4} />
       {problem !== '' && <ThemedText type="small" accessibilityLiveRegion="polite" style={{ color: theme.danger }}>{problem}</ThemedText>}
