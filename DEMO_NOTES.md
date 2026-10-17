@@ -123,6 +123,7 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 | New text colours and VoiceOver | Look at every screen. VoiceOver on: three double-taps on Check in | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the text reads well in the teammate's colours, the outlined check shows, VoiceOver reads the button and hint, three double-taps check in and it says "Thanks!" | 2026-10-17 |
 | ntfy push to a contact's phone | The phone is the contact, subscribed in the ntfy app. The person in a web browser stays silent, phone locked | Pass (branch `ntfy`, iPhone 13): the lock screen showed "Homebound: A Homebound alert is waiting for you. Open the app." | 2026-10-17 |
 | Local reminder for the user's own check | Night with a 5 min check, phone locked, app not opened | Pass (branch `ntfy`, iPhone 13): the lock screen showed "Homebound: Open the app." when the check was due. A check started by a friend with the app closed and no band is not covered (known limit) | 2026-10-17 |
+| Themed header and alert names | Open each inner screen. Get an alert from a friend | Pass (branch `ntfy`, iPhone 13 and iPhone 15 Pro): the banner header and back button show on every inner screen, and alerts show the person's name | 2026-10-17 |
 
 ### Built, but checked only by automated tests
 
