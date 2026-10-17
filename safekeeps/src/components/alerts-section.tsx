@@ -73,7 +73,7 @@ export function AlertsSection() {
         const age = alert.location !== null ? locationAgeText(alert.location_at, state.night?.now ?? 0) /* server clock of the last poll */ : null;
         return (
           <SectionCard key={alert.user_id} tone="green">
-            <ThemedText type="heading">{nameOf(alert.user_id) ?? 'A friend'}</ThemedText>
+            <ThemedText type="heading">{nameOf(alert.user_id) ?? alert.name ?? 'A friend'}</ThemedText>
             <ThemedText type="name">{alert.card.title}</ThemedText>
             <List title="Do" items={alert.card.do} />
             <List title="Don't" items={alert.card.dont} />

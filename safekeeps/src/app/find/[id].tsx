@@ -67,7 +67,7 @@ export default function FindScreen() {
   const [ping, setPing] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
   const alert = state.night?.alerts.find(item => item.user_id === id);
-  const name = nameOf(id) ?? 'your friend';
+  const name = nameOf(id) ?? alert?.name ?? 'your friend';
   const metres = own.position && alert?.location ? distanceMetres(own.position, { lat: alert.location[0], lng: alert.location[1] }) : 0;
   // Indoor GPS is off by 20 to 50 m, so a short distance is mostly noise. Do not point the arrow at noise.
   // Enter below 30 m, leave above 45 m, so jitter around the line does not flip the screen (or the spoken line) back and forth.

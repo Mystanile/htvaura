@@ -249,8 +249,11 @@ def test_a_removed_friend_keeps_the_running_night_until_it_ends(client):
     escalate(client, a, b, alice)
     before = alerts(client, b)
     assert before[0]["location"] == [43.7, -79.4]
+    assert before[0]["name"] == "Alice"
     client.post(f"/safekeeps/friends/{bob['id']}/remove", headers=a)
-    assert alerts(client, b) == before
+    assert alerts(client, b) == before  # the name too, so Bob still sees who needs a hand
+    client.post(f"/safekeeps/friends/{alice['id']}/remove", headers=b)
+    assert alerts(client, b)[0]["name"] == "Alice"
     assert client.post(f"/safekeeps/alerts/{alice['id']}/ack", headers=b).status_code == 200
     assert client.get(NIGHT, headers=a).json()["view"]["state"] == "acknowledged"
     assert client.post(f"/safekeeps/alerts/{alice['id']}/resolve", headers=b).status_code == 200
@@ -688,9 +691,17 @@ def test_duress_pin_is_checked_and_never_shown(client):
     ok = start(client, a, [[bob["id"]]], [carol["id"]], duress_pin="9876")
     assert ok.status_code == 200 and "9876" not in ok.text
     for h in (a, b, c):
-        assert "9876" not in client.get(NIGHT, headers=h).text
-        assert "9876" not in client.get("/safekeeps/state", headers=h).text
-    assert "9876" not in client.get("/demo/state").text
+        assert "9876" not in texts(client.get(NIGHT, headers=h).json())
+        assert "9876" not in texts(client.get("/safekeeps/state", headers=h).json())
+    assert "9876" not in texts(client.get("/demo/state").json())
+
+
+def texts(data) -> str:
+    """Every string in a JSON answer. Numbers are left out: a clock such as 1792279876.4 is not a leaked PIN."""
+    if isinstance(data, str):
+        return data
+    parts = data.values() if isinstance(data, dict) else data if isinstance(data, list) else []
+    return " ".join(texts(x) for x in parts)
 
 
 def test_duress_pin_alerts_the_duress_contact_and_answers_like_the_right_pin(client):

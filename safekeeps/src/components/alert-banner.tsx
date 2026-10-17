@@ -9,7 +9,7 @@ export function AlertBanner() {
   const nameOf = useNameOf();
   const alerts = state.night?.alerts ?? [];
   if (alerts.length === 0) return null;
-  const first = nameOf(alerts[0].user_id) ?? 'A friend';
+  const first = nameOf(alerts[0].user_id) ?? alerts[0].name ?? 'A friend';
   return (
     <SectionCard tone="ink">
       <ThemedText type="name" themeColor="accent" announce>

@@ -23,6 +23,7 @@ export type NightView = {
 };
 export type NightAlert = {
   user_id: string; active: boolean;
+  name: string | null; // what this viewer calls them, sent with the alert so it still shows after an unfriend
   kind: 'manual' | 'periodic' | 'home_by' | 'separation' | 'duress';
   card: { title: string; do: string[]; dont: string[] };
   acknowledged_by: string | null;
