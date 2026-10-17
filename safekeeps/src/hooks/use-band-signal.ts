@@ -35,7 +35,7 @@ export function useBandSignal(active: boolean): BandSignal | null {
       const now = Date.now();
       while (samples.length > 0 && samples[0].t <= now - 4000) samples.shift();
       const rssi = median(samples, now);
-      near = nextNear(near, rssi);
+      near = nextNear(near, rssi, samples.length);
       setSignal({ near: rssi === null ? null : near, lost: now - lastSeen > LOST_AFTER_MS });
     }, 500);
     return () => {

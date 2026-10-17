@@ -66,8 +66,9 @@ const WINDOW_MS = 4000;
 // noise (-75 to -88). So there are two states, with a gap between enter and leave so it does not flicker.
 const NEAR_ENTER_DBM = -60; // stronger than this: right next to them
 const NEAR_LEAVE_DBM = -68; // weaker than this: back to in range
+const MIN_READINGS = 3; // fewer readings than this in the 4 s window can never enter "right next to them"
 
-// Median RSSI of the last 4 s, never a single reading. null if there are none.
+// Median RSSI of the last 4 s. null if there are none.
 export function median(samples: Sample[], now: number) {
   const values = samples.filter(s => s.t > now - WINDOW_MS && s.t <= now).map(s => s.rssi).sort((a, b) => a - b);
   if (values.length === 0) return null;
@@ -75,8 +76,9 @@ export function median(samples: Sample[], now: number) {
   return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
 }
 
-// Next "right next to them" state from the last one and the 4 s median. No reading resets it.
-export function nextNear(near: boolean, rssi: number | null) {
+// Next "right next to them" state from the last one, the 4 s median and how many readings made it.
+// No reading resets it. Entering needs MIN_READINGS, so one strong reading is never enough.
+export function nextNear(near: boolean, rssi: number | null, readings = MIN_READINGS) {
   if (rssi === null) return false;
-  return near ? rssi >= NEAR_LEAVE_DBM : rssi > NEAR_ENTER_DBM;
+  return near ? rssi >= NEAR_LEAVE_DBM : readings >= MIN_READINGS && rssi > NEAR_ENTER_DBM;
 }
