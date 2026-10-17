@@ -362,7 +362,7 @@ Phase 5: BLE band (only after phases 1 to 4 work)
 
 The app is the product and works on any phone without a band. The band is an extra way to answer the same check-in. The owner's phone, running the teammate's app, sits between the band and the server. The spec is `Hardware/kaze_band/HARDWARE.md`.
 
-- 5.1 Development build of the teammate's app with `react-native-ble-plx`. Expo Go has no Bluetooth. The builds run on the user's Mac (Xcode 27.1 is installed. CocoaPods and an Apple signing setup are not yet). Do one test build of the current app on one iPhone early, before any BLE code.
+- 5.1 Development build of the teammate's app with `react-native-ble-plx`. Expo Go has no Bluetooth. The builds run on the user's Mac (done: Xcode 27.1, CocoaPods, and Personal Team signing). Do one test build of the current app on one iPhone early, before any BLE code.
 - 5.2 Done: `Hardware/kaze_band/kaze_band.ino`. Service `7f1a0001-...`, `event` notify (0x01 ok, 0x02 duress), `ping` write, `ask` write. Tested in nRF Connect.
 - 5.3 The app subscribes to `event` and forwards 0x01 as ConfirmOk and 0x02 as Duress to `/safekeeps/night/events`. When the user's view goes to `asking`, the app writes to `ask`. The band never reports silence, so the server timer handles a missed or dead band.
 - 5.4 Find them: the finder's phone scans the band and shows the zones from HARDWARE.md (stronger than -55 dBm right here, -55 to -80 close, weaker than -80 in range), smoothed with the median of the last 3 to 5 s. "Ping" writes to the band. Separation means the band's signal is lost for 30 s or more, not an RSSI cutoff.
