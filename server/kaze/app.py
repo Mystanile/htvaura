@@ -4,6 +4,7 @@ All state changes go through `run`, which calls loop.step and pushes the effects
 """
 import asyncio
 import dataclasses
+import json
 import math
 import secrets
 import time
@@ -30,6 +31,7 @@ TRIGGER_KINDS = ("home_by", "separation", "periodic", "manual")
 users: dict[str, str] = {}              # user_id -> name
 groups: dict[str, list[str]] = {}       # code -> member ids
 sessions: dict[str, loop.Session] = {}  # user_id -> session
+profile_ids: set[str] = set()           # ids of Safekeeps phones (set by the bridge). They act only with a token.
 sockets: dict[str, list[WebSocket]] = {}  # id -> open sockets
 offset = 0.0                            # demo time skip, seconds
 
@@ -54,6 +56,8 @@ async def deliver(effects) -> None:
     so one stuck socket delays nobody else."""
     per_socket: dict = {}
     for e in effects:
+        if e.to in profile_ids:
+            continue  # a socket opened on this id before it was protected has no token, so it gets nothing
         for ws in list(sockets.get(e.to, [])):
             per_socket.setdefault(ws, []).append({"kind": e.kind, "data": e.data})
     await asyncio.gather(*(send_all(ws, m) for ws, m in per_socket.items()))
@@ -99,17 +103,27 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "P
 
 @app.exception_handler(RequestValidationError)
 async def bad_body(request: Request, exc: RequestValidationError):
-    """The usual 422. A NaN or infinity that the client sent is shown as text, because JSON cannot hold it."""
-    errors = [
-        e | {"input": str(e["input"])} if isinstance(e.get("input"), float) and not math.isfinite(e["input"]) else e
-        for e in exc.errors()
-    ]
-    return JSONResponse(status_code=422, content={"detail": errors})
+    """The usual 422. An input that JSON cannot hold (NaN or infinity, alone or inside a list or object) is shown as text."""
+    return JSONResponse(status_code=422, content={"detail": [e | {"input": _jsonable(e.get("input"))} for e in exc.errors()]})
+
+
+def _jsonable(v):
+    try:
+        json.dumps(v, allow_nan=False)
+        return v
+    except (ValueError, TypeError):
+        return str(v)
 
 
 def need_user(user_id: str) -> None:
     if user_id not in users:
         raise HTTPException(400, f"unknown user {user_id}")
+
+
+def refuse_profiles(*ids: str) -> None:
+    """The phase 1 endpoints have no token, so they refuse an id that the bridge protects."""
+    if any(i in profile_ids for i in ids):
+        raise HTTPException(403, "that id belongs to a Safekeeps phone: use /safekeeps with its token")
 
 
 def need_session(user_id: str) -> loop.Session:
@@ -140,6 +154,7 @@ class SessionIn(BaseModel):
     grace_seconds: Seconds = 15
     ack_seconds: Seconds = 20
     night_ends_at: Annotated[float, Field(allow_inf_nan=False)] | None = None
+    check_every_seconds: Annotated[float, Field(gt=0, allow_inf_nan=False)] | None = None
 
 
 class SkipIn(BaseModel):
@@ -156,6 +171,7 @@ def create_user(body: UserIn):
 @app.post("/groups")
 def create_group(body: GroupIn):
     need_user(body.user_id)
+    refuse_profiles(body.user_id)
     code = secrets.token_hex(2).upper()
     while code in groups:
         code = secrets.token_hex(2).upper()
@@ -168,52 +184,65 @@ def join_group(code: str, body: GroupIn):
     if code not in groups:
         raise HTTPException(404, f"unknown group {code}")
     need_user(body.user_id)
+    refuse_profiles(body.user_id)
     if body.user_id not in groups[code]:
         groups[code].append(body.user_id)
     return {"code": code, "members": groups[code]}
 
 
-@app.post("/sessions")
-def start_session(body: SessionIn):
-    need_user(body.user_id)
-    if body.group_code is not None and body.group_code not in groups:
-        raise HTTPException(404, f"unknown group {body.group_code}")
-    if body.share_location_with not in ("alerted", "acknowledger"):
+MAX_CONTACTS = 50
+
+
+def begin_night(user_id: str, members: list[str], **fields) -> dict:
+    """The checks and the new session that POST /sessions and POST /safekeeps/night share.
+
+    `fields` are the Config fields: pin, tiers, duress_contacts, timers and so on."""
+    config = Config(user_id=user_id, group=[m for m in members if m != user_id], **fields)
+    if config.share_location_with not in ("alerted", "acknowledger"):
         raise HTTPException(400, "share_location_with must be 'alerted' or 'acknowledger'")
-    if not body.duress_contacts:
+    if not config.duress_contacts:
         raise HTTPException(400, "duress_contacts must not be empty")
-    if not body.tiers or not all(body.tiers):
+    if not config.tiers or not all(config.tiers):
         raise HTTPException(400, "tiers must not be empty and every tier needs a contact")
-    contacts = [c for t in body.tiers for c in t] + body.duress_contacts
-    if body.user_id in contacts:
+    contacts = [c for t in config.tiers for c in t] + config.duress_contacts
+    if len(contacts) > MAX_CONTACTS:  # every ack timeout builds an effect per entry, on the shared ticker
+        raise HTTPException(400, f"at most {MAX_CONTACTS} contacts in all")
+    if user_id in contacts:
         raise HTTPException(400, "the user cannot be their own contact")
-    old = sessions.get(body.user_id)
+    old = sessions.get(user_id)
     if old and old.state in ("escalating", "acknowledged"):  # what the user's own view shows
         raise HTTPException(409, "session busy")
     for c in contacts:
         need_user(c)
-    members = groups[body.group_code] if body.group_code else []
-    config = Config(
-        user_id=body.user_id, pin=body.pin, tiers=body.tiers,
-        duress_contacts=body.duress_contacts,
-        group=[m for m in members if m != body.user_id],
-        share_location_with=body.share_location_with,
-        ask_seconds=body.ask_seconds, grace_seconds=body.grace_seconds,
-        ack_seconds=body.ack_seconds, night_ends_at=body.night_ends_at,
-    )
     session = loop.new_session(config, now(), carry=old)  # hidden alerts keep running
-    session.connected = bool(sockets.get(body.user_id))
-    sessions[body.user_id] = session
-    return {"user_id": body.user_id, "view": view_for(session, body.user_id)}
+    session.connected = bool(sockets.get(user_id))
+    sessions[user_id] = session
+    return {"user_id": user_id, "view": view_for(session, user_id)}
+
+
+@app.post("/sessions")
+def start_session(body: SessionIn):
+    need_user(body.user_id)
+    refuse_profiles(body.user_id, *(c for t in body.tiers for c in t), *body.duress_contacts)
+    if body.group_code is not None and body.group_code not in groups:
+        raise HTTPException(404, f"unknown group {body.group_code}")
+    members = groups[body.group_code] if body.group_code else []
+    return begin_night(body.user_id, members, **body.model_dump(exclude={"user_id", "group_code"}))
 
 
 def _coord(v, limit: float) -> bool:
     """A real number within +-limit. NaN, infinity, strings and booleans are not."""
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and abs(v) <= limit
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) <= limit  # NaN and infinity fail this too
 
 
 @app.post("/sessions/{user_id}/events")
 async def post_event(user_id: str, body: dict):
+    refuse_profiles(user_id)
+    return await apply_event(user_id, body)
+
+
+async def apply_event(user_id: str, body: dict) -> dict:
+    """Check one event body and run it. The bridge calls this after its own token checks."""
     need_session(user_id)
     fields = dict(body)
     name = fields.pop("type", None)
@@ -248,17 +277,22 @@ def get_group(code: str):
 @app.get("/alerts")
 def get_alerts(viewer: str):
     """Active alerts this viewer may see, for a contact whose socket dropped."""
+    refuse_profiles(viewer)
     views = (view_for(s, viewer) for s in sessions.values())
     return {"alerts": [v for v in views if v.get("active") is True]}
 
 
 @app.get("/sessions/{user_id}/view")
 def get_view(user_id: str, viewer: str):
+    refuse_profiles(user_id, viewer)
     return view_for(need_session(user_id), viewer)
 
 
 @app.websocket("/ws/{id}")
 async def ws_endpoint(ws: WebSocket, id: str):
+    if id in profile_ids:
+        await ws.close(code=1008)  # Safekeeps phones poll with a token
+        return
     await ws.accept()
     sockets.setdefault(id, []).append(ws)
     if id in sessions:
@@ -274,9 +308,14 @@ async def ws_endpoint(ws: WebSocket, id: str):
             await run(id, loop.Disconnect())
 
 
+MAX_SKIP = 1e9  # about 30 years: a bigger total makes deadlines overflow to infinity
+
+
 @app.post("/demo/skip")
 async def demo_skip(body: SkipIn):
     global offset
+    if abs(offset + body.seconds) > MAX_SKIP:
+        raise HTTPException(400, f"the total skip must stay within +-{MAX_SKIP:g} seconds")
     offset += body.seconds
     for uid in list(sessions):
         await run(uid, loop.Tick())
@@ -288,11 +327,15 @@ def demo_reset():
     global offset
     offset = 0.0
     users.clear()
+    profile_ids.clear()
     groups.clear()
     sessions.clear()
     return {"ok": True}
 
 
 # Safekeeps mobile demo: persistent profiles, friends, and check-ins.
+# The bridge imports from this module, so it is included last.
+from .bridge import router as bridge_router  # noqa: E402
 
 app.include_router(safekeeps_router)
+app.include_router(bridge_router)

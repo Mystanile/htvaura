@@ -14,30 +14,37 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 1.3 app.py server
 - [x] 1.4 API.md for the app
 - [x] 1.5 Hidden-alert refactor: the session is a front plus alerts, see Phase 1 interface
-- [ ] 1.6 Fix the two open findings in "Where we stopped"
-- [ ] 2.1 to 2.5 Expo app (teammate)
+- [x] 1.6 Fix the two open findings from the third review, and add periodic check-ins to the loop
+- [x] 2.0 Server bridge for safekeeps (me), 3 review findings open, see "Where we stopped"
+- [ ] 2.1 to 2.5 Safekeeps app screens (teammate)
 - [ ] 3.1 Demo panel
 - [ ] 4.1 to 4.2 Find them
 - [ ] 5.1 to 5.4 BLE band
 
-## Where we stopped (2026-10-16)
+## Where we stopped (2026-10-17)
 
-Phase 1 is done and committed. Its tasks are 1.1 to 1.5 in the Status list above. All 143 server tests pass, including the 7 scenario tests. Run them with `cd server && .venv/bin/pytest -q`.
+Phase 1 is done and committed. Its tasks are 1.1 to 1.5 in the Status list above. All server tests pass, including the 7 scenario tests. Run them with `cd server && .venv/bin/pytest -q`.
 
-A third review left two open findings. Neither is fixed. The next session starts here.
+A third review left two findings. Both are fixed in task 1.6, each with a regression test.
 
-1. Duress dropped right after a PIN end (safety bug, small window). After a correct or fake PIN end, the front sits in the internal `resolved` state until the next tick, which is at most 1 s. `Duress` and `Trigger` are ignored in that state, but the user view shows armed. So a duress signal sent in that second is lost, and no contact is told. Fix: in `step`, if the front is `resolved` and the event is `Duress` or `Trigger`, move the front to armed first, then handle the event. Repro: `/private/tmp/kaze_review3/round3/f2_duress_dropped_in_resolved.py`.
-2. A contact who is in both the tiers and `duress_contacts` (for example, the sober contact in night-out mode) can cause a tell. Their `Ack` or `Resolve` goes to the hidden duress alert first, so the user's front alert stays escalating. An honest user's front alert would go to acknowledged. Fix: if the contact is allowed on the non-hidden front alert, the action also applies to that alert. The front alert then depends only on front rules, and hidden alerts keep the one-alert-per-action rule. Repros: `/private/tmp/kaze_review3/round3/f1_overlap_ack_tell.py`, `r1_shared_contact_ack.py`, and `r2_acknowledger_resolve_hits_duress.py`.
+1. Duress or Trigger right after a PIN end. The front now acts as armed for Trigger, ConfirmOk, and Duress in that window. Tests: `test_duress_right_after_a_pin_end_still_alerts`, `test_trigger_right_after_a_pin_end_starts_a_check`, `test_confirm_ok_right_after_a_pin_end_shows_thanks` in `test_loop.py`.
+2. A contact in both the tiers and `duress_contacts`. Their Ack and Resolve now also reach the user's front alert. Tests: the three `test_n5_*` cases in `test_twin.py`. The random twin test also puts such contacts in the config.
 
-The repro scripts are in /private/tmp and get deleted on reboot. The descriptions above are enough to write a regression test for each.
+Not fixed on purpose: the demo-panel path has no auth. Any client can send events for any id from `POST /users`. The Safekeeps path has per-user tokens, and the phase 1 endpoints now refuse the ids of Safekeeps phones (bridge review, 2026-10-17). `/demo/reset` and `/demo/skip` stay open. It is listed in DEMO_NOTES under Assumed.
 
-Not fixed on purpose: there is no auth. Any client can send events for any user id. Fixing it needs per-user tokens, which would change the API. It is listed in DEMO_NOTES under Assumed.
+On 2026-10-17 the teammate pushed an Expo app in `safekeeps/` with its own server module, `server/kaze/safekeeps.py`. It has token logins, friends added by code, and manual check-ins, but it did not use the loop. The next work is task 2.0, which bridges her app to the loop. Phase 3 (the demo panel) comes after that.
 
-After these two fixes, the next work is phase 3 (the demo panel). The teammate builds phase 2 in `app/` against `API.md`.
+Task 2.0 (the bridge) is done: `server/kaze/bridge.py` and `server/tests/test_bridge.py`, with 184 server tests passing. Two small planned edits went into the teammate's `server/kaze/safekeeps.py`: `record_check_in()`, and the manual trigger when a friend asks for a check. The final bridge review left three open findings. None is fixed yet. The repro scripts are in `/private/tmp/kaze_bridge_review/round3/`.
+
+1. (high) Removing friends cancels a fake-ended alert for every contact. `reaches()` in `bridge.py` only protects alerts whose kind is "duress". A fake-ended alert is hidden too but keeps its trigger kind. Fix: protect every hidden alert, not just duress ones.
+2. (medium) A removed friend who is also a duress contact still gets the duress alert, which is on purpose. But through it, they can also ack or resolve the user's normal alert, which an honest twin would refuse with 404. That is a tell. This and finding 1 come from one open product question: does removing a friend change a night that is already running?
+3. (low) `POST /safekeeps/alerts/{owner}/ack` and `/resolve` answer 200 when the owner has a night and 404 when not, so any friend can learn whether a night is running. Fix: answer the same for both.
+
+The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/`, which looks like an accident. We flag it to her and do not delete it.
 
 ## Decisions
 
-1. Check-in input. One tap on "I'm okay" means safe. Hold 3 s then two taps on the same button sends duress. Both show the same "Thanks!" screen.
+1. Check-in input (changed 2026-10-17). The app button and the band use the same gestures. 3 quick taps within 1.5 s = "I'm okay". Hold 1 s, then 2 quick taps within 2.5 s = duress. Hold 1 s and then nothing = "I'm okay" after 2.5 s. 1 or 2 taps and then nothing = nothing. `Hardware/kaze_band/HARDWARE.md` is the source of truth. Ok and duress show the same "Thanks!" screen, and the band gives the same single flash and beep.
 2. Cancel PIN. The user sets a 4-digit PIN at setup. A PIN is needed to cancel an alert that already reached contacts (a false alarm or a duress alert).
 3. Wrong PIN. The first wrong PIN is a silent retry: the screen shows a normal "Incorrect PIN, try again", nothing changes on the server, and no one is told. From the second wrong attempt on, the screen says "Alert ended". A person watching cannot tell. Contacts see "Someone tried to cancel with a wrong PIN." A small cue that only the user knows shows the truth. Correct PIN: filled check mark. Wrong PIN: outlined check mark, and the alert keeps going. When the alert ends, or after the fake end, the retry counter resets. So the third wrong PIN in a row shows the retry screen again.
 4. Ending duress. The user (correct PIN) or one of the duress contacts can end it.
@@ -46,7 +53,7 @@ After these two fixes, the next work is phase 3 (the demo panel). The teammate b
    - Everyday: tier 1 contact A, tier 2 contact B.
 6. Duress contacts are a separate private list. Duress never goes to the group.
 7. Team phones are all iPhones. Phases 1 to 4 run in Expo Go. BLE (phase 5) needs a custom dev build from Xcode on a Mac.
-8. Band hardware (phase 5): Arduino Uno R4 WiFi with ArduinoBLE, one Grove button, one Grove touch sensor, a Grove buzzer, and an LED. The button and the touch sensor behave the same as the app button: single tap = "I'm okay", hold 3 s then two taps = duress. Ping plays the buzzer and blinks the LED.
+8. Band hardware (phase 5): Arduino Uno R4 WiFi with ArduinoBLE, one Grove button, one Grove touch sensor, a Grove buzzer, and an LED. The button and the touch sensor use the same gestures as the app (decision 1). Ping plays the buzzer and blinks the LED. The full spec is in `Hardware/kaze_band/HARDWARE.md`: pins, BLE UUIDs, event bytes, ask and ping behavior, and RSSI measured at the venue.
 
 ## Architecture
 
@@ -59,7 +66,9 @@ server/
   tests/test_scenarios.py   the 7 KAZE scenarios
   tests/test_loop.py        a few edge transitions and the hidden alert rules
   tests/test_twin.py        a watcher cannot tell a hidden alert: random twin test and the n1 to n4 cases
-app/                  Expo (React Native) app, Expo Go
+safekeeps/            Expo (React Native) app, Expo Go (teammate)
+server/kaze/safekeeps.py   profiles, tokens, friends in SQLite (teammate)
+server/kaze/bridge.py      links safekeeps profiles and friends to the loop (me)
 ```
 
 `loop.py` exposes one function: `step(session, event, now) -> (session, effects)`. Effects are plain data, for example "notify contact X with card Y" or "show user screen Z". `app.py` sends the effects over WebSocket. The ticker calls `step(session, Tick(), now)` every second. Because of this, countdowns run on the server and continue after a phone disconnects. The tests call `step` with fake times, so they run in milliseconds.
@@ -91,6 +100,7 @@ class Config:
     grace_seconds: float = 15
     ack_seconds: float = 20
     night_ends_at: float | None = None
+    check_every_seconds: float | None = None   # periodic check-ins, off when None
 
 @dataclass
 class Alert:
@@ -114,6 +124,7 @@ class Session:
     screen: str = "armed"           # what the user's phone shows, see screens below
     wrong_pins: int = 0
     check_kind: str | None = None   # why the current check started
+    next_check: float | None = None    # while armed: when the next periodic check starts
     front_alert: Alert | None = None   # the user's own alert, while the front is escalating or acknowledged
     # the alerts
     alerts: list[Alert]
@@ -142,6 +153,8 @@ Effect kinds:
 
 Front rules. The front reads only front fields and whether a PIN is right. It never looks at hidden alerts.
 - Trigger works only in armed. It goes to asking, sends `check`, and starts the ask timer.
+- Periodic check-ins. If `check_every_seconds` is set, the front plans a check whenever it becomes armed. That is at the start of the night, after ConfirmOk or Duress, and when resolved goes back to armed. It sets `next_check` to now plus that many seconds. A Tick in armed at or after `next_check` does exactly what `Trigger("periodic")` does. It never fires after the night end time. It reads only front fields, so it is the same for every user. If the field is None, nothing fires.
+- Resolved is only the one second after a PIN end. The user view shows armed, so Trigger, ConfirmOk, and Duress first move the front from resolved to armed and then run as in armed.
 - ConfirmOk in armed, asking, or waiting goes to armed, clears the deadline, sets screen `thanks`, and sends exactly one effect: `screen` {screen: "thanks"} to the user. In other states it is ignored.
 - A Tick past the deadline drives asking to waiting to escalating. Escalating creates the front alert and alerts its tier 1.
 - Resolve with `by` equal to the user is the PIN. It works in every front state except ended.
@@ -157,8 +170,8 @@ Alert rules. Contacts act on alerts and never on the front.
 - Duress in armed, asking, or waiting makes the front do exactly what ConfirmOk does, so the user gets the same single `screen` thanks effect. It also starts a new hidden alert of kind duress. It does not start one if an unacknowledged duress alert for the same duress contacts is already active. An acknowledged one does not block it. That alert alerts duress contact 1 only. It never sends anything to a group member who is not in duress_contacts. In other front states Duress is ignored.
 - Tick runs every alert's ack timer on its own. It does so after the front ended or left. After the last tier, every contact in every tier (or every duress contact) is re-alerted and the ack timer restarts.
 - A contact acts on one alert at a time, the one on their screen. That is a duress alert first, else the newest. An alert that another contact already took comes last. `view_for`, Ack, and Resolve all pick the alert the same way. A contact who is alerted by two alerts never ends one by acting on the other.
-- Ack from a contact applies to the alert that alerted this contact and has no acknowledger yet. A normal alert goes to acknowledged, clears its deadline, and sends `owner` to the other alerted contacts. A duress alert sets acknowledged_by, clears its deadline, sends `owner`, and its state stays duress. If the alert is the front alert, the front goes to acknowledged. Ack from a contact who was not alerted is ignored.
-- Resolve with `by` equal to a contact applies to the alert on that contact's screen, if that contact is allowed. For a normal alert only its acknowledged_by contact is allowed. For a duress alert any contact in duress_contacts is allowed. A duress contact who has no alert on their screen yet may still end an active duress alert. `by=None` is always ignored. Anything else is ignored with no effects. The alert becomes resolved, its alerted contacts get `resolved`, and the alert forgets its location.
+- Ack from a contact applies to the alert that alerted this contact and has no acknowledger yet. A normal alert goes to acknowledged, clears its deadline, and sends `owner` to the other alerted contacts. A duress alert sets acknowledged_by, clears its deadline, sends `owner`, and its state stays duress. If the alert is the front alert, the front goes to acknowledged. Ack from a contact who was not alerted is ignored. If this contact was also alerted by the front alert and it has no acknowledger yet, the same Ack takes the front alert too. So a contact in both the tiers and `duress_contacts` gives the same front result as for an honest user. Two hidden alerts still need one Ack each.
+- Resolve with `by` equal to a contact applies to the alert on that contact's screen, if that contact is allowed. For a normal alert only its acknowledged_by contact is allowed. For a duress alert any contact in duress_contacts is allowed. A duress contact who has no alert on their screen yet may still end an active duress alert. `by=None` is always ignored. Anything else is ignored with no effects. The alert becomes resolved, its alerted contacts get `resolved`, and the alert forgets its location. If this contact may also end the front alert (they are its acknowledger), that alert ends in the same step.
 - Location. The front keeps one position, set by LocationUpdate. It is cleared whenever the front ends (correct PIN, 2nd wrong PIN, or the acknowledger resolves the front alert). It is not carried to a new night. Each alert also keeps its own position, set when it starts and updated by LocationUpdate. A contact sees the position of the alert on their screen. So a hidden alert never changes the position that a front alert shows, and ending a hidden alert never clears it.
 - Resolving a hidden alert sends nothing to the user and does not touch the front. Resolving the front alert by its acknowledger also resolves the front. The user gets `screen` `ended_true` and wrong_pins is reset.
 - Disconnect and Reconnect only change `connected`. LocationUpdate only stores the location. Neither sends effects.
@@ -256,15 +269,17 @@ Phase 1: loop and server
 - 1.2 `test_scenarios.py` + `test_loop.py`. Can be written in parallel with 1.1 against the interface above.
 - 1.3 `app.py`: create/join group by code, start/end night, events over REST, WebSocket push, ticker. One integration test that runs scenario 4 over a real WebSocket with FastAPI's TestClient.
 
-Phase 2: app (Expo Go)
+Phase 2: app (Expo Go) and bridge
 
-A teammate owns `app/` and phase 2. Do not build or edit anything in `app/`. She builds the app against `API.md`, which is written after task 1.3.
+A teammate owns `safekeeps/` and tasks 2.1 to 2.5. Do not edit anything in `safekeeps/`. She builds against the "Safekeeps bridge" section of `API.md`. Her app polls the server. It does not use WebSockets.
 
-- 2.1 Setup: name, cancel PIN, contacts, ranked tiers, private duress contacts, mode preset, location sharing setting.
-- 2.2 Groups: create/join by code, end time, leave silently, recent groups for one-tap start.
-- 2.3 Check-in screen: tap vs hold-3 s-plus-two-taps, countdown, "Thanks!", PIN cancel with filled vs outlined check.
-- 2.4 Responder screen: alert with response card, "I'm on it", resolve.
-- 2.5 Triggers: home-by time (expo-location vs a saved home point), periodic check-in, manual check. Separation comes from the demo panel only.
+- 2.0 (me) Bridge: authenticated endpoints under `/safekeeps` that use her tokens and friends list to drive the loop. Periodic check-ins move into the loop (`Config.check_every_seconds`). Her "ask a friend to check in" becomes `Trigger("manual")` on the friend's session. ConfirmOk and Duress both record a normal check-in in her SQLite data, so duress leaves no trace there.
+
+- 2.1 (teammate) Night setup screen: PIN, rank friends into tiers, pick duress contacts, check-in interval. It calls `POST /safekeeps/night`.
+- 2.2 (teammate) Groups: her friend codes cover this. Nothing new.
+- 2.3 (teammate) Check-in screen from `view.state` and `view.screen`: the gestures from decision 1, countdown, "Thanks!", PIN cancel with filled vs outlined check.
+- 2.4 (teammate) Responder screen from the `alerts` list: response card, "I'm on it", resolve.
+- 2.5 (teammate) Triggers: periodic now runs on the server. "Ask a friend" is the manual trigger. Home-by time comes later. Separation comes from the demo panel only.
 
 Phase 3: demo panel (`/panel` served by FastAPI)
 - 3.1 Live list of all sessions and states. Buttons: fire trigger, disconnect phone, separate friend, contact ignores, skip time ahead, reset.
@@ -274,10 +289,13 @@ Phase 4: find them
 - 4.2 "Ping" button: the person's phone plays a loud sound and flashes.
 
 Phase 5: BLE band (only after phases 1 to 4 work)
-- 5.1 iPhone dev build with react-native-ble-plx through Xcode.
-- 5.2 Arduino sketch (`band/band.ino`): ArduinoBLE advertises one service with a "button event" characteristic (notify: ok or duress) and a "ping" characteristic (write). The same tap/hold/two-taps decoder reads the Grove button and the Grove touch sensor. A ping write plays the buzzer and blinks the LED.
-- 5.3 Owner's phone subscribes to button events and forwards them to the server as tap ok or duress. The band has no vibration motor. It asks "are you okay?" with a short buzzer chirp.
-- 5.4 Finder's phone scans the band's advertising and shows hotter/colder from RSSI (signal strength), averaged over a few seconds. "Ping" writes to the band.
+
+The app is the product and works on any phone without a band. The band is an extra way to answer the same check-in. The owner's phone, running the teammate's app, sits between the band and the server. The spec is `Hardware/kaze_band/HARDWARE.md`.
+
+- 5.1 Development build of the teammate's app with `react-native-ble-plx`. Expo Go has no Bluetooth. The builds run on the user's Mac (Xcode 27.1 is installed. CocoaPods and an Apple signing setup are not yet). Do one test build of the current app on one iPhone early, before any BLE code.
+- 5.2 Done: `Hardware/kaze_band/kaze_band.ino`. Service `7f1a0001-...`, `event` notify (0x01 ok, 0x02 duress), `ping` write, `ask` write. Tested in nRF Connect.
+- 5.3 The app subscribes to `event` and forwards 0x01 as ConfirmOk and 0x02 as Duress to `/safekeeps/night/events`. When the user's view goes to `asking`, the app writes to `ask`. The band never reports silence, so the server timer handles a missed or dead band.
+- 5.4 Find them: the finder's phone scans the band and shows the zones from HARDWARE.md (stronger than -55 dBm right here, -55 to -80 close, weaker than -80 in range), smoothed with the median of the last 3 to 5 s. "Ping" writes to the band. Separation means the band's signal is lost for 30 s or more, not an RSSI cutoff.
 
 ## Simulated or assumed (start of DEMO_NOTES.md)
 

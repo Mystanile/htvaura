@@ -22,7 +22,8 @@ This file lists what the prototype really does, what the demo fakes, and what th
 - The demo band uses BLE only. On the Uno R4 WiFi, BLE and Wi-Fi share one radio chip, so we did not build a direct band-to-server path over Wi-Fi.
 - iOS background limits still let the check-in reach the user.
 - GPS is accurate to 5 to 10 m outdoors only.
-- Nobody can read another person's session without a token. The prototype has no auth. A phone knows the ids of its own contacts, so a person holding that phone could read the session as a duress contact and see a hidden alert. A real build needs per-user auth tokens.
+- Nobody can read another person's session without a token. On the Safekeeps path every call has a per-user token, and the old phase 1 endpoints refuse the ids of Safekeeps phones. On the demo-panel path (ids from `POST /users`) there is no auth, so a person who holds such a phone and knows a contact's id could read a hidden alert. `POST /demo/reset` and `POST /demo/skip` have no auth either and affect every night. A real build needs auth on those.
+- A friend who is removed during a night stays in that night's contact lists. They can no longer see, ack or resolve its normal alerts, but the alert still waits for them for one ack window before it moves on. A removed duress contact keeps seeing, acking and resolving the duress alert, so removing a friend cannot cancel it.
 
 ## Not built
 
@@ -33,3 +34,6 @@ This file lists what the prototype really does, what the demo fakes, and what th
 ## Needs manual testing
 
 Automated tests cannot cover real phones, BLE, or the Arduino band. We list each manual test here when the feature exists.
+
+- Band on its own (the team tested this in nRF Connect, see `Hardware/kaze_band/HARDWARE.md`): 0x01 and 0x02 arrive over notify, ask and ping writes work, the band reconnects without a reset, and it runs from a power bank. Still to check on the button and the touch sensor: the new gestures (3 taps ok, hold 1 s plus 2 taps duress, hold alone ok after 2.5 s, 1 or 2 taps nothing), the same flash for ok and duress, and an unanswered ask that stops after 30 s and sends nothing.
+- Band with the server: not connected yet. It needs task 5.3 in the app. Until then, a person can pass the band's answers to `/safekeeps/night/events` by hand.

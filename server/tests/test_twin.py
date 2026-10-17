@@ -56,6 +56,8 @@ class Pair:
         """A watcher may control a tier contact. That contact must see the same, location included."""
         if self.watch:
             for who in "abcd":
+                if who in self.hidden.config.duress_contacts:
+                    continue  # a duress contact also sees the duress alert, so their view may differ
                 assert view_for(self.hidden, who) == view_for(self.honest, who), who
 
     def tick(self, seconds):
@@ -97,6 +99,11 @@ def fake_end_pair(**over):
 
 # ---------- the randomized twin test ----------
 
+def shared_contacts(s):
+    """Contacts who are in the tiers and in duress_contacts."""
+    return [c for c in s.config.duress_contacts if any(c in tier for tier in s.config.tiers)]
+
+
 def user_event(rng, p, leave=0.05):
     """A random event that either user could send. Wrong PINs never reach the second one in an alert."""
     r = rng.random()
@@ -119,9 +126,15 @@ def user_event(rng, p, leave=0.05):
         return LocationUpdate(rng.uniform(40, 50), rng.uniform(-80, -70)), 0
     if r < 0.86:
         return rng.choice([Disconnect(), Reconnect()]), 0
+    who = rng.choice(CONTACTS)
+    if rng.random() < 0.7:  # most contacts act on what they see
+        seeing = [c for c in CONTACTS if view_for(p.hidden, c)["active"]]
+        who = rng.choice(seeing) if seeing else who
+    if shared_contacts(p.hidden) and rng.random() < 0.5:  # a contact in both lists acts a lot
+        who = rng.choice(shared_contacts(p.hidden))
     if r < 0.93:
-        return Ack(rng.choice(CONTACTS)), 0
-    return Resolve(rng.choice(CONTACTS)), 0
+        return Ack(who), 0
+    return Resolve(who), 0
 
 
 def make_hidden(rng, p, kind):
@@ -153,7 +166,12 @@ def make_hidden(rng, p, kind):
 def run_seed(seed):
     """Returns what the run covered."""
     rng = random.Random(seed)
-    over = {"night_ends_at": rng.choice([None, None, rng.uniform(100, 900)])}
+    over = {
+        "night_ends_at": rng.choice([None, None, rng.uniform(100, 900)]),
+        "check_every_seconds": rng.choice([None, None, rng.uniform(20, 200)]),
+        # sometimes a contact is in both the tiers and duress_contacts
+        "duress_contacts": rng.choice([["x", "y"], ["x", "y"], ["x", "a"], ["d", "y"], ["b", "x"]]),
+    }
     p = new_pair(**over)
     kind = rng.choice(["duress", "fake"])
     p.watch = kind == "duress"
@@ -162,6 +180,9 @@ def run_seed(seed):
     for i in range(STEPS):
         if not seen["hidden"] and i >= make_at:
             seen["hidden"] = make_hidden(rng, p, kind)
+            if seen["hidden"] and kind == "duress" and shared_contacts(p.hidden):
+                p.send(Trigger("manual"))  # a missed check: the user alert meets the open duress alert
+                p.tick(100)
             continue
         if seen["hidden"] and rng.random() < 0.04 and p.hidden.state not in ("escalating", "acknowledged"):
             carried = active(p.hidden) and any(a.hidden for a in p.hidden.alerts)
@@ -273,3 +294,68 @@ def test_n4_contact_resolving_a_hidden_alert_mid_check_changes_nothing_for_the_u
     p2.send(Resolve(U, PIN))
     assert view_for(p2.hidden, U)["screen"] == "ended_true"
     assert active(p2.hidden) == []
+
+
+# ---------- a contact in both the tiers and duress_contacts (task 1.6) ----------
+
+def test_n5_shared_contact_ack_and_resolve_act_on_the_front_alert_too():
+    """d is a tier contact and a duress contact. Their Ack and Resolve must reach the user's front alert."""
+    p = new_pair(duress_contacts=["d", "y"])
+    p.send(Trigger("manual"))
+    p.tick(5)
+    p.send(Duress(), ConfirmOk())
+    p.send(Trigger("periodic"))
+    p.ticks(100)  # the check is missed, tiers a, b and c, then d
+    assert view_for(p.hidden, U)["state"] == "escalating"
+    p.send(Ack("d"))
+    assert view_for(p.hidden, U)["state"] == "acknowledged"
+    p.send(Resolve("d"))
+    assert view_for(p.hidden, U)["screen"] == "ended_true"
+    assert p.hidden.front_alert is None
+
+
+def test_n5_shared_tier_1_contact_ack_takes_the_front_alert():
+    """a is tier 1 and duress contact 1. One tap takes the duress alert and the front alert."""
+    p = new_pair(tiers=[["a"], ["b"]], duress_contacts=["a", "x"], group=[])
+    p.send(Duress(), ConfirmOk())
+    p.send(Trigger("manual"))
+    p.tick(100)
+    assert view_for(p.hidden, U)["state"] == "escalating"
+    p.send(Ack("a"))
+    assert view_for(p.hidden, U)["state"] == "acknowledged"
+    p.tick(30)  # the front alert is taken, so it does not move on to b
+    for s in (p.hidden, p.honest):
+        assert view_for(s, "b") == INACTIVE
+
+
+def test_n5_acknowledger_who_is_later_alerted_by_duress_resolves_the_front_alert():
+    """a took the front alert. The duress alert then reaches a. a's Resolve ends the front alert as well."""
+    p = new_pair(tiers=[["a"], ["b"]], duress_contacts=["x", "a"], ask_seconds=1, grace_seconds=1, group=[])
+    p.send(Duress(), ConfirmOk())
+    p.send(Trigger("manual"))
+    p.tick(1)
+    p.tick(1)
+    p.send(Ack("a"))
+    assert view_for(p.hidden, U)["state"] == "acknowledged"
+    p.tick(21)  # the duress alert moves on to a
+    assert view_for(p.hidden, "a")["kind"] == "duress"
+    p.send(Resolve("a"))
+    assert view_for(p.hidden, U)["screen"] == "ended_true"
+    assert p.hidden.front_alert is None
+
+
+def test_shared_contacts_ack_and_resolve_after_a_fake_end_look_the_same_to_a_tier_contact():
+    """x is in tier 2 and a duress contact. A hidden duress alert and a fake-ended alert both reach x.
+    a (tier 1, not a duress contact) must see the same after x acks and resolves as in the twin with no duress."""
+    p = duress_pair(tiers=[["a"], ["x"]], duress_contacts=["x", "y"], group=[], check_every_seconds=60)
+    p.watch = True
+    p.send(Trigger("periodic"))
+    p.ticks(50)  # missed: a is alerted
+    p.send(Resolve(U, "0000"))
+    p.send(Resolve(U, "0000"))  # fake end: the alert keeps running, hidden, in both worlds
+    p.ticks(25)  # it moves on to x
+    p.send(Ack("x"))
+    assert view_for(p.hidden, "a")["acknowledged_by"] == "x"
+    p.send(Resolve("x"))
+    assert view_for(p.hidden, "a") == INACTIVE
+

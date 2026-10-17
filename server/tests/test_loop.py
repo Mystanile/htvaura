@@ -796,17 +796,30 @@ def test_resolving_a_front_alert_does_not_end_a_duress_alert_the_contact_never_s
     assert view_for(s, "x")["kind"] == "duress"
 
 
-def test_one_ack_takes_one_alert():
+def test_ack_takes_the_front_alert_too_when_the_contact_is_in_both_lists():
     s, now = start(tiers=[["y"]], duress_contacts=["x", "y"], ack_seconds=60)
     send(s, Duress(), now)
     now = lapse(s, now)
     now, _ = advance(s, now, 60)  # x is silent, so the duress alert reaches y too
     assert all("y" in a.alerted for a in s.alerts)
-    send(s, Ack("y"), now)
-    taken = [a for a in s.alerts if a.acknowledged_by == "y"]
-    assert len(taken) == 1 and taken[0].kind == "duress"
-    send(s, Ack("y"), now)  # the next tap takes the other one
+    send(s, Ack("y"), now)  # one tap takes the duress alert and the user's front alert, as for an honest user
     assert all(a.acknowledged_by == "y" for a in s.alerts)
+    assert s.state == "acknowledged"
+
+
+def test_a_shared_contacts_ack_takes_the_duress_alert_and_the_plain_alert():
+    """y is in the tiers and in duress_contacts. One tap takes both: a tier-only contact must not see the plain
+    alert stay free just because a duress alert exists (the honest twin's one tap takes it)."""
+    s, now = start(tiers=[["y"]], duress_contacts=["x", "y"], ack_seconds=60)
+    now = lapse(s, now)
+    send(s, Resolve(U, "0000"), now)
+    send(s, Resolve(U, "0000"), now)  # fake end: the front alert is now hidden
+    send(s, Tick(), now + 1)
+    send(s, Duress(), now + 1)
+    now, _ = advance(s, now + 1, 60)  # x is silent, so the duress alert reaches y too
+    assert all("y" in a.alerted and a.hidden for a in s.alerts)
+    send(s, Ack("y"), now)
+    assert {a.kind for a in s.alerts} >= {"duress"} and all(a.acknowledged_by == "y" for a in s.alerts)
 
 
 def test_resolving_a_new_front_alert_does_not_end_an_older_fake_ended_alert():
@@ -833,5 +846,89 @@ def test_polled_view_shows_the_duress_alert_to_a_contact_who_took_a_normal_one(m
     now, fx = advance(s, now, 60)  # x is silent, so the duress alert reaches y
     assert [e.data["kind"] for e in to(fx, "y", "alert")] == ["duress"]
     assert view_for(s, "y")["kind"] == "duress"
-    send(s, Resolve("y"), now)  # ends what is on screen: the duress alert
-    assert view_for(s, "y")["kind"] == "manual" and view_for(s, "y")["acknowledged_by"] == "y"
+    send(s, Resolve("y"), now)  # ends the duress alert on screen and the front alert y took
+    assert view_for(s, "y") == INACTIVE and s.front_alert is None
+
+
+# ---------- right after a PIN end the user view says armed, so the front must act as armed ----------
+
+def test_duress_right_after_a_pin_end_still_alerts():
+    s, now, _ = make("resolved")
+    assert s.state == "resolved" and view_for(s, U)["state"] == "armed"
+    fx = send(s, Duress(), now)
+    assert flat(to(fx, U)) == [(U, "screen", {"screen": "thanks"})]
+    assert alert(s).state == "duress"
+    assert recipients(fx, "alert") == {"x"}
+
+
+def test_trigger_right_after_a_pin_end_starts_a_check():
+    s, now, _ = make("resolved")
+    fx = send(s, Trigger("manual"), now)
+    assert s.state == "asking" and view_for(s, U)["state"] == "asking"
+    assert [e.kind for e in to(fx, U)] == ["check"]
+
+
+def test_confirm_ok_right_after_a_pin_end_shows_thanks():
+    s, now, _ = make("resolved")
+    fx = send(s, ConfirmOk(), now)
+    assert flat(fx) == [(U, "screen", {"screen": "thanks"})]
+    assert s.state == "armed"
+
+
+# ---------- periodic check-ins (check_every_seconds) ----------
+
+EVERY = 60
+
+
+def test_periodic_check_fires_on_time_with_no_other_events():
+    """The phone is disconnected and sends nothing. The server still starts the check and escalates."""
+    s, now = start(check_every_seconds=EVERY)
+    send(s, Disconnect(), now)
+    now, fx = advance(s, now, EVERY - 1)
+    assert s.state == "armed" and fx == []
+    now, fx = advance(s, now, 1)
+    assert s.state == "asking"
+    assert flat(fx) == [(U, "check", {"kind": "periodic", "deadline": now + ASK})]
+    now, _ = advance_until(s, now, lambda s: s.state == "escalating", limit=ASK + GRACE + 3)
+    assert alert(s).kind == "periodic"
+
+
+def test_periodic_check_acts_exactly_like_a_periodic_trigger():
+    a, now = start(check_every_seconds=EVERY)
+    b, _ = start()
+    assert flat(send(a, Tick(), EVERY)) == flat(send(b, Trigger("periodic"), EVERY))
+    assert (a.state, a.deadline, a.check_kind, a.screen) == (b.state, b.deadline, b.check_kind, b.screen)
+
+
+def test_periodic_check_is_planned_again_after_confirm_ok():
+    s, now = start(check_every_seconds=EVERY)
+    now, _ = advance(s, now, EVERY)
+    assert s.state == "asking"
+    send(s, ConfirmOk(), now)
+    now, fx = advance(s, now, EVERY - 1)
+    assert s.state == "armed" and fx == []
+    now, _ = advance(s, now, 1)
+    assert s.state == "asking"
+
+
+def test_periodic_check_is_planned_again_after_a_resolve():
+    s, now, _ = make("escalating", check_every_seconds=EVERY)
+    send(s, Resolve(U, PIN), now)
+    send(s, Tick(), now + 1)  # resolved goes back to armed
+    assert s.state == "armed"
+    now, fx = advance(s, now + 1, EVERY - 1)
+    assert s.state == "armed" and fx == []
+    now, _ = advance(s, now, 1)
+    assert s.state == "asking" and s.check_kind == "periodic"
+
+
+def test_periodic_check_never_fires_when_off():
+    s, now = start()
+    now, fx = advance(s, now, 5000)
+    assert s.state == "armed" and fx == []
+
+
+def test_periodic_check_does_not_fire_after_the_night_ended():
+    s, now = start(check_every_seconds=EVERY, night_ends_at=EVERY - 10)
+    now, _ = advance(s, now, EVERY + 5)
+    assert s.state == "ended"

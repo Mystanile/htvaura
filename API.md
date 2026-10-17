@@ -151,6 +151,7 @@ Errors:
 - 400 if the user or any contact id is unknown. Example: `{"detail": "unknown user ffffffff"}`.
 - 400 if `tiers` is empty or any tier is empty. The response is `{"detail": "tiers must not be empty and every tier needs a contact"}`.
 - 400 if `user_id` is in `tiers` or `duress_contacts`. The response is `{"detail": "the user cannot be their own contact"}`. Leave the user out when you build the lists from the group members.
+- 400 if `tiers` and `duress_contacts` hold more than 50 entries in all. Both `POST /sessions` and `POST /safekeeps/night` check this.
 - 400 if `duress_contacts` is empty. The response is `{"detail": "duress_contacts must not be empty"}`. Always ask the user to pick at least one duress contact.
 - 409 if the user's own view shows `escalating` or `acknowledged`. The response is `{"detail": "session busy"}`. The old session stays as it was, and nothing is replaced. Be ready for a 409 when you start a night, and show a neutral message such as "Could not start right now". Do not retry in a loop. The alert must end first. A user with a hidden alert (duress, or a fake end) gets the same answer as any other user in the same view.
 - 422 if a required field is missing. Example: `{"detail": [{"type": "missing", "loc": ["body", "pin"], "msg": "Field required", "input": {...}}]}`. A 422 also comes if a timer is negative, NaN, or infinite.
@@ -487,7 +488,7 @@ Send these with `POST /sessions/{user_id}/events`. Put the event name in `type`.
 |---|---|---|---|
 | `Trigger` | `kind`: `home_by`, `separation`, `periodic`, or `manual` | The user's app (the demo panel sends `separation`) | Start the check. Send it to start a check. The server ignores it if a check or an alert the user can see is already running. |
 | `ConfirmOk` | none | The user | One tap on "I'm okay". Works in `asking` and `waiting`. In `armed` it only shows `thanks`. |
-| `Duress` | none | The user | The hidden gesture (hold 3 s, then two taps). Send it at any time. Where it has no effect, the server ignores it. |
+| `Duress` | none | The user | The hidden gesture (hold 1 s, then 2 quick taps). Send it at any time. Where it has no effect, the server ignores it. |
 | `Ack` | `contact_id` | A contact | "I'm on it". Send your own id as `contact_id`. |
 | `Resolve` | `by`, `pin` (user only) | The user or a contact | End the alert. |
 | `LocationUpdate` | `lat`, `lng` | The user | Store the user's location. Send it often during a night. |
@@ -641,3 +642,267 @@ Alice sends `{"type": "Leave"}` while armed, asking, or waiting. Every group mem
 - **A resolved hidden alert is silent.** If a duress contact resolves the alert, the user's phone gets no message. This is on purpose.
 - **Errors for ignored events.** Ignored events (like a stray `ConfirmOk`) still return 200 `{"ok": true}`. The server does not tell you it ignored them.
 - **Server restart.** Everything disappears. See section 1.
+
+## 10. Safekeeps bridge
+
+This section is for the Safekeeps app in `safekeeps/`. The bridge links her profiles and friends (SQLite, Bearer token) to the check-in loop. It adds five endpoints under `/safekeeps`. The app does not use a WebSocket. It polls.
+
+The examples below come from real calls to the server. The ids here are shortened to 8 characters. Real ids have 32 characters. In all examples Alice is the user (`3f9a1c2e`). Ben is her tier 1 contact (`7b21d0a4`). Fia is her private duress contact (`50c6a9d8`). All three are accepted friends.
+
+### Rules for every bridge endpoint
+
+- Send the header `Authorization: Bearer <token>`. The token is the one from `POST /safekeeps/profiles`.
+- Without a token, or with a bad token, the answer is `401` with `{"detail": "Please create or reconnect your profile."}`.
+- Your id is your SQLite profile id. You never send your own id. The server reads it from the token.
+- The server forgets all nights when it restarts. Profiles and friends stay. After a restart `view` is `null`, so show the setup screen again. The token still works.
+- Errors look like `{"detail": "..."}`. Validation errors from the body (code `422`) have a list in `detail`.
+
+### POST /safekeeps/night
+
+Start a night for me. The group is all my accepted friends. Every contact must be an accepted friend.
+
+```json
+{
+  "pin": "4821",
+  "tiers": [["7b21d0a4"]],
+  "duress_contacts": ["50c6a9d8"],
+  "check_every_minutes": 30
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `pin` | A string. The user needs it to cancel. Required. |
+| `tiers` | A list of lists of friend ids. The first list is alerted first. Required. Must not be empty. No tier may be empty. |
+| `duress_contacts` | Friend ids for the silent alert. Required. Must not be empty. Only the user knows this list. |
+| `check_every_minutes` | Optional. The server starts a check by itself this long after the phone is armed. A number above 0. |
+| `ask_seconds` | Optional. Time to answer a check. Default 30. |
+| `grace_seconds` | Optional. Time of the louder `alarm` screen. Default 15. |
+| `ack_seconds` | Optional. Time a contact has to tap "I'm on it" before the next tier. Default 20. |
+| `night_ends_at` | Optional. A server Unix time. Get it from the `now` of `GET /safekeeps/night`. Add the length of the night. |
+
+Answer, `200`:
+
+```json
+{"user_id": "3f9a1c2e", "view": {"state": "armed", "screen": "armed", "deadline": null}}
+```
+
+Errors:
+
+| Code | When |
+|---|---|
+| `400` | A contact is not an accepted friend. This includes yourself. The text is `every contact must be an accepted friend`. |
+| `400` | `duress_contacts` is empty. |
+| `400` | `tiers` is empty or has an empty tier. |
+| `409` | `session busy`. An alert is running for you now. Cancel it with the PIN first. |
+| `422` | A bad field. For example `pin` is a number and not a string, or `check_every_minutes` is 0. |
+
+Starting a new night while the old one is quiet replaces it.
+
+### GET /safekeeps/night
+
+Poll this. It returns my own state and the alerts I should act on.
+
+```json
+{
+  "now": 1792229956.162278,
+  "view": {"state": "armed", "screen": "armed", "deadline": null},
+  "alerts": []
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `now` | The server clock. Use it for countdowns. |
+| `view` | My own view. Same shape as section 5. It is `null` when I have no night. |
+| `alerts` | The alerts where a friend needs me. It is a list. It is empty most of the time. |
+
+My own night is never in my `alerts`. A friend of mine only appears when the server alerted me for that friend and that person is still my friend. If a friend is removed, the alerts about them or from them disappear from the next poll. The one exception is a duress alert: a duress contact that was removed during the night still sees it and can ack and resolve it, because removing a friend must not cancel a silent alert. A person who is not alerted sees nothing, not even that a night exists. During a duress alert only the chosen duress contacts see it.
+
+An alert from `alerts`:
+
+```json
+{
+  "user_id": "3f9a1c2e",
+  "active": true,
+  "kind": "manual",
+  "card": {
+    "title": "Asked for a check and did not answer",
+    "do": ["Call or text them now", "Go to their location if you can"],
+    "dont": ["Do not ignore this alert"]
+  },
+  "acknowledged_by": null,
+  "location": [43.6532, -79.3832]
+}
+```
+
+`user_id` is the person in trouble. `kind` is `manual`, `periodic`, `home_by`, `separation`, or `duress`. The other fields are the same as in section 5.
+
+### POST /safekeeps/night/events
+
+Send one of my own events to my night. The body is the event. Put the name in `type`. Answer: `{"ok": true}`.
+
+| Type | Fields | Meaning |
+|---|---|---|
+| `ConfirmOk` | none | One tap on "I'm okay". |
+| `Duress` | none | The hidden gesture. |
+| `Resolve` | `pin` (a string) | Cancel the alert with my PIN. |
+| `LocationUpdate` | `lat`, `lng` | My place. Send it every 5 to 10 seconds during a night. |
+| `Leave` | none | Leave the night silently. |
+
+```json
+{"type": "ConfirmOk"}
+```
+
+```json
+{"type": "Duress"}
+```
+
+```json
+{"type": "Resolve", "pin": "4821"}
+```
+
+```json
+{"type": "LocationUpdate", "lat": 43.6532, "lng": -79.3832}
+```
+
+Errors:
+
+| Code | When |
+|---|---|
+| `400` | `type` is not in the list above. `Trigger`, `Ack`, `Tick`, `Disconnect`, and `Reconnect` are not allowed here. |
+| `400` | `Resolve` without a string `pin`. Text: `pin must be a string`. |
+| `400` | `lat` or `lng` is not a real number on the map. |
+| `404` | I have no night. Text: `no session for <my id>`. |
+
+Ignored events still give `200`. A stray `ConfirmOk` is one example. The next `GET` shows what happened. Read the `view` and do not guess.
+
+`Resolve` here always means me. A `by` field in the body is ignored. A wrong PIN does not give an error. It changes `view.screen` to `pin_retry` and then to `ended_fake`. See section 7.
+
+### POST /safekeeps/alerts/{owner_id}/ack
+
+I am a contact. Tap "I'm on it" for the alert about `owner_id`. No body. Answer: `{"ok": true}`.
+
+```
+POST /safekeeps/alerts/3f9a1c2e/ack
+```
+
+Next poll, `acknowledged_by` in that alert is my id. The owner's other contacts stop seeing the button (see the table below).
+
+### POST /safekeeps/alerts/{owner_id}/resolve
+
+I am a contact. End the alert about `owner_id`. No body. Answer: `{"ok": true}`.
+
+The loop decides if this counts. It counts only if I tapped "I'm on it" first. In a duress alert any duress contact can resolve it. If it does not count, the answer is still `200` and nothing changes. The next poll shows the truth.
+
+Both alert endpoints give `404` if `owner_id` has no night, and also if `owner_id` is not my friend now (the same answer, so it tells nothing). They give `400` if `owner_id` is my own id: use `/safekeeps/night/events` for my own night. They give `200` for a friend who was not alerted, and ignore the action.
+
+### The polling loop
+
+1. Call `GET /safekeeps/night` every 2.5 seconds while the app is open.
+2. Keep the `now` from the answer and the phone's own elapsed-time clock (for example `performance.now()`) from the same moment.
+3. Render `view` (my screen) and `alerts` (the responder screen). Both can show at the same time. A person on a night can also be a responder for a friend. Show the responder screen on top.
+4. For a countdown use this and not the phone clock:
+
+```
+left = view.deadline - now - (localNow - localAtFetch) / 1000
+```
+
+   `now` and `view.deadline` are from the same answer. This stays right when the phone clock is wrong and when `/demo/skip` moves the server clock.
+5. Do not stop polling during an alert. The server keeps all timers. If the phone loses signal or the app closes, the alert still goes on and the next tier is still alerted. The app only needs polling to show things.
+6. Poll `GET /safekeeps/state` as before for the friends list and old check-in times. It is a separate call.
+
+### What to render for my own view
+
+`view` is `null` when I have no night. Show the night setup screen (PIN, ranked friends, duress friends, check interval). Then call `POST /safekeeps/night`.
+
+Otherwise render by `state` and `screen`. Decide by `state` first. If `state` is `ended`, the night is over. See section 7 for the look of every screen.
+
+| `view.state` | `view.screen` | Show |
+|---|---|---|
+| `armed` | `armed` | The calm home screen. |
+| `asking` | `asking` | "Are you okay?" with the check-in button and a countdown from `deadline`. Buzz the phone once. |
+| `waiting` | `alarm` | A louder alarm with the same button and a countdown from `deadline`. |
+| `escalating` | `alert_active` | "Your contacts are alerted." A way to cancel with the PIN. |
+| `acknowledged` | `alert_active` | The same screen as above. Do not show who is on it. |
+| `armed` | `thanks` | "Thanks!" for about 2 seconds, then the app shows `armed` on its own timer. |
+| `armed` | `pin_retry` | "Incorrect PIN, try again." A new PIN entry. |
+| `armed` | `ended_true` | "Alert ended" with a filled check mark. Show it for a few seconds, then the app shows `armed` on its own timer. |
+| `armed` | `ended_fake` | "Alert ended" with an outlined check mark. Everything else is the same as `ended_true`. Keep showing it. The user can still try the PIN. |
+| `ended` | any | The night is over. Show the setup screen after a moment. |
+
+Keep these rules:
+
+- `ended_true` has a filled check mark. `ended_fake` has an outlined check mark. The difference must be small. Only the user should know what it means.
+- `thanks` is the same after a tap and after the duress gesture. Do not add any difference, not even on the phone.
+- The `screen` value stays at `thanks` or `ended_true` until the next event, so the app must go back to `armed` on its own timer. Start the timer when `screen` changes to `thanks` or `ended_true`.
+- Do not try to work out if an alert is real or hidden. Do not special-case anything. Render `state` and `screen` and nothing else.
+- A `view.state` of `armed` with `screen` `ended_true` is also what the user sees after a contact resolved their alert.
+
+### The check-in button
+
+During a check (`asking` or `waiting`), the button does two things. Use `POST /safekeeps/night/events` for both.
+
+The gestures match the band (`Hardware/kaze_band/HARDWARE.md`):
+
+- 3 quick taps within 1.5 s send `{"type": "ConfirmOk"}`.
+- Hold 1 s, then 2 quick taps within 2.5 s, send `{"type": "Duress"}`.
+- Hold 1 s and then nothing sends `{"type": "ConfirmOk"}` after 2.5 s.
+- 1 or 2 taps and then nothing send nothing. The count resets after 1.5 s.
+
+Give ok and duress the exact same feedback.
+
+The next poll shows `thanks` in both cases. It is the same word. The bridge also records a check-in in SQLite for both, so `lastCheckIn` and the friends' `incoming` list look identical in both cases. A friend cannot tell them apart. Because of this, the app must not send the duress gesture through `POST /safekeeps/check-ins`. That endpoint is for an ok only.
+
+When a night is running, send the tap through `/night/events`. Her old `POST /safekeeps/check-ins` also works as an ok during a night. It records the check-in and sends `ConfirmOk` to the loop. When no night is running, it only records the check-in.
+
+The duress gesture works at any time, not only during a check. Use it on the `armed` screen too. If it has no effect the server ignores it.
+
+### "Ask a friend to check in" is a real check now
+
+`POST /safekeeps/friends/{friend_id}/requests` still records the request as before. If the friend has a night running, it now also starts a real check on their phone. Their `view` becomes `asking` on the next poll. If they stay silent, the check escalates like any other: `alarm`, then `alert_active`, then their contacts are alerted. The kind of the alert is `manual`.
+
+If the friend has no night, nothing else happens. Only the request is recorded. If a check or an alert is already running for that friend, the new trigger is ignored. The trigger is also ignored when the person who asks is not named by the night (not a contact, and not a friend from when the night started), or when the friend checked in less than 30 seconds ago.
+
+So the friend's phone should show the check screen when `view.state` is `asking`. The old `incoming` list from `/state` is not enough.
+
+### What to render for each alert in `alerts`
+
+Show a responder screen for each item. Use the first item if there are several.
+
+- Title: `card.title`. The "do" list: `card.do`. The "don't" list: `card.dont`. Show all three.
+- If `acknowledged_by` is `null`, show a button "I'm on it". It calls `POST /safekeeps/alerts/{user_id}/ack`.
+- If `acknowledged_by` is my id, hide that button and show a "Resolve" button. It calls `POST /safekeeps/alerts/{user_id}/resolve`. In a `duress` alert show "Resolve" from the start, because any duress contact can resolve it.
+- If `acknowledged_by` is another id, show "Someone else is on it" and hide the button.
+- If `location` is not `null`, show it. Use a GPS arrow, a map link, or both. If it is `null`, show "No location yet". It is `null` until the user's phone has sent a `LocationUpdate`.
+- When the alert is gone from `alerts` at the next poll, close the screen. That means someone resolved it.
+- In a `duress` alert show the card text as it is. The card tells the contact not to call or text the person.
+
+Location exists only during an active alert. After a resolve it is gone.
+
+### Example flow
+
+Alice starts a night. Ben asks her to check in. She does not answer.
+
+1. Alice: `POST /safekeeps/night`. Answer: view `armed`.
+2. Ben: `POST /safekeeps/friends/3f9a1c2e/requests`. The `friends` entry for Alice gets a `requestedAt`.
+3. Alice: `GET /safekeeps/night`. Answer: `{"now": 1792229956.16, "view": {"state": "asking", "screen": "asking", "deadline": 1792229986.16}, "alerts": []}`.
+4. Alice does nothing. After 30 seconds the view is `waiting` and `alarm`. After 15 more seconds it is `escalating` and `alert_active`.
+5. Ben: `GET /safekeeps/night`. Answer: `view` is `null` and `alerts` has the alert about Alice.
+6. Ben: `POST /safekeeps/alerts/3f9a1c2e/ack`. Alice's view becomes `acknowledged`. Ben's alert has `acknowledged_by` set to Ben.
+7. Ben finds Alice: `POST /safekeeps/alerts/3f9a1c2e/resolve`. Alice's view is `armed` with `screen` `ended_true`. Ben's `alerts` is empty.
+
+A duress flow:
+
+1. Alice: `POST /safekeeps/night/events` with `{"type": "Duress"}`. Her view is `{"state": "armed", "screen": "thanks", "deadline": null}`, the same as after an ok.
+2. Fia: `GET /safekeeps/night`. `alerts` has an item with `kind` set to `duress` and `card.title` of `Silent alert: they may be in danger`.
+3. Ben: `GET /safekeeps/night`. `alerts` is `[]`. He is not a duress contact, so he sees nothing.
+4. If Fia does not tap "I'm on it" within `ack_seconds`, the next duress contact is alerted.
+
+### Test it by hand
+
+Call `POST /demo/skip` with `{"seconds": 50}`. It moves the server clock for every night. Your app sees this at the next poll. Use it to jump to `alarm` and `alert_active` without waiting. Call it only in a demo. It answers 400 if the total skip would pass 1e9 seconds. `POST /demo/reset` clears all nights and the old demo users, but not the Safekeeps profiles.
+
+The old phase 1 endpoints have no token (`POST /sessions`, `POST /sessions/{id}/events`, `GET /alerts`, `GET /sessions/{id}/view`, `/ws/{id}`, groups). They refuse the id of any Safekeeps phone that took part in a night: the answer is `403` (a closed socket for `/ws`). Phones use the endpoints in this section only.
+
+Not tested by the server tests: the app on real phones, push or background polling, and the hold gesture. These need a manual test.

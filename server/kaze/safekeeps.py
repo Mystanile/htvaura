@@ -9,6 +9,8 @@ from pathlib import Path
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from . import loop
+
 router = APIRouter(prefix="/safekeeps")
 DB_PATH = Path(os.environ.get("SAFEKEEPS_DB", Path(__file__).resolve().parents[1] / "safekeeps.sqlite3"))
 
@@ -162,18 +164,27 @@ def decline_friend(sender_id: str, authorization: str | None = Header(default=No
         return snapshot(db, user)
 
 
+def record_check_in(db, user):
+    """The check-in record. Also used by the bridge, so ok and duress leave the same trace."""
+    now = int(time.time() * 1000)
+    db.execute("UPDATE people SET last_check_in = ? WHERE id = ?", (now, user["id"]))
+    db.execute("UPDATE requests SET resolved_at = ? WHERE target = ? AND resolved_at IS NULL", (now, user["id"]))
+
+
 @router.post("/check-ins")
-def check_in(authorization: str | None = Header(default=None)):
+async def check_in(authorization: str | None = Header(default=None)):
+    from .bridge import send  # the bridge imports app.py, which imports this file
     with connect() as db:
         user = identity(db, authorization)
-        now = int(time.time() * 1000)
-        db.execute("UPDATE people SET last_check_in = ? WHERE id = ?", (now, user["id"]))
-        db.execute("UPDATE requests SET resolved_at = ? WHERE target = ? AND resolved_at IS NULL", (now, user["id"]))
-        return snapshot(db, db.execute("SELECT * FROM people WHERE id = ?", (user["id"],)).fetchone())
+        record_check_in(db, user)
+        result = snapshot(db, db.execute("SELECT * FROM people WHERE id = ?", (user["id"],)).fetchone())
+    await send(user["id"], loop.ConfirmOk())  # the check-in loop, if a night is running
+    return result
 
 
 @router.post("/friends/{friend_id}/requests")
-def request_check_in(friend_id: str, authorization: str | None = Header(default=None)):
+async def request_check_in(friend_id: str, authorization: str | None = Header(default=None)):
+    from .bridge import ask_to_check_in
     with connect() as db:
         user = identity(db, authorization)
         if not db.execute("SELECT 1 FROM friendships WHERE owner = ? AND friend = ?", (user["id"], friend_id)).fetchone():
@@ -182,7 +193,9 @@ def request_check_in(friend_id: str, authorization: str | None = Header(default=
             INSERT INTO requests VALUES (?, ?, ?, NULL)
             ON CONFLICT(sender, target) DO UPDATE SET requested_at = excluded.requested_at, resolved_at = NULL
         """, (user["id"], friend_id, int(time.time() * 1000)))
-        return snapshot(db, user)
+        result = snapshot(db, user)
+    await ask_to_check_in(user["id"], friend_id)  # a real check on the friend's phone, if the bridge allows it
+    return result
 
 
 @router.post("/guests")

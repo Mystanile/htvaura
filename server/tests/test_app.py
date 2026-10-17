@@ -275,3 +275,19 @@ def test_negative_timer_is_rejected_and_zero_is_not(client):
 def test_demo_skip_rejects_nan(client):
     r = client.post("/demo/skip", content='{"seconds": NaN}', headers={"content-type": "application/json"})
     assert r.status_code == 422
+
+
+@pytest.mark.parametrize("bad", ['[NaN]', '{"x": Infinity}'])
+def test_a_nan_inside_a_bad_value_is_a_422_not_a_500(client, bad):
+    user, contact = make_user(client, "u"), make_user(client, "c")
+    content = '{"user_id": %s, "pin": "1", "tiers": [["%s"]], "duress_contacts": ["%s"]}' % (bad, contact, contact)
+    r = client.post("/sessions", content=content, headers={"content-type": "application/json"})
+    assert r.status_code == 422
+
+
+def test_too_many_contacts_are_a_400(client):
+    user, contact = make_user(client, "u"), make_user(client, "c")
+    assert start_night(client, user, contact, tiers=[[contact] * 1000]).status_code == 400
+    assert start_night(client, user, contact, tiers=[[contact]] * 50).status_code == 400  # 50 + 1 duress
+    assert start_night(client, user, contact, tiers=[[contact]] * 49).status_code == 200
+

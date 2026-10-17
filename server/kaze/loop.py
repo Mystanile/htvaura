@@ -29,6 +29,7 @@ class Config:
     grace_seconds: float = 15
     ack_seconds: float = 20
     night_ends_at: float | None = None
+    check_every_seconds: float | None = None  # a periodic check starts this long after the front is armed
 
 
 @dataclass
@@ -54,6 +55,7 @@ class Session:
     screen: str = "armed"
     wrong_pins: int = 0
     check_kind: str | None = None  # why the current check started
+    next_check: float | None = None  # when the front is armed: the time of the next periodic check
     front_alert: Alert | None = None  # the user's own alert, while escalating or acknowledged
     # the alerts
     alerts: list[Alert] = field(default_factory=list)
@@ -109,6 +111,7 @@ class Leave: pass
 def new_session(config: Config, now: float, carry: Session | None = None) -> Session:
     """A new night. `carry` is the previous session: its hidden alerts that still run move over."""
     s = Session(config=config)
+    _arm(s, now)
     if carry:
         s.alerts = [a for a in _active(carry) if a.hidden]  # each keeps its own location
     return s
@@ -116,6 +119,13 @@ def new_session(config: Config, now: float, carry: Session | None = None) -> Ses
 
 def _active(s: Session) -> list[Alert]:
     return [a for a in s.alerts if a.state != "resolved"]
+
+
+def _arm(s: Session, now: float) -> None:
+    """The front is armed. Plan the next periodic check."""
+    every = s.config.check_every_seconds
+    s.state = "armed"
+    s.next_check = None if every is None else now + every
 
 
 def _to_user(s: Session, screen: str) -> Effect:
@@ -161,12 +171,13 @@ def _pick(alerts: list[Alert]) -> Alert | None:
     return next((a for a in reversed(alerts) if a.state == "duress"), alerts[-1] if alerts else None)
 
 
-def _viewed(s: Session, contact: str) -> Alert | None:
+def _viewed(s: Session, contact: str, plain_only: bool = False) -> Alert | None:
     """The alert this contact sees. One that someone else took comes last.
 
     View, Ack and Resolve all use this, so a contact only ever acts on the alert on their screen.
+    `plain_only` leaves out duress alerts: the alert this contact would see in a night with no duress.
     """
-    mine = [a for a in _active(s) if contact in a.alerted]
+    mine = [a for a in _active(s) if contact in a.alerted and not (plain_only and a.state == "duress")]
     return _pick([a for a in mine if a.acknowledged_by in (None, contact)] or mine)
 
 
@@ -201,22 +212,22 @@ def _on_trigger(s, e, now):
     return [Effect(s.config.user_id, "check", {"kind": e.kind, "deadline": s.deadline})]
 
 
-def _front_ok(s: Session) -> list[Effect] | None:
+def _front_ok(s: Session, now: float) -> list[Effect] | None:
     """The user says they are okay. None if the front does not take it."""
     if s.state not in ("armed", "asking", "waiting"):
         return None
-    s.state = "armed"
+    _arm(s, now)
     s.deadline = None
     s.check_kind = None
     return [_to_user(s, "thanks")]
 
 
 def _on_confirm_ok(s, e, now):
-    return _front_ok(s) or []
+    return _front_ok(s, now) or []
 
 
 def _on_duress(s, e, now):
-    effects = _front_ok(s)  # the front does exactly what ConfirmOk does
+    effects = _front_ok(s, now)  # the front does exactly what ConfirmOk does
     if effects is None:
         return []
     tiers = [[c] for c in s.config.duress_contacts]
@@ -276,8 +287,10 @@ def _tick_front(s, now) -> list[Effect]:
     elif s.state in ("armed", "resolved") and _night_over(s, now):
         s.state = "ended"
         effects += _left_effects(s)
+    elif s.state == "armed" and s.next_check is not None and now >= s.next_check:
+        effects += _on_trigger(s, Trigger("periodic"), now)
     elif s.state == "resolved":
-        s.state = "armed"
+        _arm(s, now)
     return effects
 
 
@@ -293,17 +306,26 @@ def _on_tick(s, e, now):
 
 def _on_ack(s, e, now):
     """A contact takes the alert on their screen that nobody has taken yet."""
-    a = _pick([a for a in _active(s) if e.contact_id in a.alerted and not a.acknowledged_by])
+    free = [a for a in _active(s) if e.contact_id in a.alerted and not a.acknowledged_by]
+    a = _pick(free)
     if a is None:
         return []
-    a.acknowledged_by = e.contact_id
-    a.deadline = None
-    if a.state == "escalating":
-        a.state = "acknowledged"
-    if a is s.front_alert:
-        s.state = "acknowledged"
+    f = s.front_alert
+    # The duress alert is on top for a shared contact, but the plain alert must be taken too: a contact who
+    # is only in the tiers must not see an alert that nobody took just because a duress alert exists.
+    wanted = [a, _pick([x for x in free if x.state != "duress"]), f if any(f is x for x in free) else None]
+    targets = list({id(t): t for t in wanted if t is not None}.values())
     data = {"user_id": s.config.user_id, "acknowledged_by": e.contact_id}
-    return [Effect(c, "owner", data) for c in a.alerted if c != e.contact_id]
+    effects = []
+    for t in targets:  # the front alert is taken whenever this contact may take it
+        t.acknowledged_by = e.contact_id
+        t.deadline = None
+        if t.state == "escalating":
+            t.state = "acknowledged"
+        if t is f:
+            s.state = "acknowledged"
+        effects += [Effect(c, "owner", data) for c in t.alerted if c != e.contact_id]
+    return effects
 
 
 def _may_resolve(a: Alert, contact: str) -> bool:
@@ -313,15 +335,20 @@ def _may_resolve(a: Alert, contact: str) -> bool:
 
 
 def _on_contact_resolve(s, e):
-    """A contact ends the one alert on their screen. A duress contact not yet alerted may end a duress alert."""
+    """A contact ends the one alert on their screen. A duress contact not yet alerted may end a duress alert.
+
+    The front alert also ends when this contact may end it, so the front depends only on front rules.
+    """
     a = _viewed(s, e.by) or _pick([a for a in _active(s) if a.state == "duress"])
-    if a is None or not _may_resolve(a, e.by):
-        return []
+    # As in _on_ack: a shared contact who sees the duress alert also ends the plain alert they would see.
+    wanted = [a, _viewed(s, e.by, plain_only=True), s.front_alert]
+    targets = list({id(t): t for t in wanted if t is not None and _may_resolve(t, e.by)}.values())
+    f = s.front_alert
     effects = []
-    if a is s.front_alert:
+    if any(t is f for t in targets):
         _end_front(s)
         effects.append(_to_user(s, "ended_true"))
-    return effects + _resolve(s, [a])  # a hidden alert sends nothing to the user
+    return effects + _resolve(s, targets)  # a hidden alert sends nothing to the user
 
 
 def _on_resolve(s, e, now):
@@ -365,6 +392,8 @@ _HANDLERS = {
 
 def step(session: Session, event, now: float) -> tuple[Session, list[Effect]]:
     """Apply one event. Changes the session in place."""
+    if session.state == "resolved" and type(event) in (Trigger, ConfirmOk, Duress):
+        _arm(session, now)  # the user view already shows armed, so these must work now
     return session, _HANDLERS[type(event)](session, event, now)
 
 
