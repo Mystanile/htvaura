@@ -17,7 +17,6 @@ export default function RootLayout() {
   const scheme = useColorScheme();
   const theme = useTheme();
   const [fontsLoaded, fontError] = useFonts({ Righteous: require('@/assets/fonts/Righteous-Regular.ttf') });
-  if (!fontsLoaded && !fontError) return null;
   // The navigation colors come from our tokens, so no default white or black shows between screens.
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
   const navTheme = { ...base, colors: { ...base.colors, background: theme.background, card: theme.background,
@@ -26,7 +25,7 @@ export default function RootLayout() {
     <ThemeProvider value={navTheme}>
       <SafekeepsProvider>
         <StatusBar style="dark" />
-        <ConnectionGate><Stack screenOptions={{
+        <ConnectionGate fontsReady={fontsLoaded || !!fontError}><Stack screenOptions={{
           headerStyle: { backgroundColor: theme.background },
           headerTintColor: theme.text,
           headerShadowVisible: false,
