@@ -166,12 +166,14 @@ Say this before the judges ask. The full list is in `DEMO_NOTES.md`. The studies
   - The server state machine and its timers, the tiers, "I'm on it" and its hold time, and the re-alert backoff.
   - The saved state across a restart, and the demo panel.
   - The Safekeeps app in a web browser. Find them with the GPS arrow, and the ping rules on the server.
-- Built, tested only in unit tests until the hardware test passes:
-  - The band: gestures, ask, ping beep, and answers kept while the phone is away.
-  - The heartbeat wake and iOS state restoration.
-  - Hotter and colder, and the band relay in the app.
-  - The earlier band firmware was checked in nRF Connect. The current one only compiles.
-- **HARDWARE TEST PENDING:** after the user's hardware test, move each item that passed to Real, and write each fail in `DEMO_NOTES.md` with its fallback.
+- Real on hardware (iPhone 15 Pro and the band, 2026-10-17):
+  - Pairing, band ok and duress through the app to the server, the band asking, and Ping reaching the band.
+  - The heartbeat: with the screen off, the band asked about 12 s after a check started.
+  - iOS state restoration: after the app was stopped, iOS relaunched it in the background and a band answer still reached the server, with nobody touching the phone.
+  - A second phone still sees the band while it is connected.
+- Built, not yet tested on hardware:
+  - Hotter and colder (it needs a second phone on the native build).
+  - The latest firmware changes: the buzzer on, and answers kept for 60 s until a phone subscribes. They compile. The tests above ran on the earlier firmware.
 - Simulated with the panel: the passage of time, a phone disconnect, a contact who does not answer, group separation, the final step (emergency services), and every alert. No SMS, calls, or 911.
 - Assumed:
   - Contacts have the app open. There is no push or SMS yet.

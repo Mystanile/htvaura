@@ -4,7 +4,16 @@ This file sorts the prototype into the four groups that the KAZE brief asks for.
 
 ## What the prototype actually demonstrates
 
-These items run in the prototype and pass automated tests: 244 server tests and 57 app node tests.
+These items run in the prototype and pass automated tests: 245 server tests and 57 app node tests.
+
+On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware and app from branch `home-by`, 2026-10-17):
+
+- Pairing the band in Settings, and "Band connected" on Home.
+- Band ok (3 taps) and duress (hold 1 s, 2 taps) reach the server and look the same on the phone.
+- A check makes the band ask. A friend's Ping makes the phone ring and the band flash.
+- Heartbeat: with the phone screen off, the band asked about 12 s after a check started.
+- State restoration: the app was stopped from the Mac. iOS relaunched it in the background about 12 s later with nobody touching the phone, and a band answer reached the server with the screen off.
+- Advertising while connected: a second phone still saw KAZE-Band in nRF Connect.
 
 - The check-in loop on the server: triggers, ask and grace timers, ranked tiers, acknowledgement, PIN cancel with one silent retry, duress, and privacy views. The 7 KAZE scenarios pass as automated tests.
 - Timers keep running on the server after a phone disconnects (scenario 4, tested over a real WebSocket).
@@ -86,13 +95,13 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 
 | Test | How | Result | Date |
 |---|---|---|---|
-| Ask to band delay, phone locked | 10 trials. Median and max in seconds |  |  |
-| State restoration | Stop the app from the Mac, tap the band. Pass or fail |  |  |
+| Ask to band delay, phone locked | 10 trials. Median and max in seconds | About 12 s (a few tries, not 10 timed trials yet) | 2026-10-17 |
+| State restoration | Stop the app from the Mac, tap the band. Pass or fail | Pass. Relaunched in about 12 s, answer reached the server with the screen off | 2026-10-17 |
 | Battery drain per hour, 20 s heartbeat | Phone and band battery percent per hour |  |  |
 | Hotter and colder at 0.5 m | Zone shown |  |  |
 | Hotter and colder at 2 m | Zone shown |  |  |
 | Hotter and colder at 5 m | Zone shown |  |  |
-| Advertising while connected | A second phone sees KAZE-Band. Pass or fail |  |  |
+| Advertising while connected | A second phone sees KAZE-Band. Pass or fail | Pass | 2026-10-17 |
 
 ### Built, but checked only by automated tests
 
