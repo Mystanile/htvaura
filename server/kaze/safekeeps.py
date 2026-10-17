@@ -106,6 +106,10 @@ class NameIn(BaseModel):
     name: str = Field(default="", max_length=40)
 
 
+class AcceptFriendIn(BaseModel):
+    name: str = Field(default="", max_length=40)
+
+
 @router.post("/profiles")
 def create_profile(body: ProfileIn):
     name = body.name.strip()
@@ -148,13 +152,18 @@ def add_friend(body: FriendIn, authorization: str | None = Header(default=None))
 
 
 @router.post("/friend-requests/{sender_id}/accept")
-def accept_friend(sender_id: str, authorization: str | None = Header(default=None)):
+def accept_friend(sender_id: str, body: AcceptFriendIn | None = None, authorization: str | None = Header(default=None)):
     with connect() as db:
         user = identity(db, authorization)
         if not db.execute("SELECT 1 FROM friend_requests WHERE sender = ? AND target = ?", (sender_id, user["id"])).fetchone():
             raise HTTPException(404, "This friend request is no longer available.")
         db.execute("INSERT OR IGNORE INTO friendships VALUES (?, ?)", (user["id"], sender_id))
         db.execute("INSERT OR IGNORE INTO friendships VALUES (?, ?)", (sender_id, user["id"]))
+        if body and body.name.strip():
+            db.execute("""
+                INSERT INTO friend_names VALUES (?, ?, ?)
+                ON CONFLICT(owner, friend) DO UPDATE SET name = excluded.name
+            """, (user["id"], sender_id, body.name.strip()))
         db.execute("DELETE FROM friend_requests WHERE (sender = ? AND target = ?) OR (sender = ? AND target = ?)",
                    (sender_id, user["id"], user["id"], sender_id))
         return snapshot(db, user)

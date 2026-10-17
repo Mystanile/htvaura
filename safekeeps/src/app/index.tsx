@@ -19,6 +19,23 @@ import { useTheme } from '@/hooks/use-theme';
 import type { Friend } from '@/services/demo-api';
 import { formatCheckIn, useSafekeeps } from '@/state/safekeeps';
 
+// A friend request (the teammate's card, with option A's labeled field and buttons). The name is private to me.
+function FriendRequest({ request }: { request: { id: string; name: string } }) {
+  const state = useSafekeeps();
+  const [name, setName] = useState('');
+  return (
+    <View style={{ gap: Spacing.two }}>
+      <ThemedText type="name">{request.name} wants to add you</ThemedText>
+      <Field label="Choose a name for them" helper="Only you will see it." value={name} onChangeText={setName}
+        placeholder="Name (optional)" autoCapitalize="words" editable={!state.busy} maxLength={40} />
+      <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+        <AppButton flex label="Accept" disabled={state.busy} onPress={() => { void state.acceptFriend(request.id, name); }} />
+        <AppButton flex label="Decline" variant="secondary" disabled={state.busy} onPress={() => { void state.declineFriend(request.id); }} />
+      </View>
+    </View>
+  );
+}
+
 // A friend row. It sits inside the green card, so useTheme() here already gives the green card colors.
 function FriendRow({ friend: { id, name, lastCheckIn, requestedAt, resolvedAt } }: { friend: Friend }) {
   const theme = useTheme();
@@ -98,15 +115,7 @@ export default function HomeScreen() {
       </SectionCard>
       <SectionCard tone="green">
         {state.friendRequests.length > 0 && <ThemedText type="heading">Friend requests</ThemedText>}
-        {state.friendRequests.map(request => (
-          <View key={request.id} style={{ gap: Spacing.two }}>
-            <ThemedText type="name">{request.name} wants to add you</ThemedText>
-            <View style={{ flexDirection: 'row', gap: Spacing.two }}>
-              <AppButton flex label="Accept" disabled={state.busy} onPress={() => { void state.acceptFriend(request.id); }} />
-              <AppButton flex label="Decline" variant="secondary" disabled={state.busy} onPress={() => { void state.declineFriend(request.id); }} />
-            </View>
-          </View>
-        ))}
+        {state.friendRequests.map(request => <FriendRequest key={request.id} request={request} />)}
         {state.sentRequests.map(request => (
           <ThemedText key={request.id} accessibilityLiveRegion="polite">Request sent to {request.name} · Awaiting acceptance</ThemedText>
         ))}
