@@ -90,3 +90,32 @@ test('trend: steady when either half is empty', () => {
   assert.equal(trend([at(7000, -50)], 10_000), 'steady'); // nothing recent
   assert.equal(trend([at(5000, -50), at(9000, -40)], 10_000), 'steady'); // before is older than 4 s
 });
+
+test('literal base64 strings the band sends', () => {
+  assert.deepEqual(['AA==', 'AQ==', 'Ag==', 'Aw==', 'BA=='].map(decodeEvent), [null, 'ConfirmOk', 'Duress', 'heartbeat', null]);
+  assert.equal(decodeEvent('AQ'), 'ConfirmOk'); // padding is not needed
+});
+
+test('short or garbage base64 never throws and gives null', () => {
+  for (const bad of ['A', '=', '==', '=A', 'A=', ' ', 'éé', '-_', 'not base64 at all!']) {
+    assert.equal(decodeEvent(bad), null, JSON.stringify(bad));
+  }
+});
+
+test('askKey: a deadline of 0 is still a key, a new deadline is a new key', () => {
+  assert.equal(askKey({ state: 'asking', deadline: 0 }), 0);
+  assert.notEqual(askKey({ state: 'asking', deadline: 1700 }), askKey({ state: 'asking', deadline: 1760 }));
+});
+
+test('shouldPingBand: a first ping at time 0 handled, then a repeat is ignored', () => {
+  assert.equal(shouldPingBand(5, 0, 6), true);
+  assert.equal(shouldPingBand(0, 0, 1), false);
+});
+
+test('trend: samples outside both 2 s halves are ignored; boundaries', () => {
+  const now = 10_000;
+  // the sample at exactly now-4000 is out of "before"; the one at exactly now-2000 belongs to "before"
+  assert.equal(trend([at(6000, -50), at(9000, -80)], now), 'steady');
+  assert.equal(trend([at(8000, -80), at(9000, -70)], now), 'warmer');
+  assert.equal(trend([at(8000, -80), at(10_000, -70)], now), 'warmer'); // exactly now is recent
+});
