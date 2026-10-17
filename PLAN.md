@@ -21,7 +21,39 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [ ] 4.1 to 4.2 Find them
 - [ ] 5.1 to 5.4 BLE band
 
-## Where we stopped (2026-10-17)
+## Handoff: start here (2026-10-17, about 09:00)
+
+A new session continues from this section. Read it first, then the Status list above.
+
+Where the code is:
+- `main` has the server: loop, bridge, demo panel. 201 server tests pass (`cd server && .venv/bin/pytest -q`).
+- Branch `checkin-screens` has the teammate's app with tasks 2.1, 2.3, 2.4 added, plus `main` merged in. Pull request #1 (https://github.com/Mystanile/htvaura/pull/1) is open and waits for the teammate's review. Do not merge it without the user.
+- A second checkout of that branch is at `~/Desktop/kaze-app` (git worktree), with `node_modules` installed. Run the demo from there.
+- `Hardware/kaze_band/kaze_band.ino` has uncommitted changes by the user in the main folder. Do not commit or touch them.
+
+How the demo runs (these processes die when the session that started them ends, so check and restart them):
+1. Server: `cd ~/Desktop/kaze-app/server && KAZE_DEMO_KEY=<pick one> ~/Desktop/kaze/server/.venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000`. The key protects `/panel` data and `/demo/*` through the `X-Demo-Key` header. The user knows the current key. Never commit it.
+2. Tunnel, because the venue Wi-Fi blocks phone-to-laptop traffic (checked: Safari on a phone could not reach the laptop): `cloudflared tunnel --url http://localhost:8000`. The address changes on every start, so the phones and the panel need the new one.
+3. App: `cd ~/Desktop/kaze-app/safekeeps && EXPO_PUBLIC_API_URL=<tunnel address> npx expo start --tunnel`, then Expo Go on the iPhones.
+4. Panel: `<tunnel address>/panel`, then type the key.
+
+Rules from the user for this repo:
+- No "Co-Authored-By: Claude" line in commits and no Claude line in pull requests. The user wants to be the only contributor.
+- The teammate owns `safekeeps/`. Preserve her design. Change her app only on a branch with a pull request, and only when the user asks.
+- Open question, not decided: rewriting `main` to remove the old Claude co-author lines needs a force push. Do not do it unless the user asks again.
+
+Not tested yet: the app on real iPhones (vibration, real taps, `expo start --tunnel`), and the panel on real phones.
+
+Next steps, in order:
+1. Two real iPhones through the tunnel, running the `checkin-screens` app. Fix what breaks.
+2. Phase 4, find them (4.1 GPS arrow with expo-location and heading, 4.2 "ping" that makes the person's phone ring and flash). Give the user a short plan and wait for a go first.
+3. Phase 5 on the user's Mac: a development build of the teammate's app in Xcode (5.1, try one plain build on one iPhone early), then the band relay in the app (5.3), then RSSI hotter and colder (5.4). The spec is `Hardware/kaze_band/HARDWARE.md`.
+4. Task 2.5: the home-by-time trigger.
+5. Before judging: update `README.md` and `DEMO_NOTES.md` (Demonstrated, Simulated, Assumed).
+
+## History of earlier stops
+
+### Where we stopped (2026-10-17)
 
 Phase 1 is done and committed. Its tasks are 1.1 to 1.5 in the Status list above. All server tests pass, including the 7 scenario tests. Run them with `cd server && .venv/bin/pytest -q`.
 
