@@ -88,7 +88,7 @@ The pins, Bluetooth details and gestures are in `Hardware/kaze_band/HARDWARE.md`
 
 ## Pair the band
 
-In the app, open Settings, then Band, then "Pair band". After pairing, Home shows "Band connected".
+In the app, open Settings, then Band, then "Pair band". After pairing, Home shows "Band connected. Start a night to use it." The server refuses band answers until a night runs. Once a night runs, Home shows "Band connected".
 
 ## Run the demo
 

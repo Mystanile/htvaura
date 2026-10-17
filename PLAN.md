@@ -23,7 +23,7 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 5.1 iPhone Release build works (iPhone 15 Pro).
 - [x] 5.2 Band firmware. The gestures, ask and ping were tested in nRF Connect. The heartbeat (0x03 every 20 s while connected) and advertising again on connect compile but are not tested on the board.
 - [x] 5.3 Band relay in the app, on branch `band`: pair in Settings, band ok and duress go to the server through one code path, the app writes `ask` and `ping`, iOS background mode and state restoration, and the heartbeat wakes the app to check the server. Unit tests pass. Tested on hardware on 2026-10-17 (`home-by` build): pairing, ok and duress, ask, ping, heartbeat (about 12 s), state restoration, advertising while connected.
-- [x] 5.4 Hotter and colder on Find them, on branch `band`. Unit tests pass. Needs the finder's phone on a Release build, and is not tested on a phone yet.
+- [x] 5.4 Hotter and colder on Find them, on branch `band`. Unit tests pass. The two-person test showed that the three zones were not accurate past 1 m. Replaced by two states in 6.13.
 - [x] 6.x Judging fixes, on branch `judging` (see the judging review). All done in automated tests only: 246 server tests and 57 app node tests pass, with type check and lint clean. Nothing in this list was run on a phone, in a browser, or on the band.
   - [x] 6.1 Response cards: every card has three new "do" lines and two new "do not" lines about staying with the person (see `server/kaze/cards.py`). No diagnosis words.
   - [x] 6.2 Ack hold: an "I'm on it" holds the alert for `ack_hold_seconds` (120 s demo). If the alert is not resolved by then, it goes back out with `stale_ack_by`, and the contact gets `ack_stale`. Alert fields only, so the watcher test stays green.
@@ -44,14 +44,31 @@ A fresh session continues from this file. Mark tasks done in the Status section 
     - DEMO_SCRIPT: a third person as tier 2, the demo timers, and the new beats.
     - DEMO_NOTES: the brief's four groups, with a hardware results table.
     - New `VALIDATION.md`, and the env vars in README.
+- [x] 6.12 Duress PIN (decision 12). Tested in automated tests only, not on a phone or the band.
+  - Server: `Config.duress_pin`, and `_raise_duress`, which the Duress gesture also uses. Then `_on_duress_pin` in `loop.py`, and the 400 check in `begin_night`.
+  - API.md section 6 has "The duress PIN".
+  - App: "Duress PIN" and "Repeat duress PIN" in Start a night. Live hints: "The PINs do not match" and "Use a different PIN from your normal PIN".
+  - Tests: the twin test (random runs and all 8 front states), the HTTP twin, scenario 3, and the loop tests.
+- [x] 6.13 Fixes from the two-person hardware retest (2026-10-17). Tested in automated tests only, not on a phone or the band:
+  - Find them: the three zones and Warmer or Colder are gone. Two states with hysteresis (`nextNear`, -60 dBm enter, -68 dBm leave). A new line under Ping: "Bluetooth can only tell when you are right beside them. Use Ping to hear them."
+  - Band relay: a 404 (no night) drops a band answer and does not retry it. With no night running, Home says "Band connected. Start a night to use it."
+  - Server 273 tests and app 57 node tests pass, with type check and lint clean.
 
 ## Handoff: start here (2026-10-17, evening)
 
 A new session continues from this section. Read it first, then the Status list above.
 
 Judging branch (newest work):
-- Worktree `~/Desktop/kaze-judge`, branch `judging`. It holds the 6.x items above. The plan is a pull request into `home-by`. The lead reviews and commits it.
-- Hardware test on 2026-10-17 (branch `home-by` build and firmware): pairing, band ok and duress, ask, ping, heartbeat (about 12 s), state restoration and advertising while connected all pass. Results are in `DEMO_NOTES.md`. Still to test: hotter and colder (needs a second native phone), battery drain, and the latest firmware and app from `judging`.
+- Worktree `~/Desktop/kaze-judge`, branch `judging`. It holds the 6.x items above. The plan is a pull request into `home-by`. The lead reviews and commits it. Items 6.12 and 6.13 are not committed yet.
+- Two-person retest on 2026-10-17 (two iPhones and the band): most of the judging build worked. Not tested: scaled alerts (the hand-off to tier 2). Two problems, both fixed in code (6.12, 6.13) and waiting for a retest:
+  - Find them was not accurate. Walking away sometimes showed a closer state.
+  - The duress PIN did nothing, on the phone ("Cancel an alert") or from the band. The build had no duress PIN. The band gesture may also have been made during the user's own alert: the server ignored the duress gesture in escalating and acknowledged. Fixed: the gesture now starts the duress alert in every front state. A band paired with no night running also gets its answers refused (Home now says so).
+- Hardware test on 2026-10-17 (branch `home-by` build and firmware): pairing, band ok and duress, ask, ping, heartbeat (about 12 s), state restoration and advertising while connected all pass. Results are in `DEMO_NOTES.md`. Still to test:
+  - the two-state band signal on Find them
+  - the duress PIN on a phone
+  - scaled alerts with three people
+  - battery drain
+  - the latest firmware and app from `judging`
 - Ideas from the judging review that are not done:
   - Push to contacts through ntfy (needs the user's approval, it is not in this plan).
   - Slides.
@@ -61,7 +78,7 @@ Judging branch (newest work):
   - The hallway gesture test with other hackers (the user's job).
 
 Where the code is:
-- `main` has the server: loop, bridge, demo panel. 223 server tests pass on `home-by` (`cd server && .venv/bin/pytest -q`). The app has 52 node tests there. The `judging` branch has 246 server tests and 57 app node tests. `main` has 224 and 53.
+- `main` has the server: loop, bridge, demo panel. 223 server tests pass on `home-by` (`cd server && .venv/bin/pytest -q`). The app has 52 node tests there. The `judging` branch has 290 server tests and 57 app node tests (with 6.12, 6.13 and the duress gesture fix, not committed). `main` has 224 and 53.
 - Branch `checkin-screens` has the teammate's app with tasks 2.1, 2.3, 2.4 added, plus `main` merged in. Pull request #1 (https://github.com/Mystanile/htvaura/pull/1) is open and waits for the teammate's review. Do not merge it without the user.
 - Branch `find-them` (pull request #2, into `checkin-screens`) adds find them and ping.
 - Branch `test-fixes` (pull request #3, into `find-them`) fixes the first phone test: Find them hides the arrow below about 30 m because indoor GPS is off by 20 to 50 m, "Open in Maps" is a picker (Apple Maps, Google Maps, Waze), and you can rename a friend who added you (`POST /safekeeps/friends/{friend_id}/name`). 214 server tests pass.
@@ -99,6 +116,11 @@ iPhone build (task 5.1, works on 2026-10-17 on one iPhone 15 Pro):
 
 Next steps, in order:
 0. The newest code is on branch `home-by` (worktree `~/Desktop/kaze-band`). The user picked option A (`ui-refine`). Hold off on color changes: the teammate is redoing the palette. In order:
+   - First, after the lead commits 6.12 and 6.13: build `judging` onto both iPhones. Retest with a night running:
+     - The duress PIN from "Cancel an alert". The duress contact gets the alert, and the phone shows the filled check.
+     - The band duress gesture.
+     - The two-state band signal on Find them.
+     - Scaled alerts (the tier 2 hand-off) with a third person.
    - The user runs the full hardware test: build `home-by` onto the iPhone 15 Pro, flash the band, and run the list in DEMO_NOTES "Needs manual testing". The friend's phone needs a Release build for hotter and colder, so it needs a cable. The demo script is `DEMO_SCRIPT.md`.
    - Then fix what breaks.
    - Then merge the chain in order: #1, #2, #3, #4, #6, #7. Before merging, discard the main-folder copy of `kaze_band.ino` (see "Where the code is").
@@ -154,6 +176,10 @@ The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/
 
 10. Location during a night (decided 2026-10-17). While a night runs and the app is open, the phone sends its GPS location to the server about every 30 s. The server shows it to contacts only during an active alert (`view_for`), and clears it when the alert ends. Reason: the phone never knows a duress alert is running, so this is the only way duress contacts get a location.
 11. Ping only for visible alerts (decided 2026-10-17). A contact can ping the person's phone (loud sound and flash) only through the user's visible front alert, never a hidden one. A ringing phone would expose a duress alert to the person watching.
+12. Duress PIN (decided 2026-10-17). The user sets a second 4-digit PIN at setup, different from the cancel PIN. The user types it in the same PIN box. The phone shows exactly what the right PIN shows: "Alert ended" with the filled check. In secret, a duress alert starts with the front location, exactly as after the duress gesture. Nothing is resolved. The user's own alert, if one runs, becomes hidden and keeps escalating. This is like a fake end, but no contact gets `wrong_pin_warning`. It never counts as a wrong PIN. The right PIN still ends every alert later.
+   - Reason: the KAZE brief gives this as an example of a duress mechanism. It is a code that appears to cancel an alert while it silently asks for help.
+   - How it relates to decision 3: both hide an alert from the watcher. Decision 3 stays. It protects a user who types a wrong PIN, by accident or on purpose, and its screens do not change. The duress PIN is the planned way. It gives the filled check and a new alert to the duress contacts.
+   - Tests: `test_twin.py` compares the duress PIN with the right PIN, in random runs and from all 8 front states. Also the HTTP twin in `test_bridge.py`, and `test_3_duress_pin_looks_like_a_real_cancel_but_alerts_the_duress_contacts`.
 
 ## Architecture
 
@@ -195,6 +221,7 @@ class Config:
     tiers: list[list[str]]          # ranked; each tier is a list of contact ids
     duress_contacts: list[str]      # ranked; each contact is its own tier
     group: list[str]                # group member ids, not including user_id
+    duress_pin: str | None = None   # decision 12. Must differ from pin
     share_location_with: str = "alerted"   # "alerted" or "acknowledger"
     ask_seconds: float = 30
     grace_seconds: float = 15
@@ -263,11 +290,12 @@ Front rules. The front reads only front fields and whether a PIN is right. It ne
   - First wrong PIN: screen `pin_retry`, one `screen` effect, nothing else.
   - Second and later wrong PIN: screen `ended_fake`. The front then acts exactly like a correct PIN. It goes to resolved if it had an alert, and wrong_pins is reset to 0. The alert it had is not resolved. It becomes hidden and keeps escalating. Every alerted contact of every active alert gets `wrong_pin_warning`.
   - The only difference the user ever sees between a correct and a wrong PIN is `ended_true` against `ended_fake`.
+  - Duress PIN (decision 12), checked first. The front does exactly what the correct PIN does, so the user gets `ended_true`. Before that, a duress alert starts as for Duress. Nothing is resolved. A front alert becomes hidden and keeps escalating, with no warning. wrong_pins does not change. In ended, the user gets nothing, but the duress alert still starts.
 - On the next Tick, resolved goes to armed. It does not change `screen`. Armed or resolved goes to ended on a Tick after night_ends_at, and `left` goes to every group member. An active alert never ends because of the night end time.
 - Leave in armed, asking, waiting, or resolved goes to ended and sends `left` to every group member. In escalating or acknowledged it is ignored, so the user must cancel with the PIN first. In ended it is ignored.
 
 Alert rules. Contacts act on alerts and never on the front.
-- Duress in armed, asking, or waiting makes the front do exactly what ConfirmOk does, so the user gets the same single `screen` thanks effect. It also starts a new hidden alert of kind duress. It does not start one if an unacknowledged duress alert for the same duress contacts is already active. An acknowledged one does not block it. That alert alerts duress contact 1 only. It never sends anything to a group member who is not in duress_contacts. In other front states Duress is ignored.
+- Duress in armed, asking, or waiting makes the front do exactly what ConfirmOk does, so the user gets the same single `screen` thanks effect. It also starts a new hidden alert of kind duress. It does not start one if an unacknowledged duress alert for the same duress contacts is already active. An acknowledged one does not block it. That alert alerts duress contact 1 only. It never sends anything to a group member who is not in duress_contacts. In escalating, acknowledged, or ended the front does nothing, exactly as for ConfirmOk, but the hidden duress alert still starts (fixed 2026-10-17: before, the gesture did nothing during the user's own alert).
 - Tick runs every alert's ack timer on its own. It does so after the front ended or left. After the last tier, every contact in every tier (or every duress contact) is re-alerted and the ack timer restarts.
 - A contact acts on one alert at a time, the one on their screen. That is a duress alert first, else the newest. An alert that another contact already took comes last. `view_for`, Ack, and Resolve all pick the alert the same way. A contact who is alerted by two alerts never ends one by acting on the other.
 - Ack from a contact applies to the alert that alerted this contact and has no acknowledger yet. A normal alert goes to acknowledged, clears its deadline, and sends `owner` to the other alerted contacts. A duress alert sets acknowledged_by, clears its deadline, sends `owner`, and its state stays duress. If the alert is the front alert, the front goes to acknowledged. Ack from a contact who was not alerted is ignored. If this contact was also alerted by the front alert and it has no acknowledger yet, the same Ack takes the front alert too. So a contact in both the tiers and `duress_contacts` gives the same front result as for an honest user. Two hidden alerts still need one Ack each.
@@ -325,12 +353,15 @@ The front has seven states: armed, asking, waiting, escalating, acknowledged, re
 | waiting | tap ok | armed | none to anyone else |
 | waiting | grace timer runs out | escalating | the front alert is created, tier 1 gets alert + response card, ack timer (demo 20 s) |
 | armed / asking / waiting | duress gesture | armed (same as tap ok) | user sees normal "Thanks!". A hidden duress alert starts. Duress tier 1 gets silent alert + duress card, ack timer. |
+| escalating / acknowledged / ended | duress gesture | same state (same as tap ok, which does nothing here) | user sees no change. A hidden duress alert starts, as above. The user's own alert keeps going. |
 | escalating | contact taps "I'm on it" | acknowledged | others told who owns it, location shared per settings |
 | escalating / acknowledged | correct PIN, or acknowledging contact resolves | resolved | everyone in the alert told "resolved", location sharing stops |
 | escalating / acknowledged | 1st wrong PIN | same state | user sees "Incorrect PIN, try again", no one told |
 | escalating / acknowledged | 2nd+ wrong PIN | resolved | user sees fake "Alert ended" (outlined check). The alert becomes hidden and keeps escalating. Contacts warned. |
 | armed / asking / waiting | correct PIN | same state | user sees "Alert ended" (filled check). Hidden alerts raised under that PIN are resolved. |
 | armed / asking / waiting | 1st or 2nd+ wrong PIN | same state | the same screens as above, so nothing tells the user's case apart |
+| any but ended | duress PIN | as for the correct PIN | user sees "Alert ended" (filled check). A hidden duress alert starts. Nothing is resolved. A running front alert becomes hidden and keeps escalating. |
+| ended | duress PIN | ended | user sees nothing. A hidden duress alert starts. |
 | resolved | (next tick) | armed | if the night is still running, else ended |
 | armed / asking / waiting / resolved | leave, or night end time passes | ended | others see only "left". Hidden alerts keep running. |
 | any | phone disconnects / reconnects | same state | recorded only. Timers keep running on the server. |
@@ -396,7 +427,7 @@ The app is the product and works on any phone without a band. The band is an ext
 - 5.1 Development build of the teammate's app with `react-native-ble-plx`. Expo Go has no Bluetooth. The builds run on the user's Mac (done: Xcode 27.1, CocoaPods, and Personal Team signing). Do one test build of the current app on one iPhone early, before any BLE code.
 - 5.2 Done: `Hardware/kaze_band/kaze_band.ino`. Service `7f1a0001-...`, `event` notify (0x01 ok, 0x02 duress), `ping` write, `ask` write. Tested in nRF Connect.
 - 5.3 The app subscribes to `event` and forwards 0x01 as ConfirmOk and 0x02 as Duress to `/safekeeps/night/events`. When the user's view goes to `asking`, the app writes to `ask`. The band never reports silence, so the server timer handles a missed or dead band.
-- 5.4 Find them: the finder's phone scans the band and shows the zones from HARDWARE.md (stronger than -55 dBm right here, -55 to -80 close, weaker than -80 in range), smoothed with the median of the last 3 to 5 s. "Ping" writes to the band. Separation means the band's signal is lost for 30 s or more, not an RSSI cutoff.
+- 5.4 Find them: the finder's phone scans the band and shows two states from HARDWARE.md. It uses the median of the last 4 s. A median stronger than -60 dBm shows "You're right next to them". Only a median weaker than -68 dBm ends it. Otherwise the screen shows "Their band is in range". This changed in 6.13. The first version had three zones and Warmer or Colder. They were not accurate past 1 m. "Ping" writes to the band. Separation means the band's signal is lost for 30 s or more, not an RSSI cutoff.
 
 ## Simulated or assumed (start of DEMO_NOTES.md)
 

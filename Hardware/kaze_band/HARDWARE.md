@@ -94,14 +94,19 @@ Big jump between right beside and 1 m. Past 1 m it's mostly noise (bodies, walls
 
 ### Hotter and colder (find them)
 
-| Zone | RSSI | Show |
-|---|---|---|
-| Right here | stronger than -55 | "You're right next to them" + Ping button |
-| Close | -55 to -80 | "Getting close" |
-| In range | weaker than -80 | "They're somewhere nearby" |
+The app now shows **two states**, with hysteresis (`nextNear` in `safekeeps/src/services/band.ts`):
 
-- Smooth with the **median of the last 3 to 5 seconds**, never a single reading.
-- Show **warmer / colder** from whether the smoothed value is rising or falling.
+| State | Enter when | Leave when | Show |
+|---|---|---|---|
+| Right next to them | median stronger than -60 dBm | median weaker than -68 dBm | "You're right next to them" |
+| In range | any other reading | | "Their band is in range" |
+
+- Smooth with the **median of the last 4 seconds**, never a single reading.
+- Hysteresis: the state changes at -60 dBm on the way in and at -68 dBm on the way out. The 8 dB gap stops the screen from flickering at the edge.
+- No reading in the last 4 s resets the state. After 10 s with no reading the screen shows "No band signal".
+- Under the Ping button the screen says "Bluetooth can only tell when you are right beside them. Use Ping to hear them."
+
+Why two states: the table above shows one clear jump, from -41 dBm right beside the band to -75 dBm at 1 m. Past 1 m the readings are noise. The first version had three zones (-55 and -80 dBm) and warmer or colder. In the two-person test on 2026-10-17 it was not accurate past 1 m: walking away sometimes showed a closer state. So the app now says only what the signal can tell. -60 dBm sits between right beside (-41) and 1 m (-75). The two states are unit tested. They are not tested on hardware yet.
 
 ### Group separation
 

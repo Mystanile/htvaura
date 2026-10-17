@@ -4,7 +4,7 @@ This file sorts the prototype into the four groups that the KAZE brief asks for.
 
 ## What the prototype actually demonstrates
 
-These items run in the prototype and pass automated tests: 246 server tests and 57 app node tests.
+These items run in the prototype and pass automated tests: 273 server tests and 57 app node tests.
 
 On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware and app from branch `home-by`, 2026-10-17):
 
@@ -14,6 +14,8 @@ On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware
 - Heartbeat: with the phone screen off, the band asked about 12 s after a check started.
 - State restoration: the app was stopped from the Mac. iOS relaunched it in the background about 12 s later with nobody touching the phone, and a band answer reached the server with the screen off.
 - Advertising while connected: a second phone still saw KAZE-Band in nRF Connect.
+
+Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most of the build worked. Scaled alerts (the hand-off to tier 2) were not tested. Two problems came up. Both are fixed in code and wait for a retest. See "Hardware test results".
 
 - The check-in loop on the server: triggers, ask and grace timers, ranked tiers, acknowledgement, PIN cancel with one silent retry, duress, and privacy views. The 7 KAZE scenarios pass as automated tests.
 - Timers keep running on the server after a phone disconnects (scenario 4, tested over a real WebSocket).
@@ -29,7 +31,12 @@ On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware
 - In Start a night, the user picks "Who sees your location during an alert": "Everyone alerted" or "Only whoever says I'm on it". The user can also set an optional "Night ends at" time. The server rules are tested.
 - Response cards tell contacts what to do and what not to do, with no diagnosis words (tested).
 - Ping (a contact makes the person's phone ring) works only on visible alerts. It never works on a duress or fake-ended alert, because a ringing phone shows a hidden alert to a watcher. The server side is tested. The ring and flash on the phone, and the band beep, passed on hardware on 2026-10-17.
-- Automated tests only, not on hardware: the home-by checks, the band relay logic in the app, and the hotter and colder logic.
+- The duress PIN. The user sets a second PIN in Start a night. Typed in the PIN box, it shows the same filled-check "Alert ended" as the right PIN. In secret it alerts the duress contacts and ends nothing. Tests compare it with the right PIN in every front state, and in the random twin test, where it is one of three hidden kinds (it hid a running alert in 119 of 500 seeds). Over HTTP they compare the status, body and length, and the friends' snapshots. Limit: a watcher who holds a tier contact's phone sees the alert stay after the duress PIN, where the right PIN would end it. The wrong-PIN fake end has the same limit. Automated tests only.
+- Automated tests only, not on hardware:
+  - the home-by checks
+  - the band relay logic in the app
+  - the two-state band signal on Find them
+  - the duress PIN
 
 ## What is simulated
 
@@ -48,7 +55,7 @@ On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware
 - Location is uploaded all night while a night runs, not only during an alert. The server keeps it in memory and in the state file on the laptop (`server/kaze_state.pickle`, or the path in `KAZE_STATE`). Contacts see it only during an alert.
 - The server loads the state file without checks. Anyone who can write that file can run code on the server. This is fine for a laptop demo only.
 - Some path from the band to the server always exists: the owner's phone, a friend's phone as a relay, or home Wi-Fi.
-- Only one band is near. Every band has the same name, so hotter and colder follows any KAZE band.
+- Only one band is near. Every band has the same name, so the band signal on Find them follows any KAZE band.
 - The app is not swiped away. iOS does not relaunch an app that the user swiped away, so the band cannot wake it.
 - When the phone is locked, an ask or a ping reaches the band up to 20 s late. The heartbeat wakes the app only every 20 s.
 - The demo band uses BLE only. On the Uno R4 WiFi, BLE and Wi-Fi share one radio chip, so we did not build a direct band-to-server path over Wi-Fi.
@@ -80,8 +87,12 @@ Automated tests cannot cover real phones, BLE, or the Arduino band.
   - The answer and the 0 go out back to back. Nobody checked yet that both reach iOS in order.
 - Band with the app. Passed on hardware on 2026-10-17 (`home-by` build and firmware): pairing, band ok and duress, the band asking, Ping reaching the band, the heartbeat, state restoration, and advertising while connected. See "What the prototype actually demonstrates". Still untested on hardware:
   - The app asks the band again at the louder stage. This assumes the firmware starts the ask again on each write.
-  - An answer from the band can fail to reach the server. Then the app keeps it and sends it later. It keeps an ok or a duress for 60 s, the same for both, so a late one cannot tell them apart and cannot answer a later check. The band keeps an answer made with no phone connected for the same 60 s. A duress that cannot be sent within 60 s is lost. The server timer still escalates silence. A server refusal is also kept and retried until it expires.
-  - Hotter and colder on the friend's phone: the three zones and Warmer or Colder.
+  - An answer from the band can fail to reach the server. Then the app keeps it and sends it later. It keeps an ok or a duress for 60 s, the same for both, so a late one cannot tell them apart and cannot answer a later check. The band keeps an answer made with no phone connected for the same 60 s. A duress that cannot be sent within 60 s is lost. The server timer still escalates silence. A server refusal is also kept and retried until it expires. Only a 404 (no night running) is dropped at once.
+  - The band signal on the friend's phone: "Their band is in range", then "You're right next to them" right beside the band, and the line under Ping.
+  - With no night running, Home says "Band connected. Start a night to use it."
+  - The duress PIN typed on the phone with "Cancel an alert", during an alert and with no alert. The duress contact gets the alert, and the phone shows the filled check.
+  - The band duress gesture with a night running, during an alert and with no alert.
+  - Scaled alerts with three people: the alert moves to tier 2.
 
 ### Hardware test results
 
@@ -92,9 +103,13 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 | Ask to band delay, phone locked | 10 trials. Median and max in seconds | About 12 s (a few tries, not 10 timed trials yet) | 2026-10-17 |
 | State restoration | Stop the app from the Mac, tap the band. Pass or fail | Pass. Relaunched in about 12 s, answer reached the server with the screen off | 2026-10-17 |
 | Battery drain per hour, 20 s heartbeat | Phone and band battery percent per hour |  |  |
-| Hotter and colder at 0.5 m | Zone shown |  |  |
-| Hotter and colder at 2 m | Zone shown |  |  |
-| Hotter and colder at 5 m | Zone shown |  |  |
+| Hotter and colder, three zones | Two iPhones and the band. Walk away and back | Fail: not accurate past 1 m. Walking away sometimes showed a closer state. Replaced by two states, retest pending | 2026-10-17 |
+| Duress PIN from "Cancel an alert" | Type the duress PIN on the phone | Fail: the duress contact got nothing. The build had no duress PIN. Now built, retest pending | 2026-10-17 |
+| Band duress gesture | Hold 1 s, 2 taps on the band | Fail: the duress contact got nothing. Two possible causes, both fixed: the server ignored the gesture while the user's own alert ran, and a band paired with no night gets its answers refused (Home now says so). Retest during an alert and with no alert | 2026-10-17 |
+| Scaled alerts | Tier 1 does not answer, tier 2 gets the alert | Not tested |  |
+| Band signal at 0.5 m | State shown |  |  |
+| Band signal at 2 m | State shown |  |  |
+| Band signal at 5 m | State shown |  |  |
 | Advertising while connected | A second phone sees KAZE-Band. Pass or fail | Pass | 2026-10-17 |
 
 ### Built, but checked only by automated tests
@@ -104,7 +119,8 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
   - The location age.
   - The "said they were on it" and final step lines.
   - "Night ends at" and "Who sees your location during an alert".
-  - Nobody opened them in a browser or on a phone yet.
+  - The two-person retest ran this build on two iPhones (see "Hardware test results").
+- The duress PIN fields in Start a night: "Duress PIN" and "Repeat duress PIN". The live hints too: "The PINs do not match" and "Use a different PIN from your normal PIN".
 - A restart of a real server process (Ctrl+C, then start again). Only the test client restart is tested.
 - With "Only whoever says I'm on it", nobody sees the location between an "I'm on it" that went stale and the next "I'm on it".
 
