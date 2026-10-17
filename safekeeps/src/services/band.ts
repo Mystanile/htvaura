@@ -38,9 +38,9 @@ export function askKey(view: Pick<NightView, 'state' | 'deadline'>) {
 
 // A band answer the relay could not deliver, kept to try again. at is the phone time (ms) the band sent it.
 export type PendingEvent = { type: 'ConfirmOk' | 'Duress'; at: number };
-// Kept for 1 hour, the same for ok and duress: a delivered answer moves the friends' last check-in and can
-// answer the check on screen, so a different time for each kind would tell them apart. The cost: a late ok can
-// answer a newer check that is still asking.
+// Kept for 60 s, the same for ok and duress: a delivered answer moves the friends' last check-in and can
+// answer the check on screen, so a different time for each kind would tell them apart. 60 s keeps a late
+// answer from answering a newer check.
 const PENDING_MS = 60_000; // same for ok and duress; a late answer must never answer a newer check
 export function keepPending(event: PendingEvent, nowMs: number) {
   return nowMs - event.at <= PENDING_MS;

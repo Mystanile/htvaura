@@ -4,7 +4,7 @@ This file sorts the prototype into the four groups that the KAZE brief asks for.
 
 ## What the prototype actually demonstrates
 
-These items run in the prototype and pass automated tests: 245 server tests and 57 app node tests.
+These items run in the prototype and pass automated tests: 246 server tests and 57 app node tests.
 
 On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware and app from branch `home-by`, 2026-10-17):
 
@@ -28,7 +28,7 @@ On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware
 - Each location carries its time. Contacts see "Location updated just now" or "Location updated N min ago" (server tested, app helper unit tested).
 - In Start a night, the user picks "Who sees your location during an alert": "Everyone alerted" or "Only whoever says I'm on it". The user can also set an optional "Night ends at" time. The server rules are tested.
 - Response cards tell contacts what to do and what not to do, with no diagnosis words (tested).
-- Ping (a contact makes the person's phone ring) works only on visible alerts. It never works on a duress or fake-ended alert, because a ringing phone shows a hidden alert to a watcher. The server side is tested. The sound and flash on a real phone are not tested yet.
+- Ping (a contact makes the person's phone ring) works only on visible alerts. It never works on a duress or fake-ended alert, because a ringing phone shows a hidden alert to a watcher. The server side is tested. The ring and flash on the phone, and the band beep, passed on hardware on 2026-10-17.
 - Automated tests only, not on hardware: the home-by checks, the band relay logic in the app, and the hotter and colder logic.
 
 ## What is simulated
@@ -76,17 +76,11 @@ Automated tests cannot cover real phones, BLE, or the Arduino band.
   - The buzzer is on (`QUIET_MODE = false`).
   - An answer made while no phone is connected is kept and sent after the phone connects. The band gives the same flash and beep for ok and duress, connected or not.
   - The answer is notify only, not readable. The band sends 0 after each answer, and the app ignores it.
-  - After a reconnect, the app has 1 s to subscribe again. If it takes longer, a kept answer can be lost.
+  - After a reconnect, the band waits until the app subscribes again before it sends a kept answer.
   - The answer and the 0 go out back to back. Nobody checked yet that both reach iOS in order.
-- Band with the app, all untested on real hardware:
-  - Pair the band in Settings. Home shows "Band connected".
-  - Band ok and duress reach the server, and both look the same on the phone.
-  - When a check starts, the band buzzes and blinks. A ping makes the band beep.
+- Band with the app. Passed on hardware on 2026-10-17 (`home-by` build and firmware): pairing, band ok and duress, the band asking, Ping reaching the band, the heartbeat, state restoration, and advertising while connected. See "What the prototype actually demonstrates". Still untested on hardware:
   - The app asks the band again at the louder stage. This assumes the firmware starts the ask again on each write.
   - An answer from the band can fail to reach the server. Then the app keeps it and sends it later. It keeps an ok or a duress for 60 s, the same for both, so a late one cannot tell them apart and cannot answer a later check. The band keeps an answer made with no phone connected for the same 60 s. A duress that cannot be sent within 60 s is lost. The server timer still escalates silence. A server refusal is also kept and retried until it expires.
-  - Heartbeat: lock the phone, put it away, trigger a check. The band asks within about 20 s.
-  - State restoration: background the app, stop it from the Mac (`xcrun devicectl`), then tap the band. The event must still reach the server. A swiped-away app is not relaunched by iOS, by Apple's rule.
-  - Advertising while connected: with the wearer's phone connected, a second phone still sees KAZE-Band.
   - Hotter and colder on the friend's phone: the three zones and Warmer or Colder.
 
 ### Hardware test results

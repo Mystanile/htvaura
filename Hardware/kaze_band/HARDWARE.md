@@ -114,7 +114,7 @@ Do **not** use an RSSI cutoff. 2 m and 20 m look the same indoors. Treat someone
 - Disconnect and reconnect works without resetting the board
 - Runs from a power bank with no laptop
 
-Not tested on the board yet (it compiles): the heartbeat, and advertising again while connected. To test the second: connect with nRF Connect on one phone, then scan with a second phone. KAZE-Band must still show.
+Tested on the board on 2026-10-17 with the earlier firmware: the heartbeat (the band asked about 12 s after a check started, phone screen off) and advertising again while connected (a second phone still saw KAZE-Band in nRF Connect).
 
 Also compiled but not tested on the board: Notify only (no Read) on `event`, the `0x00` after each answer, pending answers while disconnected, and the buzzer with `QUIET_MODE = false`. To test pending answers: with no phone connected, tap 3 times. Then connect with nRF Connect and subscribe to `event`. `0x01` must arrive right after you subscribe, followed by `0x00`. Wait more than 60 s before connecting and nothing must arrive. Repeat with the duress gesture and expect `0x02`.
 
