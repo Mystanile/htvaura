@@ -65,7 +65,8 @@ Branch `ntfy` (newest work, 2026-10-17 evening):
 - Retest of 6.12 and 6.13 over HTTP on a scratch server: the duress PIN and the duress gesture pass in all five front states. The phone gets the same answer as for the real PIN or an ok.
 - The Find them simulation is stable at 4 or more readings a second. Open bugs, not fixed:
   - Fixed in `3d3dac9`: one reading could enter "right next to them". Now it needs 3 readings in the 4 s window. The simulation showed no return to that state while walking away. False ones at the venue's 1 m level dropped from 38 to 3 in 100 runs at 0.5 readings a second.
-  - A failed Bluetooth scan never restarts (`use-band-signal.ts:28`).
+  - Fixed in `7c2238c`: a failed Bluetooth scan now restarts every 2.5 s, and the failed scan is stopped first so no listener leaks.
+- Accessibility in `43bfefa`, inside the teammate's theme: darker text in the same hues, screen reader announcements (the same words for ok and duress), labels, text up to 2x, 44 pt targets, and check-in under TalkBack. Two audits found 10 issues, all fixed. Not tried with VoiceOver or TalkBack on a phone.
   - Fixed in the docs: `HARDWARE.md` now says the 30 s separation rule is design only.
 - Open design question for the user: after an end, PIN guesses are unlimited. The filled or outlined check shows which PIN is real, and the real PIN ends a duress alert (`loop.py:281`).
 - An LLM council graded the project at about 60 of 100. Its top must-haves:
