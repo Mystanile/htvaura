@@ -35,7 +35,7 @@ Homebound does not detect drugging or unconsciousness. It does not call emergenc
 - Passed with the band and two real iPhones: pairing the band, answering with it, the band waking a locked phone, and Ping.
 - Passed on a real iPhone: the duress PIN, the alert moving to Tier 2, alerts and reminders on a locked phone, and checking in with VoiceOver (the iPhone screen reader).
 - We restarted the server while nights were running. No night was lost.
-- Also passed with two iPhones and the band: the duress signal on the band's touch sensor, the "be home by" check, and the band's signal on the "Find them" screen up to 2 m. At 5 m the screen lost the band's signal. We have not measured battery life yet.
+- Also passed with two iPhones and the band: the duress signal on the band's touch sensor, the "be home by" check, and the band's signal on the "Find them" screen up to 2 m. At 5 m the screen lost the band's signal. Battery: one rough reading of about 5% per hour on the phone, over 23 minutes.
 - Simulated from the demo panel, a web page we use to run the demo: friends getting separated, time passing, and the final emergency step.
 
 `DEMO_NOTES.md` has the full lists and every hardware test with its date.

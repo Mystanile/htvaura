@@ -172,7 +172,7 @@ Hold the band's touch sensor for 1 second, then tap twice. The band flashes once
 
 - The band duress gesture is reliable. It passed 4 of 4 on the touch sensor, a small sample. The push button misses presses.
 - Find them with Bluetooth works at a distance. It passed at 0.5 m and 2 m. At 5 m it lost the band.
-- Battery life. We did not measure it.
+- Battery life. We have one rough 23-minute reading, about 5% per hour on the phone.
 - A reminder from a band wake works. It did not pass.
 - Android or TalkBack works. We did not try it.
 - Group separation works by itself. It is a panel trigger only.
