@@ -42,7 +42,8 @@ function List({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-// Duress alerts use the exact same red card as every other alert, so nothing on screen looks louder.
+// Duress alerts use the exact same card as every other alert, so nothing on screen looks louder. The red banner above
+// and the red title mark it as an alert, and the rest stays dark on cream so it reads easily.
 export function AlertsSection() {
   const state = useSafekeeps();
   const scheme = useColorScheme();
@@ -72,9 +73,9 @@ export function AlertsSection() {
         const stale = nameOf(alert.stale_ack_by ?? null);
         const age = alert.location !== null ? locationAgeText(alert.location_at, state.night?.now ?? 0) /* server clock of the last poll */ : null;
         return (
-          <SectionCard key={alert.user_id} tone="alert">
+          <SectionCard key={alert.user_id} tone="green">
             <ThemedText type="heading">{nameOf(alert.user_id) ?? alert.name ?? 'A friend'}</ThemedText>
-            <ThemedText type="name">{alert.card.title}</ThemedText>
+            <ThemedText type="name" themeColor="danger">{alert.card.title}</ThemedText>
             <List title="Do" items={alert.card.do} />
             <List title="Don't" items={alert.card.dont} />
             <ThemedText type="smallBold">{holder === null ? 'Nobody is on it yet' : `${holder} ${holder === 'You' ? 'are' : 'is'} on it`}</ThemedText>
