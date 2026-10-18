@@ -39,7 +39,7 @@ function BandSection() {
         </>
       ) : (
         <>
-          <ThemedText themeColor="textSecondary">Not connected. Turn your KAZE band on and hold it close.</ThemedText>
+          <ThemedText themeColor="textSecondary">Not connected. Turn your Homebound band on and hold it close.</ThemedText>
           <AppButton label={pairing ? 'Looking for band...' : 'Pair band'} disabled={pairing} onPress={() => { void pair(); }} />
         </>
       )}
