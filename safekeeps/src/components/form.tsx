@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Pressable, Switch, TextInput, View, type TextInputProps } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Platform, Pressable, Switch, TextInput, View, type TextInputProps } from 'react-native';
 
+import { AppButton } from '@/components/app-button';
 import { ThemedText } from '@/components/themed-text';
 import { AppFont, Radius, Spacing, TouchTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { clockText, parseClock } from '@/services/home-by';
 
 export const INTERVALS = [
   { label: '5 min', value: 5 }, { label: '10 min', value: 10 }, { label: '15 min', value: 15 }, { label: '30 min', value: 30 },
@@ -34,6 +37,37 @@ export function Field({ label, helper, ...input }: TextInputProps & { label: str
         }} />
       {/* the input already says it as its hint, so a screen reader skips this copy */}
       {helper && <ThemedText type="small" themeColor="textSecondary" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{helper}</ThemedText>}
+    </View>
+  );
+}
+
+// An optional time of day, kept as "23:30" text ('' = not set). iOS uses the system time picker. Web types the time.
+export function TimeField({ label, helper, value, onChange, disabled = false }: {
+  label: string; helper?: string; value: string; onChange: (value: string) => void; disabled?: boolean;
+}) {
+  const theme = useTheme();
+  if (Platform.OS !== 'ios') return <Field label={label} helper={helper} value={value} onChangeText={onChange}
+    placeholder="HH:MM, for example 23:30" keyboardType="numbers-and-punctuation" autoCorrect={false} editable={!disabled} maxLength={5} />;
+  const clock = parseClock(value);
+  const date = new Date();
+  if (clock) date.setHours(clock.h, clock.m, 0, 0);
+  function setNextHalfHour() {
+    const next = new Date();
+    next.setMinutes(next.getMinutes() < 30 ? 30 : 60, 0, 0);
+    onChange(clockText(next.getTime()));
+  }
+  return (
+    <View style={{ gap: Spacing.two }}>
+      <ThemedText type="smallBold">{label}</ThemedText>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two }}>
+        {clock ? <>
+          <DateTimePicker mode="time" display="compact" value={date} disabled={disabled} accentColor={theme.accent}
+            themeVariant={theme.scheme === 'dark' ? 'dark' : 'light'}
+            onChange={(_, picked) => { if (picked) onChange(clockText(picked.setSeconds(0, 0))); }} />
+          <AppButton variant="quiet" label="Clear" disabled={disabled} onPress={() => onChange('')} />
+        </> : <AppButton variant="secondary" label="Set a time" disabled={disabled} onPress={setNextHalfHour} />}
+      </View>
+      {helper && <ThemedText type="small" themeColor="textSecondary">{helper}</ThemedText>}
     </View>
   );
 }

@@ -63,7 +63,9 @@ export async function api<T>(
     });
     const data = await response.json();
     if (!response.ok) {
-      throw new ApiError(typeof data.detail === 'string' ? data.detail : 'Request failed. Please try again.', response.status);
+      // 422: the server's own check of the input failed, and its detail is a list meant for developers
+      throw new ApiError(typeof data.detail === 'string' ? data.detail
+        : response.status === 422 ? 'Check what you typed and try again.' : 'Request failed. Please try again.', response.status);
     }
     return data as T;
   } catch (error) {

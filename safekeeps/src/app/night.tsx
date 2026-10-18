@@ -6,7 +6,7 @@ import { Platform, View } from 'react-native';
 import { AppButton } from '@/components/app-button';
 import { AppScreen } from '@/components/app-screen';
 import { ConnectionStatus } from '@/components/connection-status';
-import { Choice, Field, INTERVALS, SwitchRow } from '@/components/form';
+import { Choice, Field, INTERVALS, SwitchRow, TimeField } from '@/components/form';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -127,10 +127,8 @@ export default function NightScreen() {
         <ThemedText type="heading">Check-ins</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">How often should we ask if you are okay?</ThemedText>
         <Choice label="How often" options={INTERVALS} value={interval} onChange={setInterval} />
-        <Field label="Be home by" helper="Optional, for example 23:30" value={homeBy} onChangeText={setHomeBy}
-          placeholder="HH:MM" keyboardType="numbers-and-punctuation" autoCorrect={false} editable={!state.busy} maxLength={5} />
-        <Field label="Night ends at" helper="Optional, for example 03:00. The night ends then." value={endsAt} onChangeText={setEndsAt}
-          placeholder="HH:MM" keyboardType="numbers-and-punctuation" autoCorrect={false} editable={!state.busy} maxLength={5} />
+        <TimeField label="Be home by" helper="Optional." value={homeBy} onChange={setHomeBy} disabled={state.busy} />
+        <TimeField label="Night ends at" helper="Optional. The night ends then." value={endsAt} onChange={setEndsAt} disabled={state.busy} />
         <ThemedText type="small" themeColor="textSecondary">
           While a night runs, this phone sends its location to the server. Your contacts only see it during an alert.
         </ThemedText>

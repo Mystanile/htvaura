@@ -47,12 +47,19 @@ export default function HomeScreen() {
   const band = useBand();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [friendFailed, setFriendFailed] = useState(false); // the error shows by the button, not in the banner at the top
 
   async function addFriend() {
-    if (await state.addFriend(code, name)) {
+    const sent = await state.addFriend(code, name);
+    setFriendFailed(!sent);
+    if (sent) {
       setCode('');
       setName('');
     }
+  }
+  function editCode(text: string) {
+    setCode(text);
+    if (friendFailed) { setFriendFailed(false); state.clearError(); }
   }
 
   return (
@@ -65,7 +72,7 @@ export default function HomeScreen() {
       </View>
     }>
       <AlertBanner />
-      <ConnectionStatus />
+      {!friendFailed && <ConnectionStatus />}
       <AlertsSection />
       <SectionCard tone="ink" entranceDelay={70}>
         <CheckInCard />
@@ -144,12 +151,13 @@ export default function HomeScreen() {
       <SectionCard tone="ink" entranceDelay={210}>
         <ThemedText type="heading" accessibilityRole="header">Add a friend</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">Enter their code to send a friend request. They will appear once they accept.</ThemedText>
-        <Field label="Friend code" value={code} onChangeText={setCode} placeholder="Their code"
+        <Field label="Friend code" value={code} onChangeText={editCode} placeholder="Their code"
           autoCapitalize="characters" autoCorrect={false} editable={!state.busy} maxLength={32} />
         <Field label="Name (optional)" value={name} onChangeText={setName} placeholder="What you call them"
           autoCapitalize="words" editable={!state.busy} maxLength={40} />
-        <AppButton label={state.busy ? 'Sending...' : 'Send friend request'} disabled={state.busy}
+        <AppButton label={state.busy ? 'Sending...' : 'Send friend request'} disabled={state.busy || !code.trim()}
           onPress={() => { void addFriend(); }} />
+        {friendFailed && state.error && <ThemedText announce themeColor="danger">{state.error}</ThemedText>}
       </SectionCard>
     </AppScreen>
   );

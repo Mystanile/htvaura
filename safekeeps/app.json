@@ -54,7 +54,8 @@
         "isBackgroundEnabled": true,
         "modes": ["central"],
         "bluetoothAlwaysPermission": "Homebound connects to your KAZE band so you can answer check-ins with it."
-      }]
+      }],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

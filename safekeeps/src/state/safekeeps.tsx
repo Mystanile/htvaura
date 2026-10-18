@@ -2,7 +2,7 @@ import { createContext, use, useCallback, useEffect, useRef, useState, type Prop
 import { AppState, Platform } from 'react-native';
 
 import { onNight } from '@/services/band-relay';
-import { api, fetchNight, fetchState, type Night, type NightConfig, type Snapshot } from '@/services/demo-api';
+import { ApiError, api, fetchNight, fetchState, type Night, type NightConfig, type Snapshot } from '@/services/demo-api';
 import { loadSession, saveSession, type DemoSession } from '@/services/demo-session';
 
 function useSafekeepsState() {
@@ -13,6 +13,7 @@ function useSafekeepsState() {
   const [hydrating, setHydrating] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [refused, setRefused] = useState(false); // the server answered and said no, so the connection is fine
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const version = useRef(0);
@@ -83,6 +84,7 @@ function useSafekeepsState() {
       return true;
     } catch (e) {
       setError((e as Error).message);
+      setRefused(e instanceof ApiError);
       return false;
     } finally {
       version.current++;
@@ -154,6 +156,7 @@ function useSafekeepsState() {
     session, me: data?.me, friends: data?.friends ?? [], incoming: data?.incoming ?? [],
     friendRequests: data?.friendRequests ?? [], sentRequests: data?.sentRequests ?? [],
     hydrating, loading: !!session && !data, error: error ?? connectionError, busy, refresh, startGuest, reconnect,
+    offline: error ? !refused : !!connectionError, clearError: () => setError(null),
     lastCheckIn, remindersEnabled, setRemindersEnabled, intervalMinutes, setIntervalMinutes, minutesRemaining,
     night, serverOffset, now,
     startNight: (config: NightConfig) => postNight('/night', config),
