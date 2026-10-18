@@ -19,23 +19,32 @@ export type NightView = {
   deadline: number | null; // server Unix seconds, only set while asking or waiting
   ping_at?: number | null; // server Unix seconds of the last counted ping, null if none
   home_by?: number; // server Unix seconds, only in the user's own view while a home-by check has not started
+  next_check?: number | null; // server Unix seconds of the next periodic check, only while armed with a check interval
 };
 export type NightAlert = {
   user_id: string; active: boolean;
+  name: string | null; // what this viewer calls them, sent with the alert so it still shows after an unfriend
   kind: 'manual' | 'periodic' | 'home_by' | 'separation' | 'duress';
   card: { title: string; do: string[]; dont: string[] };
   acknowledged_by: string | null;
   location: [number, number] | null;
+  location_at: number | null; // server Unix seconds of the last location update, null when location is null
+  stale_ack_by: string | null; // said "I'm on it" but did not resolve in time
+  final_step: boolean; // every tier was alerted again and again and nobody answered (simulated last step)
 };
 export type Night = { now: number; view: NightView | null; alerts: NightAlert[] };
 export type NightConfig = {
-  pin: string; tiers: string[][]; duress_contacts: string[];
+  pin: string; duress_pin: string; tiers: string[][]; duress_contacts: string[];
   check_every_minutes?: number; ask_seconds?: number; grace_seconds?: number; ack_seconds?: number;
   night_ends_at?: number; // server Unix seconds
   home_by?: number; // server Unix seconds
+  share_location_with?: 'alerted' | 'acknowledger'; // who sees the location during an alert
 };
 
-class ApiError extends Error {}
+// status is the HTTP status, so a caller can tell "no night" (404) from other failures.
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
 
 export async function api<T>(
   url: string, path: string, token?: string, body?: object, signal?: AbortSignal,
@@ -54,7 +63,7 @@ export async function api<T>(
     });
     const data = await response.json();
     if (!response.ok) {
-      throw new ApiError(typeof data.detail === 'string' ? data.detail : 'Request failed. Please try again.');
+      throw new ApiError(typeof data.detail === 'string' ? data.detail : 'Request failed. Please try again.', response.status);
     }
     return data as T;
   } catch (error) {

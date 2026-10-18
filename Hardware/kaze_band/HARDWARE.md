@@ -20,7 +20,7 @@ Device name: **`KAZE-Band`**
 | Name | UUID | Properties | Meaning |
 |---|---|---|---|
 | Service | `7f1a0001-6b4e-4c2a-9a7e-2d3c4b5a6f70` | | KAZE service, advertised |
-| event | `7f1a0002-6b4e-4c2a-9a7e-2d3c4b5a6f70` | Read, Notify | Band → phone. One byte per answer |
+| event | `7f1a0002-6b4e-4c2a-9a7e-2d3c4b5a6f70` | Notify | Band → phone. One byte per answer. Not readable |
 | ping | `7f1a0003-6b4e-4c2a-9a7e-2d3c4b5a6f70` | Write | Phone → band. Any byte makes it beep and flash so a friend can find it |
 | ask | `7f1a0004-6b4e-4c2a-9a7e-2d3c4b5a6f70` | Write | Phone → band. Any byte starts the "are you okay?" signal |
 
@@ -28,12 +28,14 @@ Device name: **`KAZE-Band`**
 
 | Value | Meaning |
 |---|---|
-| `0x00` | Nothing yet (value at startup) |
+| `0x00` | Nothing. Value at startup, and written right after each answer is sent. The app ignores it |
 | `0x01` | I'm okay |
 | `0x02` | Duress |
 | `0x03` | Heartbeat. Not an answer. Sent every 20 s while a phone is connected |
 
-The app must **subscribe to notifications** on `event` to receive taps.
+The app must **subscribe to notifications** on `event` to receive taps. The characteristic has no Read, and the band writes `0x00` right after each answer, so a later read or subscribe never shows the last answer.
+
+**Answers made with no phone connected are kept.** The band holds one pending answer (a newer answer replaces an older one). Once a phone is connected and has subscribed to `event`, the band sends it. A pending answer older than 60 s is dropped, the same for okay and duress, so a stored answer can never answer a later check. The server timer handles silence. The band's flash and beep are the same for okay and duress, and the same whether a phone is connected or not.
 
 ## Gestures
 
@@ -64,7 +66,7 @@ Timeout must never be treated as `0x02`. Duress goes only to private duress cont
 
 **Ping** (write to `ping`): 10 loud beeps and flashes over about 2.5 s.
 
-**Quiet mode:** `QUIET_MODE = true` in the sketch turns the buzzer off (LED only) for testing around people. **Set it to `false` for the demo.**
+**Quiet mode:** `QUIET_MODE` is now `false`, so the buzzer works for the demo. Set it to `true` to turn the buzzer off (LED only) when testing around people.
 
 ## How the band connects to the server
 
@@ -92,18 +94,25 @@ Big jump between right beside and 1 m. Past 1 m it's mostly noise (bodies, walls
 
 ### Hotter and colder (find them)
 
-| Zone | RSSI | Show |
-|---|---|---|
-| Right here | stronger than -55 | "You're right next to them" + Ping button |
-| Close | -55 to -80 | "Getting close" |
-| In range | weaker than -80 | "They're somewhere nearby" |
+The app now shows **two states**, with hysteresis (`nextNear` in `safekeeps/src/services/band.ts`):
 
-- Smooth with the **median of the last 3 to 5 seconds**, never a single reading.
-- Show **warmer / colder** from whether the smoothed value is rising or falling.
+| State | Enter when | Leave when | Show |
+|---|---|---|---|
+| Right next to them | median stronger than -60 dBm | median weaker than -68 dBm | "You're right next to them" |
+| In range | any other reading | | "Their band is in range" |
+
+- Smooth with the **median of the last 4 seconds**, never a single reading.
+- Hysteresis: the state changes at -60 dBm on the way in and at -68 dBm on the way out. The 8 dB gap stops the screen from flickering at the edge.
+- No reading in the last 4 s resets the state. After 10 s with no reading the screen shows "No band signal".
+- Under the Ping button the screen says "Bluetooth can only tell when you are right beside them. Use Ping to hear them."
+
+Why two states: the table above shows one clear jump, from -41 dBm right beside the band to -75 dBm at 1 m. Past 1 m the readings are noise. The first version had three zones (-55 and -80 dBm) and warmer or colder. In the two-person test on 2026-10-17 it was not accurate past 1 m: walking away sometimes showed a closer state. So the app now says only what the signal can tell. -60 dBm sits between right beside (-41) and 1 m (-75). The two states are unit tested. They are not tested on hardware yet.
 
 ### Group separation
 
 Do **not** use an RSSI cutoff. 2 m and 20 m look the same indoors. Treat someone as separated when their band's signal is **lost entirely for 30+ seconds**.
+
+This is the design only. It is not built. In the demo, separation comes from the demo panel (see `DEMO_NOTES.md`).
 
 ## Tested
 
@@ -112,10 +121,13 @@ Do **not** use an RSSI cutoff. 2 m and 20 m look the same indoors. Treat someone
 - Disconnect and reconnect works without resetting the board
 - Runs from a power bank with no laptop
 
-Not tested on the board yet (it compiles): the heartbeat, and advertising again while connected. To test the second: connect with nRF Connect on one phone, then scan with a second phone. KAZE-Band must still show.
+Tested on the board on 2026-10-17 with the earlier firmware: the heartbeat (the band asked about 12 s after a check started, phone screen off) and advertising again while connected (a second phone still saw KAZE-Band in nRF Connect).
+
+Also compiled but not tested on the board: Notify only (no Read) on `event`, the `0x00` after each answer, pending answers while disconnected, and the buzzer with `QUIET_MODE = false`. To test pending answers: with no phone connected, tap 3 times. Then connect with nRF Connect and subscribe to `event`. `0x01` must arrive right after you subscribe, followed by `0x00`. Wait more than 60 s before connecting and nothing must arrive. Repeat with the duress gesture and expect `0x02`.
 
 ## Not built (future work)
 
 - Vibration motor (no motor available, buzzer + LED used instead)
 - Real wearable housing and battery
+- Separation from 30 s of lost band signal (the demo panel sends separation)
 - UWB for a real indoor direction arrow

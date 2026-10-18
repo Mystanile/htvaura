@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { PixelRatio, Pressable, View } from 'react-native';
 
 import { AlertBanner } from '@/components/alert-banner';
 import { AlertsSection } from '@/components/alerts-section';
 import { AppButton } from '@/components/app-button';
-import { Artwork, PixelArt } from '@/components/pixel-art';
+import { Artwork, PixelFrame } from '@/components/pixel-art';
 import { AppScreen } from '@/components/app-screen';
 import { CheckInCard } from '@/components/check-in-card';
 import { ConnectionStatus } from '@/components/connection-status';
@@ -16,27 +16,33 @@ import { SettingsButton } from '@/components/settings-button';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useBand } from '@/hooks/use-band';
+import { useTheme } from '@/hooks/use-theme';
 import { formatCheckIn, useSafekeeps } from '@/state/safekeeps';
 
 // A friend request (the teammate's card, with option A's labeled field and buttons). The name is private to me.
 function FriendRequest({ request }: { request: { id: string; name: string } }) {
   const state = useSafekeeps();
   const [name, setName] = useState('');
+  const stacked = PixelRatio.getFontScale() > 1.5; // the two labels do not fit side by side at very large text
   return (
     <View style={{ gap: Spacing.two }}>
       <ThemedText type="name">{request.name} wants to add you</ThemedText>
       <Field label="Choose a name for them" helper="Only you will see it." value={name} onChangeText={setName}
         placeholder="Name (optional)" autoCapitalize="words" editable={!state.busy} maxLength={40} />
-      <View style={{ flexDirection: 'row', gap: Spacing.two }}>
-        <AppButton flex label="Accept" disabled={state.busy} onPress={() => { void state.acceptFriend(request.id, name); }} />
-        <AppButton flex label="Decline" variant="secondary" disabled={state.busy} onPress={() => { void state.declineFriend(request.id); }} />
+      <View style={{ flexDirection: stacked ? 'column' : 'row', gap: Spacing.two }}>
+        <AppButton flex={!stacked} label="Accept" disabled={state.busy} onPress={() => { void state.acceptFriend(request.id, name); }} />
+        <AppButton flex={!stacked} label="Decline" variant="secondary" disabled={state.busy} onPress={() => { void state.declineFriend(request.id); }} />
       </View>
     </View>
   );
 }
 
+// Dark red for text on the red 'away' friend frame (4.5:1 or better on its #D96F6F fill).
+const AWAY_INK = '#421C1A';
+
 export default function HomeScreen() {
   const state = useSafekeeps();
+  const theme = useTheme();
   const band = useBand();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -50,9 +56,10 @@ export default function HomeScreen() {
 
   return (
     <AppScreen header={
-      <View style={{ minHeight: 72, paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three }}>
-        <PixelArt source={Artwork.header} />
-        <ThemedText type="heading" accessibilityRole="header" style={{ flex: 1, fontSize: 28 }}>HOMEBOUND</ThemedText>
+      <View style={{ width: '100%', maxWidth: Artwork.header.width, height: Artwork.header.height, alignSelf: 'center',
+        paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three }}>
+        <PixelFrame sprite={Artwork.header} />
+        <ThemedText type="heading" maxFontSizeMultiplier={1.2} style={{ flex: 1, fontSize: 28 }}>HOMEBOUND</ThemedText>
         <SettingsButton />
       </View>
     }>
@@ -61,13 +68,18 @@ export default function HomeScreen() {
       <AlertsSection />
       <SectionCard tone="ink">
         <CheckInCard />
-        {band.paired && <ThemedText type="small" themeColor="textSecondary">{band.connected ? 'Band connected' : 'Band not connected'}</ThemedText>}
+        {band.paired && (
+          <ThemedText type="small" themeColor="textSecondary">
+            {!band.connected ? 'Band not connected'
+              : !state.night?.view || state.night.view.state === 'ended' ? 'Band connected. Start a night to use it.' : 'Band connected'}
+          </ThemedText>
+        )}
         {(!state.night?.view || state.night.view.state === 'ended') && <NightEntry />}
         {state.lastCheckIn !== null && (
           <ThemedText type="small" themeColor="textSecondary" selectable>Last check-in: {formatCheckIn(state.lastCheckIn)}</ThemedText>
         )}
         {state.incoming.map(request => (
-          <ThemedText key={request.id} accessibilityLiveRegion="polite">
+          <ThemedText key={request.id} announce>
             {request.name} asked you to check in at {formatCheckIn(request.requestedAt)}.
           </ThemedText>
         ))}
@@ -80,7 +92,7 @@ export default function HomeScreen() {
         {state.friendRequests.length > 0 && <ThemedText type="heading">Friend requests</ThemedText>}
         {state.friendRequests.map(request => <FriendRequest key={request.id} request={request} />)}
         {state.sentRequests.map(request => (
-          <ThemedText key={request.id} accessibilityLiveRegion="polite">Request sent to {request.name} - Awaiting acceptance</ThemedText>
+          <ThemedText key={request.id}>Request sent to {request.name} - Awaiting acceptance</ThemedText>
         ))}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <ThemedText type="heading" accessibilityRole="header">Friends</ThemedText>
@@ -91,9 +103,9 @@ export default function HomeScreen() {
           const friend = state.friends[index];
           if (!friend) return (
             <View key={`empty-${index}`} accessible accessibilityLabel="Empty friend slot"
-              style={{ width: '48%', flexGrow: 1, aspectRatio: 100 / 36, minHeight: 70, alignItems: 'center', justifyContent: 'center' }}>
-              <PixelArt source={Artwork.empty} />
-              <ThemedText type="name" style={{ color: '#FFFCF0' }}>EMPTY</ThemedText>
+              style={{ width: '48%', flexGrow: 1, minHeight: 70, alignItems: 'center', justifyContent: 'center' }}>
+              <PixelFrame sprite={Artwork.empty} />
+              <ThemedText type="name" themeColor="textSecondary">EMPTY</ThemedText>
             </View>
           );
           const pending = friend.requestedAt !== null && friend.resolvedAt === null;
@@ -105,15 +117,15 @@ export default function HomeScreen() {
             <Link href={{ pathname: '/friends/[id]', params: { id: friend.id } }} asChild>
               <Pressable accessibilityRole="link" accessibilityLabel={`View ${friend.name}, ${status}`}
                 style={{
-                  width: '100%', minHeight: 70, aspectRatio: 100 / 36,
+                  width: '100%', minHeight: 70,
                   paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center',
                 }}>
-                <PixelArt source={present ? Artwork.present : Artwork.away} />
+                <PixelFrame sprite={present ? Artwork.present : Artwork.away} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <ThemedText type="name" numberOfLines={1} style={{ flex: 1, fontSize: 17, lineHeight: 24, color: present ? '#52653B' : '#712F2D' }}>{friend.name}</ThemedText>
-                  <ThemedText style={{ fontSize: 9, color: present ? '#52653B' : '#712F2D' }}>CHECK IN?</ThemedText>
+                  <ThemedText type="name" numberOfLines={2} style={{ flex: 1, fontSize: 17, lineHeight: 24, color: present ? theme.accent : AWAY_INK }}>{friend.name}</ThemedText>
+                  <ThemedText maxFontSizeMultiplier={1.4} style={{ fontSize: 9, color: present ? theme.accent : AWAY_INK }}>CHECK IN?</ThemedText>
                 </View>
-                <ThemedText numberOfLines={1} style={{ fontSize: 11, lineHeight: 16, color: present ? '#52653B' : '#712F2D' }}>{status}</ThemedText>
+                <ThemedText style={{ fontSize: 11, lineHeight: 16, color: present ? theme.accent : AWAY_INK }}>{status}</ThemedText>
               </Pressable>
             </Link>
             </View>

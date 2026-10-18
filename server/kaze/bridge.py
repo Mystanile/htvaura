@@ -37,12 +37,14 @@ async def ask_to_check_in(sender: str, target: str) -> None:
 
 class NightIn(BaseModel):
     pin: str
+    duress_pin: str | None = None  # passed to the loop with the other fields
     tiers: list[list[str]]
     duress_contacts: list[str]
     check_every_minutes: Annotated[float, Field(gt=0, allow_inf_nan=False)] | None = None
     ask_seconds: Seconds = 30
     grace_seconds: Seconds = 15
     ack_seconds: Seconds = 20
+    ack_hold_seconds: Seconds = 120
     night_ends_at: Annotated[float, Field(allow_inf_nan=False)] | None = None
     home_by: Annotated[float, Field(allow_inf_nan=False)] | None = None
     share_location_with: str = "alerted"  # or "acknowledger"
@@ -70,13 +72,19 @@ def start_night(body: NightIn, authorization: str | None = Header(default=None))
 def get_night(authorization: str | None = Header(default=None)):
     with connect() as db:
         me = identity(db, authorization)["id"]
-    mine = sessions.get(me)
-    views = (view_for(s, me) for uid, s in list(sessions.items()) if uid != me)  # never my own night. A copy: another request may start a night
-    return {
-        "now": now(),
-        "view": view_for(mine, me) if mine else None,
-        "alerts": [v for v in views if v.get("active") is True],  # the loop decides from the night's own contacts
-    }
+        mine = sessions.get(me)
+        views = (view_for(s, me) for uid, s in list(sessions.items()) if uid != me)  # never my own night. A copy: another request may start a night
+        alerts = [v for v in views if v.get("active") is True]  # the loop decides from the night's own contacts
+        # The name travels with the alert: a contact who removed this friend during the night still sees who it is.
+        alerts = [{**v, "name": display_name(db, me, v["user_id"])} for v in alerts]
+    return {"now": now(), "view": view_for(mine, me) if mine else None, "alerts": alerts}
+
+
+def display_name(db, viewer: str, person: str) -> str | None:
+    """What the viewer calls this person: the viewer's own name for them, else the name they picked."""
+    row = db.execute("SELECT COALESCE(n.name, p.name) FROM people p LEFT JOIN friend_names n ON n.owner = ? AND n.friend = p.id "
+                     "WHERE p.id = ?", (viewer, person)).fetchone()
+    return row[0] if row else None
 
 
 @router.post("/night/events")

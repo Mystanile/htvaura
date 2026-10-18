@@ -2,10 +2,10 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-naviga
 import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
-import { AppFont } from '@/constants/theme';
 
 import '@/services/band-relay'; // starts the band relay at app start, with no screen needed
 import { ConnectionGate } from '@/components/connection-gate';
+import { ScreenHeader } from '@/components/screen-header';
 import { NightEffects } from '@/components/night-effects';
 import { SafekeepsProvider } from '@/state/safekeeps';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -26,13 +26,10 @@ export default function RootLayout() {
       <SafekeepsProvider>
         <StatusBar style="dark" />
         <ConnectionGate fontsReady={fontsLoaded || !!fontError}><Stack screenOptions={{
-          headerStyle: { backgroundColor: theme.background },
-          headerTintColor: theme.text,
-          headerShadowVisible: false,
-          headerTitleStyle: { fontFamily: AppFont, fontSize: 22, fontWeight: '400', color: theme.text },
+          header: ScreenHeader,
           contentStyle: { backgroundColor: theme.background },
         }}>
-          <Stack.Screen name="index" options={{ title: 'Safekeeps', headerShown: false }} />
+          <Stack.Screen name="index" options={{ title: 'Homebound', headerShown: false }} />
           <Stack.Screen name="friends/[id]" options={{ title: 'Friend' }} />
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />
           <Stack.Screen name="night" options={{ title: 'Start a night' }} />

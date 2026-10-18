@@ -10,3 +10,4 @@ server/.venv/
 server/safekeeps.sqlite3*
 server/**/__pycache__/
 server/.pytest_cache/
+server/kaze_state.pickle*

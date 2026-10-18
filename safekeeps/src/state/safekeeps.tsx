@@ -17,7 +17,7 @@ function useSafekeepsState() {
   const lock = useRef(false);
   const version = useRef(0);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
-  const [intervalMinutes, setIntervalMinutes] = useState(60);
+  const [intervalMinutes, setIntervalMinutes] = useState(15);
   const [startedAt] = useState(Date.now);
   const [now, setNow] = useState(Date.now);
 

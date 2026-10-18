@@ -26,7 +26,8 @@ def alert_row(a: loop.Alert) -> dict:
     return {
         "kind": a.kind, "hidden": a.hidden, "state": a.state, "tier_index": a.tier_index, "tier_count": len(a.tiers),
         "alerted": [name(c) for c in a.alerted], "acknowledged_by": a.acknowledged_by and name(a.acknowledged_by),
-        "deadline": a.deadline,
+        "deadline": a.deadline, "stale_ack_by": a.stale_ack_by and name(a.stale_ack_by),
+        "final_step": a.final_step, "location_at": a.location_at,
     }
 
 

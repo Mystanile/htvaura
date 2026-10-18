@@ -3,7 +3,10 @@
 //
 // BLE:
 //   Advertises as "KAZE-Band"
-//   "event" characteristic (notify): 1 = I'm okay, 2 = duress, 3 = heartbeat
+//   "event" characteristic (notify only, no read): 1 = I'm okay, 2 = duress, 3 = heartbeat
+//     After each answer the band writes 0, so the last answer never stays readable.
+//     An answer made with no phone connected is kept (only the newest one) and sent
+//     about 1 s after a phone connects, so the phone has time to subscribe.
 //     The heartbeat goes out every 20 s while a phone is connected. It wakes the
 //     phone's app in the background so it can check the server for a pending ask.
 //   "ping" characteristic (write): any value makes the band beep and flash
@@ -24,15 +27,16 @@ const unsigned long DURESS_WINDOW_MS = 2500;  // time allowed for the two duress
 const unsigned long OK_WINDOW_MS = 1500;      // max gap between okay taps before the count resets
 const unsigned long DEBOUNCE_MS = 60;
 const unsigned long ASK_MS = 30000;  // how long the band keeps asking
-const bool QUIET_MODE = true;        // true = no buzzer, LED only (set false for the demo)
+const bool QUIET_MODE = false;       // false for the demo. true = no buzzer, LED only, for testing around people
 
 const uint8_t EVENT_OK = 1;
 const uint8_t EVENT_DURESS = 2;
 const uint8_t EVENT_HEARTBEAT = 3;
 const unsigned long HEARTBEAT_MS = 20000;  // how often a connected phone is woken
+const unsigned long SUBSCRIBE_MS = 1000;   // wait after connect so the phone can subscribe before a pending answer is sent
 
 BLEService kazeService("7f1a0001-6b4e-4c2a-9a7e-2d3c4b5a6f70");
-BLEByteCharacteristic eventChar("7f1a0002-6b4e-4c2a-9a7e-2d3c4b5a6f70", BLERead | BLENotify);
+BLEByteCharacteristic eventChar("7f1a0002-6b4e-4c2a-9a7e-2d3c4b5a6f70", BLENotify);
 BLEByteCharacteristic pingChar("7f1a0003-6b4e-4c2a-9a7e-2d3c4b5a6f70", BLEWrite);
 BLEByteCharacteristic askChar("7f1a0004-6b4e-4c2a-9a7e-2d3c4b5a6f70", BLEWrite);
 
@@ -56,6 +60,11 @@ unsigned long rawSince = 0;
 
 bool wasConnected = false;
 unsigned long lastHeartbeat = 0;
+unsigned long connectedAt = 0;
+
+uint8_t pendingEvent = 0;  // answer not yet sent to a phone (0 = none). A newer answer replaces it.
+unsigned long pendingAt = 0;
+const unsigned long PENDING_MS = 60000;  // a stored answer older than this is dropped, the same for ok and duress, so it can never answer a later check
 
 bool isPressed() {
   return digitalRead(BUTTON) == HIGH || digitalRead(TOUCH) == HIGH;
@@ -92,9 +101,25 @@ void sendEvent(uint8_t ev) {
   duressArmed = false;
   duressTaps = 0;
   digitalWrite(LED, LOW);
-  eventChar.writeValue(ev);
+  // Always queue, sent from loop(). Feedback is the same whether a phone is connected or not.
+  pendingEvent = ev;
+  pendingAt = millis();
   Serial.println(ev == EVENT_OK ? "event: OK" : "event: DURESS");
   confirmBeep();
+}
+
+void flushPending(bool connected) {
+  if (pendingEvent != 0 && millis() - pendingAt > PENDING_MS) {
+    pendingEvent = 0;  // too old: the server timer handles this check
+    Serial.println("stored answer expired");
+  }
+  if (pendingEvent == 0 || !connected || millis() - connectedAt < SUBSCRIBE_MS) return;
+  // writeValue reports success even with no subscriber, so wait until the phone subscribed.
+  if (!eventChar.subscribed()) return;
+  eventChar.writeValue(pendingEvent);
+  eventChar.writeValue(0);  // clear it so the answer never lingers on the band
+  pendingEvent = 0;
+  Serial.println("event sent to phone");
 }
 
 void onRelease(unsigned long heldFor, unsigned long now) {
@@ -168,9 +193,12 @@ void loop() {
     // friend's phone can still see the band's signal strength during find-them.
     BLE.advertise();
     lastHeartbeat = millis();
+    connectedAt = millis();
     Serial.println("phone connected, advertising again");
   }
   wasConnected = connected;
+
+  flushPending(connected);
 
   if (connected && millis() - lastHeartbeat > HEARTBEAT_MS) {
     lastHeartbeat = millis();

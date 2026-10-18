@@ -30,9 +30,20 @@ export function encodeByte(byte: number) {
   return ALPHABET[byte >> 2] + ALPHABET[(byte & 3) << 4] + '==';
 }
 
-// The ask is written once per key. The key is the deadline, so a new check gives a new key.
+// The ask is written once per key. The key is the state plus the deadline, so a new check gives a new key
+// and the louder waiting stage asks the band again.
 export function askKey(view: Pick<NightView, 'state' | 'deadline'>) {
-  return view.state === 'asking' ? view.deadline : null;
+  return (view.state === 'asking' || view.state === 'waiting') && view.deadline !== null ? `${view.state}:${view.deadline}` : null;
+}
+
+// A band answer the relay could not deliver, kept to try again. at is the phone time (ms) the band sent it.
+export type PendingEvent = { type: 'ConfirmOk' | 'Duress'; at: number };
+// Kept for 60 s, the same for ok and duress: a delivered answer moves the friends' last check-in and can
+// answer the check on screen, so a different time for each kind would tell them apart. 60 s keeps a late
+// answer from answering a newer check.
+const PENDING_MS = 60_000; // same for ok and duress; a late answer must never answer a newer check
+export function keepPending(event: PendingEvent, nowMs: number) {
+  return nowMs - event.at <= PENDING_MS;
 }
 
 const PING_FRESH_SECONDS = 30;
@@ -44,46 +55,30 @@ export function shouldPingBand(pingAt: number | null | undefined, lastHandled: n
   return now - pingAt <= PING_FRESH_SECONDS;
 }
 
-export type Sample = { t: number; rssi: number }; // t in ms
-export type Zone = 'here' | 'close' | 'range';
-export type Trend = 'warmer' | 'colder' | 'steady';
+// The server answers a band event with 404 when no night is running. Then the event is dropped, not retried
+// or kept. Every other failure is retried. The event type is not an argument, so ok and duress take the same path.
+export const noNight = (status: number | null | undefined) => status === 404;
 
-export const ZONE_TEXT: Record<Zone, string> = {
-  here: "You're right next to them",
-  close: 'Getting close',
-  range: "They're somewhere nearby",
-};
+export type Sample = { t: number; rssi: number }; // t in ms
 
 const WINDOW_MS = 4000;
-const TREND_MS = 2000;
-const DEAD_BAND_DB = 3;
+// Venue measurements (HARDWARE.md): only "right beside" (about -41 dBm) stands out. From 1 m to 20 m it is
+// noise (-75 to -88). So there are two states, with a gap between enter and leave so it does not flicker.
+const NEAR_ENTER_DBM = -60; // stronger than this: right next to them
+const NEAR_LEAVE_DBM = -68; // weaker than this: back to in range
+const MIN_READINGS = 3; // fewer readings than this in the 4 s window can never enter "right next to them"
 
-function middle(values: number[]) {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-// Median RSSI of the samples in (from, to]. null if there are none.
-function medianBetween(samples: Sample[], from: number, to: number) {
-  return middle(samples.filter(s => s.t > from && s.t <= to).map(s => s.rssi));
-}
-
-// Median of the last 4 s, never a single reading.
+// Median RSSI of the last 4 s. null if there are none.
 export function median(samples: Sample[], now: number) {
-  return medianBetween(samples, now - WINDOW_MS, now);
+  const values = samples.filter(s => s.t > now - WINDOW_MS && s.t <= now).map(s => s.rssi).sort((a, b) => a - b);
+  if (values.length === 0) return null;
+  const mid = values.length >> 1;
+  return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
 }
 
-export function zone(rssi: number): Zone {
-  return rssi > -55 ? 'here' : rssi >= -80 ? 'close' : 'range';
-}
-
-// Last 2 s against the 2 s before. A change of 3 dB or less counts as steady.
-export function trend(samples: Sample[], now: number): Trend {
-  const recent = medianBetween(samples, now - TREND_MS, now);
-  const before = medianBetween(samples, now - 2 * TREND_MS, now - TREND_MS);
-  if (recent === null || before === null) return 'steady';
-  const change = recent - before;
-  return change > DEAD_BAND_DB ? 'warmer' : change < -DEAD_BAND_DB ? 'colder' : 'steady';
+// Next "right next to them" state from the last one, the 4 s median and how many readings made it.
+// No reading resets it. Entering needs MIN_READINGS, so one strong reading is never enough.
+export function nextNear(near: boolean, rssi: number | null, readings = MIN_READINGS) {
+  if (rssi === null) return false;
+  return near ? rssi >= NEAR_LEAVE_DBM : readings >= MIN_READINGS && rssi > NEAR_ENTER_DBM;
 }

@@ -36,9 +36,8 @@ export default function FriendScreen() {
         <ThemedText type="heading">Check on {friend.name}</ThemedText>
         <AppButton label={state.busy ? 'Sending...' : 'Request check-in'} disabled={state.busy}
           onPress={() => { void state.requestCheckIn(friend.id); }} />
-        <AppButton label="Alert emergency contacts" variant="secondary" disabled />
         {friend.requestedAt !== null && (
-          <ThemedText accessibilityLiveRegion="polite">
+          <ThemedText announce>
             {friend.resolvedAt === null
               ? `Check-in requested at ${formatCheckIn(friend.requestedAt)}.`
               : `Request answered at ${formatCheckIn(friend.resolvedAt)}.`}

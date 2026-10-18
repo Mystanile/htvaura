@@ -41,7 +41,7 @@ export function ConnectionGate({ children, fontsReady = true }: PropsWithChildre
         )}
         <AppButton label={state.busy ? 'Starting...' : 'Start demo'} disabled={state.busy}
           onPress={() => { void state.startGuest(url.trim() || getDemoUrl()); }} />
-        {state.error && <ThemedText selectable accessibilityLiveRegion="polite" themeColor="danger">{state.error}</ThemedText>}
+        {state.error && <ThemedText selectable announce themeColor="danger">{state.error}</ThemedText>}
       </SectionCard>
     </AppScreen>
   );

@@ -1,19 +1,24 @@
-"""KAZE server: REST + WebSocket around loop.step. In-memory store, no auth.
+"""KAZE server: REST + WebSocket around loop.step. In-memory store saved to KAZE_STATE each second, no auth.
 
 All state changes go through `run`, which calls loop.step and pushes the effects.
 """
 import asyncio
 import dataclasses
+import hashlib
+import hmac
 import json
 import logging
 import math
 import os
+import pickle
 import secrets
 import time
 import traceback
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
+import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -73,6 +78,36 @@ async def deliver(effects) -> None:
     await asyncio.gather(*(send_all(ws, m) for ws, m in per_socket.items()))
 
 
+def ntfy_topic(contact_id: str) -> str | None:
+    """The contact's own ntfy topic, or None when push is off. Not guessable: it is an HMAC of the id."""
+    if not os.environ.get("KAZE_NTFY_URL"):
+        return None
+    secret = os.environ.get("KAZE_NTFY_SECRET")
+    if not secret:
+        if not getattr(ntfy_topic, "warned", False):
+            ntfy_topic.warned = True
+            logging.getLogger("uvicorn.error").warning("KAZE_NTFY_URL is set but KAZE_NTFY_SECRET is not: push is off")
+        return None
+    return "kaze-" + hmac.new(secret.encode(), contact_id.encode(), hashlib.sha256).hexdigest()[:20]
+
+
+async def send_ntfy(url: str, topic: str) -> None:
+    """One push. The text carries no name, no location, nothing personal. A failure is logged and dropped."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.post(f"{url.rstrip('/')}/{topic}", content="A Homebound alert is waiting for you. Open the app.",
+                                  headers={"Title": "Homebound", "Priority": "high", "Tags": "warning"})
+            r.raise_for_status()  # a 429 or 5xx from ntfy is a failed send too
+    except Exception:
+        logging.getLogger("uvicorn.error").warning("ntfy push failed", exc_info=True)
+
+
+async def notify(effects) -> None:
+    # a contact only, never the user's own id. Sent together so one slow request delays no other push.
+    topics = [t for e in effects if e.kind == "alert" and e.to != e.data.get("user_id") and (t := ntfy_topic(e.to))]
+    await asyncio.gather(*(send_ntfy(os.environ["KAZE_NTFY_URL"], t) for t in topics))
+
+
 async def push(effects) -> None:
     """Send each effect to its id's open sockets. No socket means dropped (the app can GET the view).
 
@@ -83,6 +118,10 @@ async def push(effects) -> None:
         task = asyncio.create_task(deliver(effects))
         background.add(task)
         task.add_done_callback(background.discard)
+        if os.environ.get("KAZE_NTFY_URL"):
+            task = asyncio.create_task(notify(effects))
+            background.add(task)
+            task.add_done_callback(background.discard)
 
 
 async def run(user_id: str, event) -> None:
@@ -90,23 +129,79 @@ async def run(user_id: str, event) -> None:
     await push(effects)
 
 
+async def tick_all() -> None:
+    for uid in list(sessions):
+        try:
+            await run(uid, loop.Tick())
+        except Exception:
+            traceback.print_exc()  # one bad session must not stop the other countdowns
+
+
+def state_path() -> Path:
+    return Path(os.environ.get("KAZE_STATE", Path(__file__).resolve().parents[1] / "kaze_state.pickle"))
+
+
+_saved: tuple | None = None  # (path, bytes) last written, so an unchanged state is not written again
+
+
+def save() -> None:
+    """Write the live state to KAZE_STATE so a restart mid-alert carries on. Sockets are not saved.
+
+    Called once a second by the ticker, never inside a user's request: a write that only some
+    events cause (a duress makes a hidden alert) would make those answers a little slower."""
+    global _saved
+    try:
+        path = state_path()
+        data = pickle.dumps({"users": users, "groups": groups, "sessions": sessions, "offset": offset})
+        if (path, data) == _saved:
+            return
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, path)  # atomic: a crash mid-write leaves the old file whole
+        _saved = (path, data)
+    except Exception:
+        traceback.print_exc()  # a sync route changing a dict mid-pickle, or a full disk: try again next second
+
+
+def load() -> None:
+    """Read the state save() wrote, if there is one. A bad file is logged and the server starts empty."""
+    global offset
+    path = state_path()
+    if not path.exists():
+        return
+    users.clear(), groups.clear(), sessions.clear()  # cleared in place: the bridge and panel hold these dicts
+    offset = 0.0
+    try:
+        state = pickle.loads(path.read_bytes())  # ponytail: trusts the file, it is the server's own
+        users.update(state["users"])
+        groups.update(state["groups"])
+        sessions.update(state["sessions"])
+        offset = float(state["offset"])
+    except Exception:
+        logging.getLogger("uvicorn.error").exception("could not load %s, starting empty", path)
+        users.clear(), groups.clear(), sessions.clear()
+        offset = 0.0
+        return
+    for uid, s in sessions.items():
+        s.connected = is_profile(uid)  # no socket survives a restart; Safekeeps phones poll, as in begin_night
+
+
 async def ticker() -> None:
     while True:
         await asyncio.sleep(1)
-        try:
-            for uid in list(sessions):
-                await run(uid, loop.Tick())
-        except Exception:
-            traceback.print_exc()  # never let one bad tick stop the countdowns
+        await tick_all()
+        save()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not os.environ.get("KAZE_DEMO_KEY"):
         logging.getLogger("uvicorn.error").warning("KAZE_DEMO_KEY is not set: /demo/state, /demo/event, /demo/skip and /demo/reset are open to anyone who can reach this server")
+    load()
     task = asyncio.create_task(ticker())
     yield
     task.cancel()
+    save()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -115,8 +210,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "P
 
 @app.exception_handler(RequestValidationError)
 async def bad_body(request: Request, exc: RequestValidationError):
-    """The usual 422. An input that JSON cannot hold (NaN or infinity, alone or inside a list or object) is shown as text."""
-    return JSONResponse(status_code=422, content={"detail": [e | {"input": _jsonable(e.get("input"))} for e in exc.errors()]})
+    """The usual 422, without the sent value: it can hold a PIN or a duress PIN, and an error must never echo either."""
+    return JSONResponse(status_code=422, content={"detail": [{k: _jsonable(v) for k, v in e.items() if k != "input"} for e in exc.errors()]})
 
 
 def _jsonable(v):
@@ -158,6 +253,7 @@ Seconds = Annotated[float, Field(ge=0, allow_inf_nan=False)]  # NaN and infinity
 class SessionIn(BaseModel):
     user_id: str
     pin: str
+    duress_pin: str | None = None
     tiers: list[list[str]]
     duress_contacts: list[str] = []
     group_code: str | None = None
@@ -165,6 +261,7 @@ class SessionIn(BaseModel):
     ask_seconds: Seconds = 30
     grace_seconds: Seconds = 15
     ack_seconds: Seconds = 20
+    ack_hold_seconds: Seconds = 120
     night_ends_at: Annotated[float, Field(allow_inf_nan=False)] | None = None
     home_by: Annotated[float, Field(allow_inf_nan=False)] | None = None
     check_every_seconds: Annotated[float, Field(gt=0, allow_inf_nan=False)] | None = None
@@ -215,6 +312,10 @@ def begin_night(user_id: str, members: list[str], **fields) -> dict:
         raise HTTPException(400, "share_location_with must be 'alerted' or 'acknowledger'")
     if not config.duress_contacts:
         raise HTTPException(400, "duress_contacts must not be empty")
+    if config.duress_pin == "":  # an empty duress PIN would turn an empty PIN entry into a silent alert
+        raise HTTPException(400, "duress_pin must not be empty")
+    if config.duress_pin == config.pin:  # never echo either PIN
+        raise HTTPException(400, "duress_pin must be different from pin")
     if not config.tiers or not all(config.tiers):
         raise HTTPException(400, "tiers must not be empty and every tier needs a contact")
     contacts = [c for t in config.tiers for c in t] + config.duress_contacts
@@ -338,18 +439,20 @@ async def demo_skip(body: SkipIn):
     if abs(offset + body.seconds) > MAX_SKIP:
         raise HTTPException(400, f"the total skip must stay within +-{MAX_SKIP:g} seconds")
     offset += body.seconds
-    for uid in list(sessions):
-        await run(uid, loop.Tick())
+    await tick_all()
+    save()
     return {"offset": offset}
 
 
 @app.post("/demo/reset", dependencies=[Depends(demo_key)])
-def demo_reset():
-    global offset
+async def demo_reset():  # async so it runs on the ticker's thread and no save lands halfway through it
+    global offset, _saved
     offset = 0.0
     users.clear()
     groups.clear()
     sessions.clear()
+    state_path().unlink(missing_ok=True)
+    _saved = None
     return {"ok": True}
 
 

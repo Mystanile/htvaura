@@ -133,3 +133,24 @@ def test_a_safekeeps_night_can_share_location_with_the_acknowledger_only(client)
     assert client.post(f"/safekeeps/alerts/{uid}/ack", headers=b).status_code == 200
     rows = {p["name"]: p for p in client.get("/demo/state").json()["sessions"][0]["privacy"]}
     assert rows["Bob"]["sees_location"] and not rows["Dave"]["sees_location"]
+
+
+def test_panel_alert_row_shows_stale_ack_final_step_and_location_time(client):
+    (alice, a), (bob, b), (carol, c), (dave, d) = people(client, "Alice", "Bob", "Carol", "Dave")
+    start(client, a, [[bob["id"]], [dave["id"]]], [carol["id"]], ack_hold_seconds=10)
+    uid = alice["id"]
+    client.post("/demo/event", json={"user_id": uid, "type": "Trigger", "kind": "manual"})
+    client.post("/demo/skip", json={"seconds": 50})
+    client.post("/demo/event", json={"user_id": uid, "type": "LocationUpdate", "lat": 1, "lng": 2})
+    client.post(f"/safekeeps/alerts/{uid}/ack", headers=b)
+    client.post("/demo/skip", json={"seconds": 11})
+    state = client.get("/demo/state").json()
+    [row] = state["sessions"][0]["alerts"]
+    assert row["stale_ack_by"] == "Bob" and row["acknowledged_by"] is None and row["final_step"] is False
+    assert row["location_at"] == pytest.approx(state["now"] - 11, abs=2)
+    for _ in range(4):
+        client.post("/demo/skip", json={"seconds": 400})
+    assert client.get("/demo/state").json()["sessions"][0]["alerts"][0]["final_step"] is True
+    page = client.get("/panel").text
+    assert "Final step reached: emergency services would be contacted now (SIMULATED)" in page
+    assert "said they were on it but did not end it" in page

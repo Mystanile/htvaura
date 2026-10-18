@@ -20,17 +20,17 @@ type Tokens = {
   primaryDisabled: string;
   onPrimary: string;
   field: string; // text input fill
-  fieldBorder: string; // 3:1 or better against the surface
+  fieldBorder: string; // 3:1 or better against every surface
   placeholder: string; // 4.5:1 or better on the field
   danger: string; // errors only
 };
 
 const light: Tokens = {
-  scheme: 'light', text: '#5C5439', textSecondary: '#686442',
+  scheme: 'light', text: '#413B28', textSecondary: '#4E4B32',
   background: '#9ED395', backgroundElement: '#B1C69B', backgroundSelected: '#DCD3B5',
-  border: '#8A7857', accent: '#52653B', accentSoft: '#EAE3CB', onAccent: '#F8F3E0',
-  primary: '#D5B796', primaryPressed: '#C5A380', primaryDisabled: '#DDD0B8', onPrimary: '#5C5439',
-  field: '#EAE3CB', fieldBorder: '#8A7857', placeholder: '#686442', danger: '#8A302D',
+  border: '#8A7857', accent: '#435230', accentSoft: '#EAE3CB', onAccent: '#F8F3E0',
+  primary: '#D5B796', primaryPressed: '#C5A380', primaryDisabled: '#DDD0B8', onPrimary: '#413B28',
+  field: '#EAE3CB', fieldBorder: '#746549', placeholder: '#4E4B32', danger: '#882F2C',
 };
 
 const dark: Tokens = { ...light };

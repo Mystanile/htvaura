@@ -1,11 +1,14 @@
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState, StyleSheet, Vibration, View } from 'react-native';
+import { AccessibilityInfo, AppState, Platform, StyleSheet, Vibration, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { api } from '@/services/demo-api';
+import { forgetCheckNow, REMINDER } from '@/services/check-now';
 import { distanceMetres } from '@/services/geo';
+import { wantedReminders } from '@/services/reminders';
 import { useSafekeeps } from '@/state/safekeeps';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -14,9 +17,10 @@ const SEND_EVERY_MS = 30_000;
 const SEND_AFTER_METRES = 25;
 const RING_MS = 5000;
 
-// Mounted once in the root layout. Does two things and shows nothing until a ping arrives.
+// Mounted once in the root layout. Does three things and shows nothing until a ping arrives.
 export function NightEffects() {
   useLocationSender();
+  useReminders();
   return <PingOverlay />;
 }
 
@@ -59,6 +63,80 @@ function useLocationSender() {
     const timer = setInterval(() => { if (latest) send(latest); }, SEND_EVERY_MS);
     return () => { stopped = true; watcher?.remove(); clearInterval(timer); clearTimeout(retry); };
   }, [session, running, foreground]);
+}
+
+// Local notifications, so the user's own checks reach a phone in a pocket. No push server: the phone
+// schedules them itself from the user's own view. Every one has the same text, so a watcher who reads the
+// lock screen learns nothing (no "Are you okay?", no buttons: a one-tap answer would skip the gesture).
+const MOVED_MS = 5000; // the clock offset jitters a little with every poll: ignore small moves
+
+// In the foreground the screen already asks, so show nothing there.
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({ shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false }),
+  });
+}
+
+function useReminders() {
+  const { session, night, serverOffset, now } = useSafekeeps();
+  const view = night?.view ?? null;
+  const running = view != null && view.state !== 'ended';
+  const [active, setActive] = useState(AppState.currentState === 'active');
+  const scheduled = useRef(new Map<string, number>()); // id -> phone ms it is scheduled for
+  const seenRunning = useRef(false);
+  const queue = useRef<Promise<unknown>>(Promise.resolve()); // one change at a time
+  const run = (job: () => Promise<unknown>) => { queue.current = queue.current.then(job).catch(() => {}); }; // notifications are best effort
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', status => setActive(status === 'active'));
+    return () => subscription.remove();
+  }, []);
+
+  // Ask for permission when a night starts, not at app launch.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !session || !running) return;
+    run(() => Notifications.requestPermissionsAsync());
+  }, [session, running]);
+
+  // Cancel everything when the night ends, the user leaves or logs out. Not while the app is still loading
+  // (night is null then): a launch in the background must keep what is scheduled.
+  const loaded = night !== null;
+  useEffect(() => {
+    if (session && running) { seenRunning.current = true; return; }
+    if (Platform.OS === 'web' || !(loaded || seenRunning.current)) return;
+    seenRunning.current = false;
+    scheduled.current.clear();
+    forgetCheckNow();
+    run(async () => { await Notifications.cancelAllScheduledNotificationsAsync(); await Notifications.dismissAllNotificationsAsync(); });
+  }, [session, running, loaded]);
+
+  // The person opened the app: clear what is still on the lock screen.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !active || !running) return;
+    run(() => Notifications.dismissAllNotificationsAsync());
+  }, [active, running]);
+
+  // Keep the next check and the home-by time scheduled. Only change what moved (the view is polled every 2.5 s).
+  const wanted = wantedReminders(view, serverOffset, now);
+  const key = wanted.map(r => r.id + ':' + Math.round(r.at / MOVED_MS)).join();
+  useEffect(() => {
+    if (Platform.OS === 'web' || !session || !running) return;
+    const have = scheduled.current;
+    for (const id of [...have.keys()]) {
+      if (!wanted.some(r => r.id === id)) { have.delete(id); run(() => Notifications.cancelScheduledNotificationAsync(id)); }
+    }
+    for (const { id, at } of wanted) {
+      const before = have.get(id);
+      if (before !== undefined && Math.abs(before - at) <= MOVED_MS) continue;
+      have.set(id, at);
+      run(async () => {
+        await Notifications.cancelScheduledNotificationAsync(id);
+        await Notifications.scheduleNotificationAsync({
+          identifier: id, content: REMINDER, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
+        });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key stands for wanted
+  }, [session, running, key]);
 }
 
 // Rings only when the user's own view.ping_at is newer than the last one seen. The first value after
@@ -104,7 +182,7 @@ function PingOverlay() {
   return (
     <View pointerEvents="none" accessibilityRole="alert" style={[StyleSheet.absoluteFill, { zIndex: 100, alignItems: 'center', justifyContent: 'center',
       padding: Spacing.five, backgroundColor: lit || calm ? theme.primary : theme.primaryPressed }]}>
-      <ThemedText type="title" style={{ fontSize: 40, lineHeight: 48, color: theme.onPrimary, textAlign: 'center' }}>A friend is looking for you</ThemedText>
+      <ThemedText type="title" announce style={{ fontSize: 40, lineHeight: 48, color: theme.onPrimary, textAlign: 'center' }}>A friend is looking for you</ThemedText>
     </View>
   );
 }

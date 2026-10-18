@@ -183,8 +183,11 @@ function nightCard(s) {
         <span>Tier reached: ${a.tier_index + 1}</span>
         <span>Alerted: ${a.alerted.length ? esc(a.alerted.join(", ")) : "nobody"}</span>
         <span>Acknowledged by: ${esc(a.acknowledged_by || "nobody")}</span>
-        ${a.deadline == null ? "" : `<span>${a.tier_index + 1 < a.tier_count ? "Next tier in" : "Alerts everyone again in"}: ${countdown(a.deadline)}</span>`}
+        ${a.stale_ack_by ? `<span>${esc(a.stale_ack_by)} said they were on it but did not end it</span>` : ""}
+        ${a.deadline == null ? "" : `<span>${a.acknowledged_by ? "Goes back out in" : a.tier_index + 1 < a.tier_count ? "Next tier in" : "Alerts everyone again in"}: ${countdown(a.deadline)}</span>`}
+        <span>Location: ${a.location_at == null ? "none" : "updated " + Math.round(serverNow - a.location_at) + " s ago"}</span>
       </div>
+      ${a.final_step ? `<div class="row"><strong>Final step reached: emergency services would be contacted now (SIMULATED)</strong></div>` : ""}
     </div>`).join("")
   return `
   <div class="card">
