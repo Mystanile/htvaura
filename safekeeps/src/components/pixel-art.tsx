@@ -36,6 +36,13 @@ export const Artwork = {
     require('@/assets/images/homebound/scaled/friendaway.png'), 100, 36, [16, 4, 5, 4]),
   present: sprite(require('@/assets/images/homebound/friendpresent.png'),
     require('@/assets/images/homebound/scaled/friendpresent.png'), 100, 36, [20, 4, 5, 4]),
+  // small things on the grass, so the eye can follow the parallax
+  flowerWhite: sprite(require('@/assets/images/homebound/flowerwhite.png'),
+    require('@/assets/images/homebound/scaled/flowerwhite.png'), 7, 7),
+  flowerRed: sprite(require('@/assets/images/homebound/flowerred.png'),
+    require('@/assets/images/homebound/scaled/flowerred.png'), 7, 7),
+  stone: sprite(require('@/assets/images/homebound/stone.png'),
+    require('@/assets/images/homebound/scaled/stone.png'), 8, 5),
 };
 
 // Fills its parent, behind the content. iOS: nine-slice, caps drawn 1:1, only the plain middle grows.

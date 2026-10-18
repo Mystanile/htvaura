@@ -5,6 +5,7 @@ import Animated, { Easing, FadeInUp, useAnimatedScrollHandler, useAnimatedStyle,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/use-theme';
+import { Artwork, PixelSprite } from '@/components/pixel-art';
 import { ScreenParticles } from '@/components/pixel-particles';
 
 const headerEntrance = FadeInUp.duration(280)
@@ -14,6 +15,14 @@ const headerEntrance = FadeInUp.duration(280)
 // repeat when it has moved that far, so it looks the same and its edge never shows, on a screen of any length.
 const GRASS = { width: 736, height: 1308, repeat: 392 };
 const PARALLAX = 0.5;
+// On a phone the cards cover most of the grass, so a few flowers and stones sit in the side gutters. They repeat
+// with the grass (at = how far down one repeat), so the jump back stays invisible.
+const DECOR = [
+  { sprite: Artwork.flowerWhite, left: true, at: 0.08 },
+  { sprite: Artwork.stone, left: false, at: 0.33 },
+  { sprite: Artwork.flowerRed, left: true, at: 0.58 },
+  { sprite: Artwork.flowerWhite, left: false, at: 0.83 },
+];
 
 export function AppScreen({ children, topInset = false, header }: PropsWithChildren<{ topInset?: boolean; header?: ReactNode }>) {
   const theme = useTheme();
@@ -43,6 +52,12 @@ export function AppScreen({ children, topInset = false, header }: PropsWithChild
         accessible={false}
         pointerEvents="none"
       />
+      {Array.from({ length: Math.ceil(GRASS.height / GRASS.repeat) }, (_, k) => DECOR.map((d, i) => (
+        <View key={`${k}-${i}`} style={{ position: 'absolute', top: (k + d.at) * repeat,
+          [d.left ? 'left' : 'right']: (GRASS.width * scale - window.width) / 2 + 3 }}>
+          <PixelSprite sprite={d.sprite} />
+        </View>
+      )))}
       </Animated.View>
       <ScreenParticles />
       {header && (

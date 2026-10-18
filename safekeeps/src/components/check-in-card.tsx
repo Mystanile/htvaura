@@ -44,7 +44,7 @@ function PlainCheckIn() {
   const [thanks, setThanks] = useState(false); // "Thanks!" for a moment after a saved check-in, like during a night
   useEffect(() => {
     if (!thanks) return;
-    const timer = setTimeout(() => setThanks(false), SETTLE_MS);
+    const timer = setTimeout(() => setThanks(false), 1500);
     return () => clearTimeout(timer);
   }, [thanks]);
   useAnnounce(thanks ? 'Thanks!' : null);

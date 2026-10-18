@@ -117,12 +117,12 @@ export default function HomeScreen() {
             <View key={friend.id} style={{ width: '48%', flexGrow: 1 }}>
             <Link href={{ pathname: '/friends/[id]', params: { id: friend.id } }} asChild>
               <Pressable accessibilityRole="link" accessibilityLabel={`View ${friend.name}, ${status}`}
-                style={({ pressed }) => ({
-                  width: '100%', minHeight: 70,
-                  paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center',
-                  transform: [{ translateY: pressed ? 2 * ART : 0 }], // pushed in, like the pressed button art
-                })}>
-                {({ pressed }) => <>
+                style={{ width: '100%', minHeight: 70 }}>
+                {/* Link asChild drops a style function, so the press moves this inner view: pushed in, like the pressed button art */}
+                {({ pressed }) => <View style={{
+                  flexGrow: 1, minHeight: 70, paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center',
+                  transform: [{ translateY: pressed ? 2 * ART : 0 }],
+                }}>
                 <PixelFrame sprite={present ? Artwork.present : Artwork.away} />
                 {/* pressed: the fill darkens inside the frame's border, like the pressed button art */}
                 {pressed && <View pointerEvents="none" style={{ position: 'absolute', top: 2 * ART, left: 2 * ART, right: 2 * ART,
@@ -133,7 +133,7 @@ export default function HomeScreen() {
                 </View>
                 <ThemedText style={{ fontSize: 11, lineHeight: 16, color: present ? theme.accent : AWAY_INK }}>{status}</ThemedText>
                 <ButtonParticles active={pressed} />
-                </>}
+                </View>}
               </Pressable>
             </Link>
             </View>

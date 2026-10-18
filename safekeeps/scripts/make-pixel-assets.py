@@ -32,7 +32,7 @@ FRAMES = {
     'friendaway': (16, 4, 5, 4),
     'friendpresent': (20, 4, 5, 4),
 }
-SPRITES = ['settingsbutton']  # drawn at natural size, not cut
+SPRITES = ['settingsbutton', 'flowerwhite', 'flowerred', 'stone']  # drawn at natural size, not cut
 
 
 def cut(art, caps):
