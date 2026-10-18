@@ -91,6 +91,13 @@ test('nextNear: once near, stay until weaker than -68', () => {
   assert.equal(nextNear(true, -82), false);
 });
 
+test('nextNear: fewer than 3 readings never enter, but do not throw out a near state', () => {
+  assert.equal(nextNear(false, -55, 1), false); // one strong reading at a slow scan rate
+  assert.equal(nextNear(false, -55, 2), false);
+  assert.equal(nextNear(false, -55, 3), true);
+  assert.equal(nextNear(true, -55, 1), true); // already near: a sparse window keeps it
+});
+
 test('nextNear: no reading resets it', () => {
   assert.equal(nextNear(true, null), false);
   assert.equal(nextNear(false, null), false);

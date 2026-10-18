@@ -4,12 +4,12 @@ This file sorts the prototype into the four groups that the KAZE brief asks for.
 
 ## What the prototype actually demonstrates
 
-These items run in the prototype and pass automated tests: 273 server tests and 57 app node tests.
+These items run in the prototype and pass automated tests: 304 server tests and 64 app node tests.
 
 On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware and app from branch `home-by`, 2026-10-17):
 
 - Pairing the band in Settings, and "Band connected" on Home.
-- Band ok (3 taps) and duress (hold 1 s, 2 taps) reach the server and look the same on the phone.
+- Band ok (3 taps) reaches the server. Band duress (hold 1 s, 2 taps) also reaches the server, but in the two-person retest the duress contact got nothing. The likely causes are fixed and pass over HTTP in every state. The retest on phones is pending (see "Hardware test results").
 - A check makes the band ask. A friend's Ping makes the phone ring and the band flash.
 - Heartbeat: with the phone screen off, the band asked about 12 s after a check started.
 - State restoration: the app was stopped from the Mac. iOS relaunched it in the background about 12 s later with nobody touching the phone, and a band answer reached the server with the screen off.
@@ -19,7 +19,7 @@ Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most 
 
 - The check-in loop on the server: triggers, ask and grace timers, ranked tiers, acknowledgement, PIN cancel with one silent retry, duress, and privacy views. The 7 KAZE scenarios pass as automated tests.
 - Timers keep running on the server after a phone disconnects (scenario 4, tested over a real WebSocket).
-- The server saves its state to a file every second and at shutdown, and loads it at start. A night and a running alert come back after a restart. The test restarts the server inside the test client. Nobody stopped and restarted a real server process yet.
+- The server saves its state to a file every second and at shutdown, and loads it at start. A night and a running alert come back after a restart. The test restarts the server inside the test client. On 2026-10-17 we also stopped and started the real server process several times during running nights, and the nights came back each time.
 - One broken night cannot stop the server timer for the other nights (tested).
 - "I'm on it" has a hold time. When the contact does not resolve the alert in that time, the alert goes back out. The next tier gets it, or every contact after the last tier. The contact who took it sees that it went back out. This works the same for a duress alert, and the user's phone never changes (tested, also in the watcher test).
 - After the last tier, re-alerts come 60 s, 120 s, then 300 s apart. When the round after the third one in a row that nobody took is due, the alert gets a "final step" flag. An "I'm on it" starts the count again (tested).
@@ -31,7 +31,7 @@ Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most 
 - In Start a night, the user picks "Who sees your location during an alert": "Everyone alerted" or "Only whoever says I'm on it". The user can also set an optional "Night ends at" time. The server rules are tested.
 - Response cards tell contacts what to do and what not to do, with no diagnosis words (tested).
 - Ping (a contact makes the person's phone ring) works only on visible alerts. It never works on a duress or fake-ended alert, because a ringing phone shows a hidden alert to a watcher. The server side is tested. The ring and flash on the phone, and the band beep, passed on hardware on 2026-10-17.
-- The duress PIN. The user sets a second PIN in Start a night. Typed in the PIN box, it shows the same filled-check "Alert ended" as the right PIN. In secret it alerts the duress contacts and ends nothing. Tests compare it with the right PIN in every front state, and in the random twin test, where it is one of three hidden kinds (it hid a running alert in 119 of 500 seeds). Over HTTP they compare the status, body and length, and the friends' snapshots. Limit: a watcher who holds a tier contact's phone sees the alert stay after the duress PIN, where the right PIN would end it. The wrong-PIN fake end has the same limit. Automated tests only.
+- The duress PIN. The user sets a second PIN in Start a night. Typed in the PIN box, it shows the same filled-check "Alert ended" as the right PIN. In secret it alerts the duress contacts and ends nothing. Tests compare it with the right PIN in every front state, and in the random twin test, where it is one of three hidden kinds (it hid a running alert in 116 of 500 seeds). Over HTTP they compare the status, body and length, and the friends' snapshots. Limit: a watcher who holds a tier contact's phone sees the alert stay after the duress PIN, where the right PIN would end it. The wrong-PIN fake end has the same limit. Automated tests only.
 - Automated tests only, not on hardware:
   - the home-by checks
   - the band relay logic in the app
@@ -50,7 +50,7 @@ Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most 
 
 ## What assumptions the concept relies upon
 
-- Contacts must have the app open to notice an alert. The prototype has no push notifications and no SMS. While the app is open, it polls every 2.5 s. A contact sees a new alert only at a poll.
+- Without push (`KAZE_NTFY_URL` unset), contacts must have the app open to notice an alert. The prototype has no SMS. Push through ntfy is optional (see below). While the app is open, it polls every 2.5 s. A contact sees a new alert only at a poll.
 - The timers are demo values: ask 30 s, grace 15 s, ack 20 s, ack hold 120 s. Production values are about ask 2 min, grace 1 min, ack 3 min, ack hold 10 min.
 - Location is uploaded all night while a night runs, not only during an alert. The server keeps it in memory and in the state file on the laptop (`server/kaze_state.pickle`, or the path in `KAZE_STATE`). Contacts see it only during an alert.
 - The server loads the state file without checks. Anyone who can write that file can run code on the server. This is fine for a laptop demo only.
@@ -60,6 +60,16 @@ Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most 
 - When the phone is locked, an ask or a ping reaches the band up to 20 s late. The heartbeat wakes the app only every 20 s.
 - The demo band uses BLE only. On the Uno R4 WiFi, BLE and Wi-Fi share one radio chip, so we did not build a direct band-to-server path over Wi-Fi.
 - iOS background limits still let the check-in reach the user.
+- On a phone alone, the check reaches the user only while the app is open. In the background the app does not poll, and push goes to contacts only. With the band, the heartbeat wakes the app, so the check reaches a phone in a pocket. A real build sends the check through APNs.
+- Time to help: in the worst case, a person becomes unable to answer just after a check. Help starts after one check interval plus the ask and grace times. With a 15 min interval and the demo timers, that is about 16 min. A shorter interval shortens it.
+- A hold on the band or the screen with no taps after it counts as "I'm okay", so a cut-off gesture never looks odd. A fumbled duress gesture sends no alert.
+- PIN guesses after an end screen are not limited and tell nobody. The filled check (right PIN or duress PIN) and the outlined check (wrong PIN) are a cue for the user. A watcher who knows the cue can try PINs until the filled check shows. The design assumes the watcher does not know the cue.
+- No PIN ends a duress alert, not even the real one. Only a duress contact can end it. A user who triggers duress by accident cannot cancel it. A duress contact has to resolve it. That counts as scenario 6, a false alarm resolved by an authorized contact. Until then the alert repeats every 5 min, and the duress card tells the contact not to call or text, so they check in person.
+- Misuse: any contact or group member in a night can start a check with "ask a friend", with no limit on how often. If the user stays silent, the alert shares their location with the alerted contacts. A real build needs a limit and a log of who asked.
+- Contacts are not asked to accept their role. They accepted a friend request, but they are not told that they are a tier contact or a duress contact.
+- The two Find them band states need several readings a second. The real iOS scan rate is not measured. With one reading a second or fewer, the state can still flip at the edge.
+- Screen readers: the check screens, alerts and Find them speak short lines, and ok and duress say the same words. The text colours reach 4.5:1 on every surface. VoiceOver passed on an iPhone 13 on 2026-10-17 (see the results table). TalkBack on Android is not tried. Under TalkBack, a double-tap counts as one tap, so three double-taps say ok. Duress with a screen reader on is not tested.
+- The outlined check after a wrong PIN uses the card line colour (about 2.9:1 on its panel), so it is visible but quiet. A watcher close by can see it too.
 - GPS is accurate to 5 to 10 m outdoors only.
 - Nobody can read another person's session without a token. On the Safekeeps path every call has a per-user token, and the old phase 1 endpoints refuse the ids of Safekeeps phones. On the demo-panel path (ids from `POST /users`) there is no auth. A person who holds such a phone and knows a contact's id can read a hidden alert. `POST /demo/reset` and `POST /demo/skip` have no auth either, unless `KAZE_DEMO_KEY` is set, and they affect every night. A real build needs real auth on those.
 - The demo runs through a cloudflared tunnel over HTTPS, so the event names (`ConfirmOk` and `Duress`) are encrypted on the network. Only the length of the request body differs. A real build pads the two bodies to the same size.
@@ -104,13 +114,17 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 | State restoration | Stop the app from the Mac, tap the band. Pass or fail | Pass. Relaunched in about 12 s, answer reached the server with the screen off | 2026-10-17 |
 | Battery drain per hour, 20 s heartbeat | Phone and band battery percent per hour |  |  |
 | Hotter and colder, three zones | Two iPhones and the band. Walk away and back | Fail: not accurate past 1 m. Walking away sometimes showed a closer state. Replaced by two states, retest pending | 2026-10-17 |
-| Duress PIN from "Cancel an alert" | Type the duress PIN on the phone | Fail: the duress contact got nothing. The build had no duress PIN. Now built, retest pending | 2026-10-17 |
+| Duress PIN from "Cancel an alert" | Type the duress PIN on the phone | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the phone showed the same filled "Alert ended" as the real PIN, the duress contact got the alert, the tier contact saw nothing new | 2026-10-17 |
 | Band duress gesture | Hold 1 s, 2 taps on the band | Fail: the duress contact got nothing. Two possible causes, both fixed: the server ignored the gesture while the user's own alert ran, and a band paired with no night gets its answers refused (Home now says so). Retest during an alert and with no alert | 2026-10-17 |
-| Scaled alerts | Tier 1 does not answer, tier 2 gets the alert | Not tested |  |
+| Scaled alerts | Tier 1 does not answer, tier 2 gets the alert | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): tier 2 got the alert after tier 1 did not take it | 2026-10-17 |
 | Band signal at 0.5 m | State shown |  |  |
 | Band signal at 2 m | State shown |  |  |
 | Band signal at 5 m | State shown |  |  |
 | Advertising while connected | A second phone sees KAZE-Band. Pass or fail | Pass | 2026-10-17 |
+| New text colours and VoiceOver | Look at every screen. VoiceOver on: three double-taps on Check in | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the text reads well in the teammate's colours, the outlined check shows, VoiceOver reads the button and hint, three double-taps check in and it says "Thanks!" | 2026-10-17 |
+| ntfy push to a contact's phone | The phone is the contact, subscribed in the ntfy app. The person in a web browser stays silent, phone locked | Pass (branch `ntfy`, iPhone 13): the lock screen showed "Homebound: A Homebound alert is waiting for you. Open the app." | 2026-10-17 |
+| Local reminder for the user's own check | Night with a 5 min check, phone locked, app not opened | Pass (branch `ntfy`, iPhone 13): the lock screen showed "Homebound: Open the app." when the check was due. A check started by a friend with the app closed and no band is not covered (known limit) | 2026-10-17 |
+| Themed header and alert names | Open each inner screen. Get an alert from a friend | Pass (branch `ntfy`, iPhone 13 and iPhone 15 Pro): the banner header and back button show on every inner screen, and alerts show the person's name | 2026-10-17 |
 
 ### Built, but checked only by automated tests
 
@@ -121,6 +135,7 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
   - "Night ends at" and "Who sees your location during an alert".
   - The two-person retest ran this build on two iPhones (see "Hardware test results").
 - The duress PIN fields in Start a night: "Duress PIN" and "Repeat duress PIN". The live hints too: "The PINs do not match" and "Use a different PIN from your normal PIN".
+- Local reminders for the user's own checks (periodic and home-by), so a phone in a pocket with the app in the background gets a notification. Built with `expo-notifications`, local only: no push server, no `aps-environment` entitlement (a free Apple Personal Team cannot sign it). The text is always title "Homebound", body "Open the app.", with no buttons, and it is the same after duress and after ok (twin tests cover `next_check`; `reminders.test.ts` covers the schedule). Tested only in unit tests until tried on a phone. Limits: a check started by a friend or the panel reaches a pocket phone only if the band wakes the app or the app is open. Focus or Do Not Disturb can silence it.
 - A restart of a real server process (Ctrl+C, then start again). Only the test client restart is tested.
 - With "Only whoever says I'm on it", nobody sees the location between an "I'm on it" that went stale and the next "I'm on it".
 
@@ -128,4 +143,5 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 
 - Relay through friends' phones, and the encrypted payload it needs.
 - UWB precision finding.
-- Real SMS, calls, or push notifications.
+- Real SMS or calls.
+- Push to the phone is built through ntfy but only set up when `KAZE_NTFY_URL` is set. ntfy.sh is a third-party public server. The text says "A Homebound alert is waiting for you. Open the app." and carries no name, no location and no personal data. Delivery to a locked iPhone passed on 2026-10-17.

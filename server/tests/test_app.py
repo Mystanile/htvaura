@@ -85,12 +85,14 @@ def test_new_night_during_duress_carries_the_hidden_alert(client):
     assert start_night(client, user, contact).status_code == 200  # armed: replaced
     client.post(f"/sessions/{user}/events", json={"type": "Duress"})
     r = start_night(client, user, contact)
-    assert r.status_code == 200 and r.json()["view"] == {"state": "armed", "screen": "armed", "deadline": None, "ping_at": None}
+    assert r.status_code == 200 and r.json()["view"] == {"state": "armed", "screen": "armed", "deadline": None, "ping_at": None, "next_check": None}
     alerts = client.get("/alerts", params={"viewer": contact}).json()["alerts"]
     assert len(alerts) == 1 and alerts[0]["kind"] == "duress"
     client.post("/demo/skip", json={"seconds": 100})  # it keeps escalating in the new session
     assert client.get(f"/sessions/{user}/view", params={"viewer": user}).json()["state"] == "armed"
     client.post(f"/sessions/{user}/events", json={"type": "Resolve", "by": user, "pin": "1234"})
+    assert len(client.get("/alerts", params={"viewer": contact}).json()["alerts"]) == 1  # the PIN does not end it
+    client.post(f"/sessions/{user}/events", json={"type": "Resolve", "by": contact})
     assert client.get("/alerts", params={"viewer": contact}).json() == {"alerts": []}
 
 

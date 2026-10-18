@@ -95,16 +95,16 @@ export default function NightScreen() {
           secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
         <Field label="Repeat PIN" value={pinAgain} onChangeText={setPinAgain} placeholder="Same 4 digits" keyboardType="number-pad"
           secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
-        {pinMismatch && <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">The PINs do not match</ThemedText>}
+        {pinMismatch && <ThemedText type="small" themeColor="danger" announce>The PINs do not match</ThemedText>}
         <Field label="Duress PIN" helper="A second PIN. It looks like a normal cancel but silently alerts your duress contacts."
           value={duressPin} onChangeText={setDuressPin} placeholder="4 digits" keyboardType="number-pad"
           secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
         {duressSameAsPin && (
-          <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">Use a different PIN from your normal PIN</ThemedText>
+          <ThemedText type="small" themeColor="danger" announce>Use a different PIN from your normal PIN</ThemedText>
         )}
         <Field label="Repeat duress PIN" value={duressAgain} onChangeText={setDuressAgain} placeholder="Same 4 digits" keyboardType="number-pad"
           secureTextEntry autoCorrect={false} editable={!state.busy} maxLength={4} />
-        {duressMismatch && <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">The PINs do not match</ThemedText>}
+        {duressMismatch && <ThemedText type="small" themeColor="danger" announce>The PINs do not match</ThemedText>}
       </SectionCard>
       <SectionCard>
         <ThemedText type="heading">Who helps</ThemedText>
@@ -137,7 +137,7 @@ export default function NightScreen() {
         <Choice label="Who sees your location during an alert" options={SHARE} value={shareWith} onChange={setShareWith} />
       </SectionCard>
       {(problem ?? state.error) && (
-        <ThemedText accessibilityLiveRegion="polite" themeColor="danger">{problem ?? state.error}</ThemedText>
+        <ThemedText announce themeColor="danger">{problem ?? state.error}</ThemedText>
       )}
       <AppButton label={state.busy ? 'Starting...' : 'Start the night'} disabled={state.busy}
         onPress={() => { void start(); }} />

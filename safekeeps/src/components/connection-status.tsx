@@ -15,7 +15,7 @@ export function ConnectionStatus() {
       padding: Spacing.three, gap: Spacing.two, borderRadius: Radius.control, borderCurve: 'continuous',
       borderWidth: 1.5, borderColor: theme.danger, backgroundColor: theme.backgroundElement,
     }}>
-      <ThemedText selectable accessibilityLiveRegion="polite" style={{ color: theme.danger }}>{state.error}</ThemedText>
+      <ThemedText selectable announce style={{ color: theme.danger }}>{state.error}</ThemedText>
       <AppButton variant="secondary" label="Retry connection" disabled={state.busy} onPress={() => { void state.refresh(); }} />
     </View>
   );

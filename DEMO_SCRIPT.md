@@ -150,7 +150,7 @@ The duress PIN:
 
 Say: "This is a duress PIN. If someone makes you cancel, you type it instead of your PIN. To the person watching, it is a real cancel, with the same filled check. In secret it alerts your duress contacts, and the first alert keeps going. Tests prove that both PINs look the same on the phone, in the server answers and to the group."
 
-End it: tap "Cancel an alert" and enter the right PIN. Both alerts end.
+End it: tap "Cancel an alert" and enter the right PIN. The wearer's own alert ends. The duress alert stays. Then on the friend's phone, tap Resolve on the duress alert.
 
 ### 9. Privacy, scenario 7 (30 s)
 

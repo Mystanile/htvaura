@@ -1,4 +1,4 @@
-import { useState, type PropsWithChildren } from 'react';
+import { useEffect, useState, type PropsWithChildren } from 'react';
 import { Platform, View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
@@ -6,6 +6,7 @@ import { Field } from '@/components/form';
 import { SectionCard } from '@/components/section-card';
 import { ServerAddress } from '@/components/server-address';
 import { AppScreen } from '@/components/app-screen';
+import { LoadingScreen, LOADING_CYCLE_MS } from '@/components/loading-screen';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { getDemoUrl } from '@/services/demo-url';
@@ -16,15 +17,19 @@ function Wordmark() {
   return <ThemedText type="heading" accessibilityRole="header">HOMEBOUND</ThemedText>;
 }
 
-export function ConnectionGate({ children }: PropsWithChildren) {
+export function ConnectionGate({ children, fontsReady = true }: PropsWithChildren<{ fontsReady?: boolean }>) {
   const state = useSafekeeps();
   const [url, setUrl] = useState(process.env.EXPO_PUBLIC_API_URL ?? '');
+  const [introComplete, setIntroComplete] = useState(false);
 
-  if (state.hydrating) return (
-    <AppScreen header={<Wordmark />}>
-      <ThemedText themeColor="textSecondary">Opening your demo...</ThemedText>
-    </AppScreen>
-  );
+  useEffect(() => {
+    const timer = setTimeout(() => setIntroComplete(true), LOADING_CYCLE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!introComplete || !fontsReady || state.hydrating || (state.loading && !state.error)) {
+    return <LoadingScreen />;
+  }
   if (!state.session) return (
     <AppScreen header={<Wordmark />}>
       <SectionCard tone="ink">
@@ -36,7 +41,7 @@ export function ConnectionGate({ children }: PropsWithChildren) {
         )}
         <AppButton label={state.busy ? 'Starting...' : 'Start demo'} disabled={state.busy}
           onPress={() => { void state.startGuest(url.trim() || getDemoUrl()); }} />
-        {state.error && <ThemedText selectable accessibilityLiveRegion="polite" themeColor="danger">{state.error}</ThemedText>}
+        {state.error && <ThemedText selectable announce themeColor="danger">{state.error}</ThemedText>}
       </SectionCard>
     </AppScreen>
   );

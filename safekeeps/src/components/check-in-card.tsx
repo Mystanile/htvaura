@@ -6,6 +6,7 @@ import { AppButton } from '@/components/app-button';
 import { Field } from '@/components/form';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useAnnounce } from '@/hooks/use-announce';
 import { useTheme } from '@/hooks/use-theme';
 import { clockText } from '@/services/home-by';
 import { createGestureDecoder, type GestureResult } from '@/services/gesture';
@@ -24,6 +25,18 @@ export function CheckInCard() {
 const SETTLE_MS = 4000; // how long "Thanks!" and "Alert ended" stay before the armed look returns
 const SETTLES = ['thanks', 'ended_true', 'ended_fake'];
 
+// What a screen reader says when the screen changes. Same words wherever the screens look the same: ok and duress both
+// end on 'thanks', and the real PIN, the duress PIN and a closed alert all say 'Alert ended'.
+const SPOKEN: Record<string, string> = {
+  asking: 'Are you okay? Tap three times quickly if you are okay.',
+  alarm: 'Please answer now. Tap three times quickly if you are okay.',
+  thanks: 'Thanks!',
+  alert_active: 'Your contacts have been alerted',
+  pin_retry: 'Incorrect PIN, try again',
+  ended_true: 'Alert ended',
+  ended_fake: 'Alert ended',
+};
+
 function PlainCheckIn() {
   const state = useSafekeeps();
   const theme = useTheme();
@@ -31,7 +44,7 @@ function PlainCheckIn() {
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="CHECK IN !!"
+        accessibilityLabel="Check in"
         accessibilityState={{ disabled: state.busy, busy: state.busy }}
         disabled={state.busy}
         onPress={() => { void state.recordCheckIn(); }}
@@ -58,6 +71,7 @@ function NightCheckIn({ view }: { view: NightView }) {
   const theme = useTheme();
   const [decoder] = useState(createGestureDecoder);
   const decoderTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const touch = useRef({ down: false, at: 0 }); // tells a real touch from a screen reader's activation (see onPress below)
   const [timedOut, setTimedOut] = useState<string | null>(null); // a "Thanks!"-type screen that has run its time
   const [thanks, setThanks] = useState(false); // local "Thanks!" after a gesture, the same for ok and duress
   const [sending, setSending] = useState(false); // gesture finished, still being delivered (retries)
@@ -92,6 +106,8 @@ function NightCheckIn({ view }: { view: NightView }) {
   const base = timedOut === view.screen || retryArmed ? 'armed' : view.screen;
   const screen = (thanks || sending) && (base === 'armed' || base === 'asking' || base === 'alarm') ? 'thanks' : base;
   const loud = screen === 'alarm';
+  useAnnounce(SPOKEN[retryArmed && screen === 'armed' ? 'pin_retry' : screen] ?? null);
+  useAnnounce(leaving ? 'Leave the night? We will stop checking in on you.' : null);
 
   // louder look: buzz again and again until the screen changes
   useEffect(() => {
@@ -128,9 +144,17 @@ function NightCheckIn({ view }: { view: NightView }) {
       {(screen === 'armed' || screen === 'asking' || screen === 'alarm') && (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={screen === 'armed' ? 'CHECK IN !!' : 'Are you okay?'}
-          onPressIn={() => { answer(decoder.pressIn(Date.now())); watch(); }}
-          onPressOut={() => { answer(decoder.pressOut(Date.now())); watch(); }}
+          accessibilityLabel={screen === 'armed' ? 'Check in' : 'Are you okay?'}
+          accessibilityHint="Tap three times quickly if you are okay"
+          onPressIn={() => { touch.current = { down: true, at: Date.now() }; answer(decoder.pressIn(Date.now())); watch(); }}
+          onPressOut={() => { touch.current = { down: false, at: Date.now() }; answer(decoder.pressOut(Date.now())); watch(); }}
+          // TalkBack sends a click with no touch, so the press handlers never run. Count that click as one quick tap
+          // (three of them say ok, same as three taps). A real touch also ends in onPress, which is skipped here.
+          onPress={() => {
+            const now = Date.now();
+            if (touch.current.down || now - touch.current.at < 300) return;
+            answer(decoder.pressIn(now)); answer(decoder.pressOut(now)); watch();
+          }}
           style={({ pressed }) => ({
             ...hero,
             opacity: pressed ? 0.8 : 1,
@@ -152,7 +176,7 @@ function NightCheckIn({ view }: { view: NightView }) {
             <ThemedText type="small" themeColor="textSecondary">Home-by check at {clockText(view.home_by * 1000 - state.serverOffset)}</ThemedText>
           )}
           <AppButton variant="quiet" label="Cancel an alert" onPress={() => setPinOpen(open => !open)} />
-          {retryArmed && <ThemedText accessibilityLiveRegion="polite" style={{ color: theme.danger }}>Incorrect PIN, try again</ThemedText>}
+          {retryArmed && <ThemedText style={{ color: theme.danger }}>Incorrect PIN, try again</ThemedText>}
           {(pinOpen || retryArmed) && <PinEntry onSent={pinSent} />}
         </>
       )}
@@ -163,14 +187,14 @@ function NightCheckIn({ view }: { view: NightView }) {
         </>
       )}
       {screen === 'thanks' && (
-        <View accessibilityLiveRegion="polite" style={{ ...hero, backgroundColor: theme.primary }}>
+        <View style={{ ...hero, backgroundColor: theme.primary }}>
           <ThemedText type="display" style={{ color: theme.onPrimary }}>Thanks!</ThemedText>
         </View>
       )}
       {(screen === 'alert_active' || screen === 'pin_retry') && (
         <>
           <Panel>
-            <ThemedText type="heading" accessibilityLiveRegion="polite" style={{ textAlign: 'center' }}>
+            <ThemedText type="heading" style={{ textAlign: 'center' }}>
               {screen === 'pin_retry' ? 'Incorrect PIN, try again' : 'Your contacts have been alerted'}
             </ThemedText>
           </Panel>
@@ -180,14 +204,15 @@ function NightCheckIn({ view }: { view: NightView }) {
       {(screen === 'ended_true' || screen === 'ended_fake') && (
         <Panel>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.three }}>
-            <View style={{
-              width: 44, height: 44, borderRadius: Radius.pill, borderWidth: 3, borderColor: theme.primary,
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{
+              // the ring is the same for both, so only the fill tells them apart. border is about 2.9:1 on the panel
+              width: 44, height: 44, borderRadius: Radius.pill, borderWidth: 3, borderColor: theme.border,
               alignItems: 'center', justifyContent: 'center',
               backgroundColor: screen === 'ended_true' ? theme.primary : 'transparent',
             }}>
-              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onPrimary : theme.primary }}>✓</ThemedText>
+              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onPrimary : theme.border }}>✓</ThemedText>
             </View>
-            <ThemedText type="heading" accessibilityLiveRegion="polite">Alert ended</ThemedText>
+            <ThemedText type="heading">Alert ended</ThemedText>
           </View>
         </Panel>
       )}
@@ -196,7 +221,7 @@ function NightCheckIn({ view }: { view: NightView }) {
       ) : view.state !== 'armed' ? null /* asking or waiting: answer the check first, the server refuses Leave now */
         : leaving ? (
         <>
-          <ThemedText accessibilityLiveRegion="polite">Leave the night? We will stop checking in on you.</ThemedText>
+          <ThemedText>Leave the night? We will stop checking in on you.</ThemedText>
           <AppButton label="Yes, leave the night" variant="danger" disabled={state.busy}
             onPress={() => { setLeaving(false); void state.sendNightEvent('Leave'); }} />
           <AppButton label="Cancel" variant="quiet" onPress={() => setLeaving(false)} />
@@ -218,7 +243,7 @@ function Countdown({ deadline, loud }: { deadline: number; loud: boolean }) {
   }, []);
   const secondsLeft = Math.max(0, Math.ceil((deadline * 1000 - (now + serverOffset)) / 1000));
   return (
-    <ThemedText themeColor="textSecondary" accessibilityLiveRegion="polite">
+    <ThemedText themeColor="textSecondary">
       {loud ? `Your contacts will be told in ${secondsLeft} s` : `Answer in ${secondsLeft} s`}
     </ThemedText>
   );
@@ -256,7 +281,7 @@ function PinEntry({ onSent, hideHelper = false }: { onSent: () => void; hideHelp
       <Field label="Your PIN" helper={hideHelper ? undefined : 'Enter your PIN to end the alert.'} value={pin} onChangeText={setPin}
         placeholder="4 digits" keyboardType="number-pad" secureTextEntry autoCorrect={false}
         editable={!state.busy} maxLength={4} />
-      {problem !== '' && <ThemedText type="small" accessibilityLiveRegion="polite" style={{ color: theme.danger }}>{problem}</ThemedText>}
+      {problem !== '' && <ThemedText type="small" announce style={{ color: theme.danger }}>{problem}</ThemedText>}
       <AppButton label="End alert" disabled={state.busy} onPress={() => { void end(); }} />
     </>
   );

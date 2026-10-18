@@ -184,6 +184,16 @@ def record_check_in(db, user):
     db.execute("UPDATE requests SET resolved_at = ? WHERE target = ? AND resolved_at IS NULL", (now, user["id"]))
 
 
+@router.get("/push")
+def push_topic(authorization: str | None = Header(default=None)):
+    """The caller's own ntfy topic, so their phone can subscribe. {"topic": null} when push is off."""
+    from .app import ntfy_topic  # app.py imports this file
+    with connect() as db:
+        user = identity(db, authorization)
+    topic = ntfy_topic(user["id"])
+    return {"topic": topic, "url": os.environ["KAZE_NTFY_URL"] if topic else None}
+
+
 @router.post("/check-ins")
 async def check_in(authorization: str | None = Header(default=None)):
     from .bridge import send  # the bridge imports app.py, which imports this file

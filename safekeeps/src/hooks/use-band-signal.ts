@@ -4,6 +4,7 @@ import { SERVICE_UUID, median, nextNear, type Sample } from '@/services/band';
 import { askBluetoothPermission, manager } from '@/services/band-relay';
 
 const LOST_AFTER_MS = 10_000;
+const RETRY_MS = 2500; // wait between scan restarts, so Bluetooth that stays off is not hammered
 
 // near is null while there is no reading in the last 4 s.
 export type BandSignal = { near: boolean | null; lost: boolean };
@@ -23,19 +24,29 @@ export function useBandSignal(active: boolean): BandSignal | null {
     let lastSeen = Date.now();
     let near = false;
     let stopped = false;
-    askBluetoothPermission().then(allowed => {
-      if (stopped || !allowed) return;
-      return ble.startDeviceScan([SERVICE_UUID], { allowDuplicates: true }, (error, device) => {
-        if (error || !device || device.rssi == null) return;
-        lastSeen = Date.now();
-        samples.push({ t: lastSeen, rssi: device.rssi });
-      });
-    }).catch(() => {}); // Bluetooth off or not allowed: the screen ends up at "No band signal"
+    let scanning = false;
+    let retryAt = 0;
+    // stopDeviceScan drops the dead scan's listener, or every retry would leave one more behind
+    const fail = () => { scanning = false; retryAt = Date.now() + RETRY_MS; ble.stopDeviceScan().catch(() => {}); };
+    const start = () => {
+      scanning = true;
+      askBluetoothPermission().then(allowed => {
+        if (stopped || !allowed) return; // not allowed: scanning stays true, so we never ask again
+        return ble.startDeviceScan([SERVICE_UUID], { allowDuplicates: true }, (error, device) => {
+          if (error) return fail(); // ble-plx: the scan has stopped, it must be started again
+          if (!device || device.rssi == null) return;
+          lastSeen = Date.now();
+          samples.push({ t: lastSeen, rssi: device.rssi });
+        });
+      }).catch(fail); // Bluetooth off: the screen shows "No band signal" until a retry works
+    };
+    start();
     const timer = setInterval(() => {
       const now = Date.now();
+      if (!scanning && now >= retryAt) start();
       while (samples.length > 0 && samples[0].t <= now - 4000) samples.shift();
       const rssi = median(samples, now);
-      near = nextNear(near, rssi);
+      near = nextNear(near, rssi, samples.length);
       setSignal({ near: rssi === null ? null : near, lost: now - lastSeen > LOST_AFTER_MS });
     }, 500);
     return () => {

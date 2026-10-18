@@ -47,7 +47,7 @@ class Alert:
     hidden: bool = False
     location: tuple[float, float] | None = None  # the last position while this alert runs
     location_at: float | None = None  # when `location` was last updated
-    pin: str = ""  # the PIN of the night that raised it: only this PIN ends it later
+    pin: str = ""  # the PIN of the night that raised it: only this PIN ends it later (never a duress alert)
     stale_ack_by: str | None = None  # took the alert but did not end it in ack_hold_seconds
     rounds: int = 0  # re-alert rounds sent after the last tier
     final_step: bool = False  # SIMULATED: emergency services would be contacted now
@@ -278,7 +278,9 @@ def _on_user_resolve(s, e, now):
         return []
     # A PIN ends the alerts raised under it. An older night's PIN still ends the alerts carried from that night.
     # The front looks only at the PIN of this night.
-    mine = [a for a in _active(s) if a.pin == e.pin]
+    # No PIN ends a duress alert: whoever forces the user to cancel may know the PIN, and the end screen
+    # shows which PIN is real. Only a duress contact can end it.
+    mine = [a for a in _active(s) if a.pin == e.pin and a.kind != "duress"]
     if e.pin == s.config.pin:
         effects = [_to_user(s, "ended_true")]
         _end_front(s)
@@ -482,7 +484,8 @@ def view_for(session: Session, viewer_id: str) -> dict:
     if viewer_id == c.user_id:  # the front only
         state = "armed" if s.state == "resolved" else s.state
         deadline = s.deadline if s.state in ("asking", "waiting") else None
-        view = {"state": state, "screen": s.screen, "deadline": deadline, "ping_at": s.ping_at}
+        view = {"state": state, "screen": s.screen, "deadline": deadline, "ping_at": s.ping_at,
+                "next_check": s.next_check if s.state == "armed" and s.next_check is not None and not _night_over(s, s.next_check) else None}  # the server clock, for the phone's own reminders; none past the end of the night
         if c.home_by is not None and not s.home_by_done:
             view["home_by"] = c.home_by  # only in the user's own view, and only while the check waits
         return view

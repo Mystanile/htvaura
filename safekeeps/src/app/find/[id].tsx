@@ -10,6 +10,7 @@ import { AppScreen } from '@/components/app-screen';
 import { SectionCard } from '@/components/section-card';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useAnnounce } from '@/hooks/use-announce';
 import { useBandSignal } from '@/hooks/use-band-signal';
 import { useTheme } from '@/hooks/use-theme';
 import { locationAgeText } from '@/services/age';
@@ -50,7 +51,7 @@ function useOwnPosition() {
 function Arrow({ degrees }: { degrees: number }) {
   const theme = useTheme();
   return (
-    <View style={{ alignItems: 'center', transform: [{ rotate: `${degrees}deg` }] }} accessibilityLabel="Arrow pointing to your friend">
+    <View style={{ alignItems: 'center', transform: [{ rotate: `${degrees}deg` }] }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={{ borderLeftWidth: 50, borderRightWidth: 50, borderBottomWidth: 80, borderLeftColor: 'transparent',
         borderRightColor: 'transparent', borderBottomColor: theme.accent }} />
       <View style={{ width: 36, height: 70, backgroundColor: theme.accent, borderBottomLeftRadius: Radius.control, borderBottomRightRadius: Radius.control }} />
@@ -66,11 +67,21 @@ export default function FindScreen() {
   const [ping, setPing] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
   const alert = state.night?.alerts.find(item => item.user_id === id);
-  const name = nameOf(id) ?? 'your friend';
+  const name = nameOf(id) ?? alert?.name ?? 'your friend';
   const metres = own.position && alert?.location ? distanceMetres(own.position, { lat: alert.location[0], lng: alert.location[1] }) : 0;
   // Indoor GPS is off by 20 to 50 m, so a short distance is mostly noise. Do not point the arrow at noise.
-  const tooClose = metres < 30 || metres < own.accuracy + 20;
+  // Enter below 30 m, leave above 45 m, so jitter around the line does not flip the screen (or the spoken line) back and forth.
+  const [close, setClose] = useState(false);
+  const tooClose = close ? !(metres > 45 && metres > own.accuracy + 35) : metres < 30 || metres < own.accuracy + 20;
+  if (tooClose !== close) setClose(tooClose);
   const band = useBandSignal(own.position !== null && alert?.location != null && tooClose); // the band takes over when GPS cannot
+  // Said only when the state changes (the text is the same while it holds), never for every new distance reading.
+  useAnnounce(alert?.location == null ? (state.night === null ? null : 'No location to follow right now. The alert may have ended.')
+    : own.denied ? `Allow location in your settings to see how far away ${name} is.`
+    : own.position === null ? null
+    : !tooClose ? `Head toward ${name}. The screen shows the distance and direction.`
+    : band?.near ? "You're right next to them" // "in range" and "looking" say the close line: a gap at the edge of range stays silent
+    : band?.lost ? 'No band signal' : "You're close. GPS can't point closer than this. Use Ping.");
 
   if (!alert || alert.location === null) return (
     <AppScreen>
@@ -114,7 +125,7 @@ export default function FindScreen() {
               <>
                 <ThemedText type="name" style={{ textAlign: 'center', paddingVertical: Spacing.three }}>{"You're close. GPS can't point closer than this. Use Ping."}</ThemedText>
                 {band && (
-                  <View style={{ gap: Spacing.one }} accessibilityLiveRegion="polite">
+                  <View style={{ gap: Spacing.one }}>
                     <ThemedText type="display" style={{ textAlign: 'center' }}>
                       {band.near === null ? (band.lost ? 'No band signal' : 'Looking for the band...')
                         : band.near ? "You're right next to them" : 'Their band is in range'}
@@ -152,8 +163,8 @@ export default function FindScreen() {
           )}
         </>
       )}
-      {ping === 'sent' && <ThemedText accessibilityLiveRegion="polite">Ping sent. If it counts, their phone rings.</ThemedText>}
-      {problem && <ThemedText accessibilityLiveRegion="polite" themeColor="danger">{problem}</ThemedText>}
+      {ping === 'sent' && <ThemedText announce>Ping sent. If it counts, their phone rings.</ThemedText>}
+      {problem && <ThemedText announce themeColor="danger">{problem}</ThemedText>}
     </AppScreen>
   );
 }

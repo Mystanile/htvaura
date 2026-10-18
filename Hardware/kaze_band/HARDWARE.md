@@ -112,6 +112,8 @@ Why two states: the table above shows one clear jump, from -41 dBm right beside 
 
 Do **not** use an RSSI cutoff. 2 m and 20 m look the same indoors. Treat someone as separated when their band's signal is **lost entirely for 30+ seconds**.
 
+This is the design only. It is not built. In the demo, separation comes from the demo panel (see `DEMO_NOTES.md`).
+
 ## Tested
 
 - `0x01` and `0x02` received over notify in nRF Connect
@@ -127,4 +129,5 @@ Also compiled but not tested on the board: Notify only (no Read) on `event`, the
 
 - Vibration motor (no motor available, buzzer + LED used instead)
 - Real wearable housing and battery
+- Separation from 30 s of lost band signal (the demo panel sends separation)
 - UWB for a real indoor direction arrow

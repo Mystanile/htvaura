@@ -18,6 +18,7 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 - [x] 2.0 Server bridge for safekeeps (me), review findings fixed, see "Where we stopped"
 - [x] 2.1, 2.3, 2.4 Safekeeps app screens, built on branch `checkin-screens` while the teammate slept. Waiting for her review in the pull request. Tested in a web browser with two tabs. The app was installed on one iPhone 15 Pro. The rest is untested on phones.
 - [x] 2.5 Triggers: periodic, "ask a friend" and "be home by" work. Home-by: server `home_by` plus an optional field in Start a night. Tested in automated tests only (server tests, `home-by.test.ts`), not on a phone.
+- [x] 2.6 Push to alerted contacts through ntfy: `KAZE_NTFY_URL` and `KAZE_NTFY_SECRET`, `GET /safekeeps/push`, a block in Settings. Off by default. Tested with a faked sender only. Real phone delivery is untested.
 - [x] 3.1 Demo panel (`server/kaze/panel.py`, `server/panel/index.html`, `server/tests/test_panel.py`). Not yet tried on real phones.
 - [x] 4.1 to 4.2 Find them: server ping on `main`, app on branch `find-them` (pull request into `checkin-screens`). Tested in a web browser with a faked location. The compass arrow, real GPS, and the ping sound need a phone. See decisions 10 and 11.
 - [x] 5.1 iPhone Release build works (iPhone 15 Pro).
@@ -58,8 +59,35 @@ A fresh session continues from this file. Mark tasks done in the Status section 
 
 A new session continues from this section. Read it first, then the Status list above.
 
-Judging branch (newest work):
-- Worktree `~/Desktop/kaze-judge`, branch `judging`. It holds the 6.x items above. The plan is a pull request into `home-by`. The lead reviews and commits it. Items 6.12 and 6.13 are not committed yet.
+Branch `ntfy` (newest work, 2026-10-17 evening):
+- Worktree `~/Desktop/kaze-ntfy`, made from `judging`. Commit `ea1e5ab` adds the ntfy push (task 2.6). Not pushed, no pull request yet. 300 server tests and 57 app node tests pass.
+- Local reminder notifications for the user's own checks (`expo-notifications`, no push, no entitlement) are built on this branch. Unit-tested only, not yet tried on a phone. Server: the user's view now has `next_check`. 301 server tests and 64 app node tests pass.
+- ntfy push reached a locked iPhone 13 on 2026-10-17. Also passed on that phone the same evening: duress PIN, scaled alerts, the new text colours and VoiceOver.
+- Local reminders (`8dc3bc3`): the user's own scheduled check reached a locked iPhone 13 as "Homebound: Open the app." on 2026-10-17. Not tested: the notification from a band heartbeat wake.
+- The server tunnel address changed on 2026-10-17 evening. The phone app takes a new address in Settings, Connection, with no rebuild.
+- Still to test, with the teammate: Find them two-state band signal (two phones and the band), the band duress gesture, battery drain.
+- Retest of 6.12 and 6.13 over HTTP on a scratch server: the duress PIN and the duress gesture pass in all five front states. The phone gets the same answer as for the real PIN or an ok.
+- The Find them simulation is stable at 4 or more readings a second. Open bugs, not fixed:
+  - Fixed in `3d3dac9`: one reading could enter "right next to them". Now it needs 3 readings in the 4 s window. The simulation showed no return to that state while walking away. False ones at the venue's 1 m level dropped from 38 to 3 in 100 runs at 0.5 readings a second.
+  - Fixed in `7c2238c`: a failed Bluetooth scan now restarts every 2.5 s, and the failed scan is stopped first so no listener leaks.
+- Accessibility in `43bfefa`, inside the teammate's theme: darker text in the same hues, screen reader announcements (the same words for ok and duress), labels, text up to 2x, 44 pt targets, and check-in under TalkBack. Two audits found 10 issues, all fixed. Not tried with VoiceOver or TalkBack on a phone.
+  - Fixed in the docs: `HARDWARE.md` now says the 30 s separation rule is design only.
+- Decided 2026-10-17 (was an open question): after an end, PIN guesses stay unlimited, but no PIN ends a duress alert, so the filled or outlined check gives a captor nothing to cancel a duress alert with (decision 13).
+- An LLM council graded the project at about 60 of 100. Its top must-haves:
+  1. Run everything from one checkout.
+  2. Retest duress on the phones.
+  3. Remove false lines from DEMO_SCRIPT (`:97` contact ranking, `:83`, `:193`) and from DEMO_NOTES (`:7` test count).
+  4. Disclose the limits.
+  5. Try ntfy on a real phone.
+  6. Make a 5-minute demo story.
+  7. Make three slides.
+  8. Record a backup video.
+- Done on 2026-10-17 evening (not demo work): the band.ts fix, the false or stale lines in DEMO_NOTES, HARDWARE.md and CODE_TOUR, and the limits added to DEMO_NOTES "What assumptions the concept relies upon". Still to do, with the demo: DEMO_SCRIPT lines (`:97` contact ranking, `:83`, `:193`) and must-haves 1, 2, 5 to 8.
+
+Judging branch:
+- Worktree `~/Desktop/kaze-judge`, branch `judging`. It holds the 6.x items above, all committed (6.12 in `de2aedf`, 6.13 in `a100f73`). Pull request #8 (`judging` into `main`) is open. `judging` also has the teammate's UI overhaul from `main` (`9f13b4e`). It also has the pixel home sprites (`348c740`) and the check mark fix (`a75e86b`).
+- Checked on 2026-10-17, evening: 291 server tests and 57 app node tests pass on `judging`, and `tsc` is clean.
+- The demo processes run from `kaze-judge`: the server on port 8000 (with `SAFEKEEPS_DB=~/Desktop/kaze-app/server/safekeeps.sqlite3`), its tunnel, and the web app on port 8090 with its own tunnel. The logs are in `/private/tmp/claude-501/kz/`.
 - Two-person retest on 2026-10-17 (two iPhones and the band): most of the judging build worked. Not tested: scaled alerts (the hand-off to tier 2). Two problems, both fixed in code (6.12, 6.13) and waiting for a retest:
   - Find them was not accurate. Walking away sometimes showed a closer state.
   - The duress PIN did nothing, on the phone ("Cancel an alert") or from the band. The build had no duress PIN. The band gesture may also have been made during the user's own alert: the server ignored the duress gesture in escalating and acknowledged. Fixed: the gesture now starts the duress alert in every front state. A band paired with no night running also gets its answers refused (Home now says so).
@@ -70,7 +98,7 @@ Judging branch (newest work):
   - battery drain
   - the latest firmware and app from `judging`
 - Ideas from the judging review that are not done:
-  - Push to contacts through ntfy (needs the user's approval, it is not in this plan).
+  - Push to contacts through ntfy. The user asked for it on 2026-10-17, evening. Plan first, then build.
   - Slides.
   - Rewrite DEMO_SCRIPT as a 5-minute story.
   - A duress practice card on Start a night.
@@ -78,7 +106,9 @@ Judging branch (newest work):
   - The hallway gesture test with other hackers (the user's job).
 
 Where the code is:
-- `main` has the server: loop, bridge, demo panel. 223 server tests pass on `home-by` (`cd server && .venv/bin/pytest -q`). The app has 52 node tests there. The `judging` branch has 290 server tests and 57 app node tests (with 6.12, 6.13 and the duress gesture fix, not committed). `main` has 224 and 53.
+- Pull requests #1 and #7 are merged into `main`. So `main` has the whole branch chain and the teammate's UI overhaul. #2, #3, #4 and #6 are closed because their work arrived through #7. Open: #8 (`judging`) and #5 (`ui-fresh`, rejected option B, closing it is the user's call).
+- Test counts: `judging` has 291 server tests (`cd server && ~/Desktop/kaze/server/.venv/bin/pytest -q`) and 57 app node tests (`cd safekeeps && node --test src/services/*.test.ts`).
+- The paragraphs below describe the older branch chain. They stay for history.
 - Branch `checkin-screens` has the teammate's app with tasks 2.1, 2.3, 2.4 added, plus `main` merged in. Pull request #1 (https://github.com/Mystanile/htvaura/pull/1) is open and waits for the teammate's review. Do not merge it without the user.
 - Branch `find-them` (pull request #2, into `checkin-screens`) adds find them and ping.
 - Branch `test-fixes` (pull request #3, into `find-them`) fixes the first phone test: Find them hides the arrow below about 30 m because indoor GPS is off by 20 to 50 m, "Open in Maps" is a picker (Apple Maps, Google Maps, Waze), and you can rename a friend who added you (`POST /safekeeps/friends/{friend_id}/name`). 214 server tests pass.
@@ -116,7 +146,7 @@ iPhone build (task 5.1, works on 2026-10-17 on one iPhone 15 Pro):
 
 Next steps, in order:
 0. The newest code is on branch `home-by` (worktree `~/Desktop/kaze-band`). The user picked option A (`ui-refine`). Hold off on color changes: the teammate is redoing the palette. In order:
-   - First, after the lead commits 6.12 and 6.13: build `judging` onto both iPhones. Retest with a night running:
+   - First (6.12 and 6.13 are committed): build `judging` onto both iPhones. Retest with a night running:
      - The duress PIN from "Cancel an alert". The duress contact gets the alert, and the phone shows the filled check.
      - The band duress gesture.
      - The two-state band signal on Find them.
@@ -163,7 +193,7 @@ The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/
 ## Decisions
 
 1. Check-in input (changed 2026-10-17). The app button and the band use the same gestures. 3 quick taps within 1.5 s = "I'm okay". Hold 1 s, then 2 quick taps within 2.5 s = duress. Hold 1 s and then nothing = "I'm okay" after 2.5 s. 1 or 2 taps and then nothing = nothing. `Hardware/kaze_band/HARDWARE.md` is the source of truth. Ok and duress show the same "Thanks!" screen, and the band gives the same single flash and beep.
-2. Cancel PIN. The user sets a 4-digit PIN at setup. A PIN is needed to cancel an alert that already reached contacts (a false alarm or a duress alert).
+2. Cancel PIN. The user sets a 4-digit PIN at setup. A PIN is needed to cancel an alert that already reached contacts (a false alarm). No PIN cancels a duress alert (see decision 13).
 3. Wrong PIN. The first wrong PIN is a silent retry: the screen shows a normal "Incorrect PIN, try again", nothing changes on the server, and no one is told. From the second wrong attempt on, the screen says "Alert ended". A person watching cannot tell. Contacts see "Someone tried to cancel with a wrong PIN." A small cue that only the user knows shows the truth. Correct PIN: filled check mark. Wrong PIN: outlined check mark, and the alert keeps going. After any end screen (the fake end or a real end), every later wrong PIN shows "Alert ended" with the outlined check again and tells nobody, until the next check starts. So a person who forces more guesses learns nothing. The right PIN, or a contact, still ends a hidden alert.
 4. Ending duress. The user (correct PIN) or one of the duress contacts can end it.
 5. Ranked tiers. The user ranks who gets alerted. Each tier is a list of people. If no one in a tier taps "I'm on it" in time, the next tier gets alerted. Modes are only presets of tiers:
@@ -176,10 +206,13 @@ The teammate's folder has a second, unused Expo project at `safekeeps/safekeeps/
 
 10. Location during a night (decided 2026-10-17). While a night runs and the app is open, the phone sends its GPS location to the server about every 30 s. The server shows it to contacts only during an active alert (`view_for`), and clears it when the alert ends. Reason: the phone never knows a duress alert is running, so this is the only way duress contacts get a location.
 11. Ping only for visible alerts (decided 2026-10-17). A contact can ping the person's phone (loud sound and flash) only through the user's visible front alert, never a hidden one. A ringing phone would expose a duress alert to the person watching.
-12. Duress PIN (decided 2026-10-17). The user sets a second 4-digit PIN at setup, different from the cancel PIN. The user types it in the same PIN box. The phone shows exactly what the right PIN shows: "Alert ended" with the filled check. In secret, a duress alert starts with the front location, exactly as after the duress gesture. Nothing is resolved. The user's own alert, if one runs, becomes hidden and keeps escalating. This is like a fake end, but no contact gets `wrong_pin_warning`. It never counts as a wrong PIN. The right PIN still ends every alert later.
+12. Duress PIN (decided 2026-10-17). The user sets a second 4-digit PIN at setup, different from the cancel PIN. The user types it in the same PIN box. The phone shows exactly what the right PIN shows: "Alert ended" with the filled check. In secret, a duress alert starts with the front location, exactly as after the duress gesture. Nothing is resolved. The user's own alert, if one runs, becomes hidden and keeps escalating. This is like a fake end, but no contact gets `wrong_pin_warning`. It never counts as a wrong PIN. The right PIN ends the user's own alerts later, but never a duress alert (decision 13).
    - Reason: the KAZE brief gives this as an example of a duress mechanism. It is a code that appears to cancel an alert while it silently asks for help.
    - How it relates to decision 3: both hide an alert from the watcher. Decision 3 stays. It protects a user who types a wrong PIN, by accident or on purpose, and its screens do not change. The duress PIN is the planned way. It gives the filled check and a new alert to the duress contacts.
    - Tests: `test_twin.py` compares the duress PIN with the right PIN, in random runs and from all 8 front states. Also the HTTP twin in `test_bridge.py`, and `test_3_duress_pin_looks_like_a_real_cancel_but_alerts_the_duress_contacts`.
+13. No PIN ends a duress alert (decided 2026-10-17). The real PIN, a wrong PIN, a fake end and an older night's PIN end only the user's own alerts. A duress alert ends only when a duress contact resolves it (`loop.py:281-283`). Reason: after an end screen the filled check shows which PIN is real, so a captor could find the real PIN and cancel the duress alert. Tradeoff: a user who triggers duress by accident cannot cancel it. A duress contact has to resolve it. This is scenario 6, a false alarm resolved by an authorized contact.
+   - Tests: `test_loop.py` (the duress PIN then the real PIN, the duress gesture then the real PIN, a PIN sweep 0000-9999 after an end screen, and the contact resolve).
+
 
 ## Architecture
 

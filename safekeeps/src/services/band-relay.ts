@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import type { BleManager, Subscription } from 'react-native-ble-plx';
 
+import { notifyCheckNow } from '@/services/check-now';
 import { ApiError, api, fetchNight, type Night } from '@/services/demo-api';
 import { loadSession, type DemoSession } from '@/services/demo-session';
 import {
@@ -118,7 +119,7 @@ async function keepConnected(id: string) {
 // Find the band, remember it, and keep it connected.
 export async function pairBand() {
   if (!manager) throw new Error('Bluetooth is not available in this app build.');
-  if (!(await askBluetoothPermission())) throw new Error('Allow Bluetooth for Safekeeps in your settings.');
+  if (!(await askBluetoothPermission())) throw new Error('Allow Bluetooth for Homebound in your settings.');
   const ble = manager;
   const id = await new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -128,7 +129,7 @@ export async function pairBand() {
     ble.startDeviceScan([SERVICE_UUID], null, (error, device) => {
       if (error) {
         clearTimeout(timer);
-        reject(new Error('Bluetooth is off or not allowed for Safekeeps.'));
+        reject(new Error('Bluetooth is off or not allowed for Homebound.'));
       } else if (device && (device.name === BAND_NAME || device.localName === BAND_NAME)) {
         clearTimeout(timer);
         void ble.stopDeviceScan();
@@ -218,6 +219,7 @@ function write(uuid: string) {
 export function onNight(night: Night | null) {
   void flushPending();
   const view = night?.view;
+  notifyCheckNow(view);
   if (!night || !view || !connected) return;
   const key = askKey(view);
   if (key !== null && key !== askedKey) {

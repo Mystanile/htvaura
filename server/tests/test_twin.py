@@ -86,6 +86,12 @@ def duress_pair(**over):
     return p
 
 
+def test_next_check_is_the_same_after_duress_and_ok():
+    """next_check is in the user's view, so a duress that re-armed differently would show here (Pair.send compares it)."""
+    p = duress_pair(check_every_seconds=60)
+    assert view_for(p.hidden, U)["next_check"] == view_for(p.honest, U)["next_check"] == p.now + 60
+
+
 def fake_end_pair(**over):
     """The hidden user typed 2 wrong PINs in a real alert. The honest user typed the right PIN."""
     p = new_pair(**over)
@@ -243,7 +249,7 @@ def test_n1_pin_retry_in_an_alert_looks_the_same():
     p.tick(100)
     assert view_for(p.hidden, U)["state"] == "escalating"
     p.send(Resolve(U, "0000"))
-    assert view_for(p.hidden, U) == {"state": "escalating", "screen": "pin_retry", "deadline": None, "ping_at": None}
+    assert view_for(p.hidden, U) == {"state": "escalating", "screen": "pin_retry", "deadline": None, "ping_at": None, "next_check": None}
     assert p.send(Trigger("periodic")) == []
     p.send(Leave())  # ignored in an alert, for both
 

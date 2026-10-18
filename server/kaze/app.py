@@ -4,6 +4,8 @@ All state changes go through `run`, which calls loop.step and pushes the effects
 """
 import asyncio
 import dataclasses
+import hashlib
+import hmac
 import json
 import logging
 import math
@@ -16,6 +18,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
+import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -75,6 +78,36 @@ async def deliver(effects) -> None:
     await asyncio.gather(*(send_all(ws, m) for ws, m in per_socket.items()))
 
 
+def ntfy_topic(contact_id: str) -> str | None:
+    """The contact's own ntfy topic, or None when push is off. Not guessable: it is an HMAC of the id."""
+    if not os.environ.get("KAZE_NTFY_URL"):
+        return None
+    secret = os.environ.get("KAZE_NTFY_SECRET")
+    if not secret:
+        if not getattr(ntfy_topic, "warned", False):
+            ntfy_topic.warned = True
+            logging.getLogger("uvicorn.error").warning("KAZE_NTFY_URL is set but KAZE_NTFY_SECRET is not: push is off")
+        return None
+    return "kaze-" + hmac.new(secret.encode(), contact_id.encode(), hashlib.sha256).hexdigest()[:20]
+
+
+async def send_ntfy(url: str, topic: str) -> None:
+    """One push. The text carries no name, no location, nothing personal. A failure is logged and dropped."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.post(f"{url.rstrip('/')}/{topic}", content="A Homebound alert is waiting for you. Open the app.",
+                                  headers={"Title": "Homebound", "Priority": "high", "Tags": "warning"})
+            r.raise_for_status()  # a 429 or 5xx from ntfy is a failed send too
+    except Exception:
+        logging.getLogger("uvicorn.error").warning("ntfy push failed", exc_info=True)
+
+
+async def notify(effects) -> None:
+    # a contact only, never the user's own id. Sent together so one slow request delays no other push.
+    topics = [t for e in effects if e.kind == "alert" and e.to != e.data.get("user_id") and (t := ntfy_topic(e.to))]
+    await asyncio.gather(*(send_ntfy(os.environ["KAZE_NTFY_URL"], t) for t in topics))
+
+
 async def push(effects) -> None:
     """Send each effect to its id's open sockets. No socket means dropped (the app can GET the view).
 
@@ -85,6 +118,10 @@ async def push(effects) -> None:
         task = asyncio.create_task(deliver(effects))
         background.add(task)
         task.add_done_callback(background.discard)
+        if os.environ.get("KAZE_NTFY_URL"):
+            task = asyncio.create_task(notify(effects))
+            background.add(task)
+            task.add_done_callback(background.discard)
 
 
 async def run(user_id: str, event) -> None:
