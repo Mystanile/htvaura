@@ -117,15 +117,16 @@ export default function HomeScreen() {
             <View key={friend.id} style={{ width: '48%', flexGrow: 1 }}>
             <Link href={{ pathname: '/friends/[id]', params: { id: friend.id } }} asChild>
               <Pressable accessibilityRole="link" accessibilityLabel={`View ${friend.name}, ${status}`}
-                style={{
+                style={({ pressed }) => ({
                   width: '100%', minHeight: 70,
                   paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center',
-                }}>
+                  transform: [{ translateY: pressed ? 2 * ART : 0 }], // pushed in, like the pressed button art
+                })}>
                 {({ pressed }) => <>
                 <PixelFrame sprite={present ? Artwork.present : Artwork.away} />
                 {/* pressed: the fill darkens inside the frame's border, like the pressed button art */}
                 {pressed && <View pointerEvents="none" style={{ position: 'absolute', top: 2 * ART, left: 2 * ART, right: 2 * ART,
-                  bottom: 3 * ART, backgroundColor: 'rgba(0, 0, 0, 0.12)' }} />}
+                  bottom: 3 * ART, backgroundColor: 'rgba(0, 0, 0, 0.25)' }} />}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <ThemedText type="name" numberOfLines={2} style={{ flex: 1, fontSize: 17, lineHeight: 24, color: present ? theme.accent : AWAY_INK }}>{friend.name}</ThemedText>
                   <ThemedText maxFontSizeMultiplier={1.4} style={{ fontSize: 9, color: present ? theme.accent : AWAY_INK }}>CHECK IN?</ThemedText>

@@ -41,6 +41,13 @@ const SPOKEN: Record<string, string> = {
 function PlainCheckIn() {
   const state = useSafekeeps();
   const theme = useTheme();
+  const [thanks, setThanks] = useState(false); // "Thanks!" for a moment after a saved check-in, like during a night
+  useEffect(() => {
+    if (!thanks) return;
+    const timer = setTimeout(() => setThanks(false), SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [thanks]);
+  useAnnounce(thanks ? 'Thanks!' : null);
   return (
     <>
       <Pressable
@@ -48,7 +55,7 @@ function PlainCheckIn() {
         accessibilityLabel="Check in"
         accessibilityState={{ disabled: state.busy, busy: state.busy }}
         disabled={state.busy}
-        onPress={() => { void state.recordCheckIn(); }}
+        onPress={() => { void state.recordCheckIn().then(saved => setThanks(saved)); }}
         style={{
           ...hero,
           opacity: state.busy ? 0.6 : 1,
@@ -56,7 +63,7 @@ function PlainCheckIn() {
         {({ pressed }) => <>
         <PixelFrame sprite={pressed && !state.busy ? Artwork.checkInPressed : Artwork.checkIn} />
         <ThemedText type="display" style={{ color: state.busy ? theme.textSecondary : theme.onPrimary }}>
-          {state.busy ? 'Saving...' : 'Check In'}
+          {state.busy ? 'Saving...' : thanks ? 'Thanks!' : 'Check In'}
         </ThemedText>
         <ButtonParticles active={pressed && !state.busy} />
         </>}
