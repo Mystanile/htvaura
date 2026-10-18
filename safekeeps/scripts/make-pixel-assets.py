@@ -26,6 +26,7 @@ FRAMES = {
     'header': (31, 12, 3, 176),
     'sectionbig': (13, 87, 7, 87),
     'sectionfriends': (6, 5, 6, 5),
+    'sectionalert': (6, 5, 6, 5),
     'frame1': (5, 5, 8, 5),
     'frame2': (5, 5, 8, 5),
     'friendempty': (1, 2, 3, 2),

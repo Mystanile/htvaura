@@ -25,6 +25,9 @@ export const Artwork = {
     require('@/assets/images/homebound/scaled/sectionbig.png'), 222, 147, [13, 87, 7, 87]),
   friends: sprite(require('@/assets/images/homebound/sectionfriends.png'),
     require('@/assets/images/homebound/scaled/sectionfriends.png'), 222, 135, [6, 5, 6, 5]),
+  // the friends card recoloured red, for alerts
+  alert: sprite(require('@/assets/images/homebound/sectionalert.png'),
+    require('@/assets/images/homebound/scaled/sectionalert.png'), 222, 135, [6, 5, 6, 5]),
   checkIn: sprite(require('@/assets/images/homebound/frame1.png'),
     require('@/assets/images/homebound/scaled/frame1.png'), 195, 61, [5, 5, 8, 5]),
   checkInPressed: sprite(require('@/assets/images/homebound/frame2.png'),

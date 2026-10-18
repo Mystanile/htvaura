@@ -219,9 +219,9 @@ function NightCheckIn({ view }: { view: NightView }) {
               // the ring is the same for both, so only the fill tells them apart. border is about 2.9:1 on the panel
               width: 44, height: 44, borderRadius: Radius.pill, borderWidth: 3, borderColor: theme.border,
               alignItems: 'center', justifyContent: 'center',
-              backgroundColor: screen === 'ended_true' ? theme.primary : 'transparent',
+              backgroundColor: screen === 'ended_true' ? theme.accent : 'transparent', // 5.6:1 on the panel, so filled and outlined differ
             }}>
-              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onPrimary : theme.border }}>✓</ThemedText>
+              <ThemedText style={{ fontWeight: '700', color: screen === 'ended_true' ? theme.onAccent : theme.border }}>✓</ThemedText>
             </View>
             <ThemedText type="heading">Alert ended</ThemedText>
           </View>

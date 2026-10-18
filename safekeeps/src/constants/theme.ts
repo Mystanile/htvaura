@@ -38,7 +38,7 @@ const dark: Tokens = { ...light };
 export const Colors = { light, dark } as const;
 export type ThemeColor = Exclude<keyof Tokens, 'scheme'>;
 export type Theme = { [Key in keyof Tokens]: string };
-export type Tone = 'plain' | 'ink' | 'green' | 'soft';
+export type Tone = 'plain' | 'ink' | 'green' | 'soft' | 'alert';
 
 // Both system appearances use the supplied artwork palette.
 const surfaces: Record<Tone, Theme> = {
@@ -46,6 +46,8 @@ const surfaces: Record<Tone, Theme> = {
   ink: light,
   green: { ...light, backgroundElement: '#EAE3CB' },
   soft: { ...light, backgroundElement: '#EAE3CB' },
+  // the red alert card (sectionalert.png, fill #F2B8B2). Text 8.7:1, secondary 7.1:1, accent 6.6:1 on the fill
+  alert: { ...light, backgroundElement: '#F2B8B2', text: '#421C1A', textSecondary: '#5C2420', accent: '#6E1F1B', border: '#6E1F1B' },
 };
 export const Tones = { light: surfaces, dark: surfaces };
 
