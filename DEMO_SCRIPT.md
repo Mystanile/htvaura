@@ -51,7 +51,7 @@ Say: "Most safety apps need a button press. The people who need help most often 
 Do:
 1. Panel: press Trigger "manual" on the Presenter card.
 2. iPhone A shows "Are you okay?" and buzzes. The band buzzes and blinks.
-3. Presenter taps the band 3 times.
+3. Presenter taps the band's touch sensor 3 times. The push button misses presses.
 4. iPhone A shows "Thanks!". The panel goes back to armed.
 
 Say: "Every trigger is a question first. Three taps on the band and I am fine. Nobody is alerted. A false alarm costs three taps, not a panic."
@@ -125,9 +125,9 @@ Say: "We have not tested this with real users yet. `VALIDATION.md` lists the stu
 
 ### Optional: duress on the band
 
-Do this beat only if the band duress gesture passed 10 of 10 on a retest. It has not passed yet, so skip it by default.
+The band duress gesture passed 4 of 4 on the touch sensor on 2026-10-17. Do this beat only if it also works in the rehearsal.
 
-Hold the band button for 1 second, then tap twice. The band flashes once, like an ok. The phone shows "Thanks!". Friend 2 gets the alert.
+Hold the band's touch sensor for 1 second, then tap twice. The band flashes once, like an ok. The phone shows "Thanks!". Friend 2 gets the alert.
 
 ## Timing
 
@@ -170,8 +170,8 @@ Hold the band button for 1 second, then tap twice. The band flashes once, like a
 
 ## Do not claim
 
-- The band duress gesture works. It failed once before the fix. The retest is pending.
-- Find them with Bluetooth works on two phones. It did not pass on hardware.
+- The band duress gesture is reliable. It passed 4 of 4 on the touch sensor, a small sample. The push button misses presses.
+- Find them with Bluetooth works at a distance. It passed at 0.5 m and 2 m. At 5 m it lost the band.
 - Battery life. We did not measure it.
 - A reminder from a band wake works. It did not pass.
 - Android or TalkBack works. We did not try it.
@@ -190,6 +190,7 @@ Source of truth: the results table in `DEMO_NOTES.md`.
 - Two iPhones and the band: pairing, band ok taps, the band asking, Ping (phone ring and band beep), state restoration, and advertising while connected.
 - The heartbeat woke a locked phone in about 12 s, in a few tries.
 - One iPhone 13 and browser contacts: the duress PIN, the hand-off to Tier 2, the ntfy push to a locked phone, a local reminder for a scheduled check, the VoiceOver check-in.
+- Two iPhones and the band, `main` build: the band duress gesture on the touch sensor (4 of 4), the "Be home by" check set with the time picker, Find them with the band at 0.5 m and 2 m, and a VoiceOver check-in with one double-tap.
 - Both iPhones: the themed header and the alert names.
 - Real server restarts during a running night kept the nights.
-- Tests: 305 server tests and 64 app node tests.
+- Tests: 305 server tests and 59 app node tests.

@@ -4,19 +4,27 @@ This file sorts the prototype into the four groups that the KAZE brief asks for.
 
 ## What the prototype actually demonstrates
 
-These items run in the prototype and pass automated tests: 305 server tests and 64 app node tests.
+These items run in the prototype and pass automated tests: 305 server tests and 59 app node tests.
 
 On real hardware (iPhone 15 Pro Release build and the Uno R4 WiFi band, firmware and app from branch `home-by`, 2026-10-17):
 
 - Pairing the band in Settings, and "Band connected" on Home.
-- Band ok (3 taps) reaches the server. The band duress gesture (hold 1 s, 2 taps) is not passed yet. In the two-person retest the duress contact got nothing. The likely causes are fixed and pass over HTTP in every state. The retest on phones is pending (see "Hardware test results").
+- Band ok (3 taps) reaches the server. The band duress gesture (hold 1 s, 2 taps) passed later on the `main` build (see below).
 - A check makes the band ask. A friend's Ping makes the phone ring and the band flash.
 - Heartbeat: with the phone screen off, the band asked about 12 s after a check started.
 - State restoration: the app was stopped from the Mac. iOS relaunched it in the background about 12 s later with nobody touching the phone, and a band answer reached the server with the screen off.
 - Advertising while connected: a second phone still saw KAZE-Band in nRF Connect.
 - Push through ntfy, set with `KAZE_NTFY_URL`. ntfy.sh is a third-party public server. The text says "A Homebound alert is waiting for you. Open the app." and carries no name, no location and no personal data. A locked iPhone showed it.
 
-Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most of the build worked. Two problems came up: the band duress gesture and the Find them band signal. Both are fixed in code and wait for a retest. See "Hardware test results".
+Two-person retest (two iPhones and the band, `judging` build, 2026-10-17): most of the build worked. Two problems came up: the band duress gesture and the Find them band signal. Both were fixed in code and retested below.
+
+On two iPhones and the band (iPhone 13 as the user with the band, iPhone 15 Pro as the friend, Release builds from `main`, band firmware flashed again from `main`, 2026-10-17 evening). A script on the laptop read both accounts from the server every second, so each result below is also on the server's record:
+
+- The band duress gesture on the touch sensor: 4 of 4 tries raised a duress alert on the friend's phone, and the user's phone showed "Thanks!" as after an ok. The band's push button misses presses, so the demo uses the touch sensor.
+- A "Be home by" time set with the iOS time picker. The check started at that time, and a band answer ended it.
+- Find them with the band's signal: "You're right next to them" at 0.5 m and "Their band is in range" at 2 m. At 5 m no reading arrived, so it showed "Looking for the band..." and then "No band signal". The band was connected to the user's phone at the same time.
+- VoiceOver: one double-tap on the check button says ok, and VoiceOver reads the screen.
+- On the phone, one tap answers a check. The band still needs 3 taps, because its button is easy to press by accident.
 
 On one iPhone 13 (Release build, branch `ntfy`, friends in a web browser, 2026-10-17):
 
@@ -39,10 +47,7 @@ On one iPhone 13 (Release build, branch `ntfy`, friends in a web browser, 2026-1
 - Response cards tell contacts what to do and what not to do, with no diagnosis words (tested).
 - Ping (a contact makes the person's phone ring) works only on visible alerts. It never works on a duress or fake-ended alert, because a ringing phone shows a hidden alert to a watcher. The server side is tested. The ring and flash on the phone, and the band beep, passed on hardware on 2026-10-17.
 - The duress PIN. The user sets a second PIN in Start a night. Typed in the PIN box, it shows the same filled-check "Alert ended" as the right PIN. In secret it alerts the duress contacts and ends nothing. Tests compare it with the right PIN in every front state, and in the random twin test, where it is one of three hidden kinds (it hid a running alert in 116 of 500 seeds). Over HTTP they compare the status, body and length, and the friends' snapshots. Limit: a watcher who holds a tier contact's phone sees the alert stay after the duress PIN, where the right PIN would end it. The wrong-PIN fake end has the same limit. Automated tests cover all states. The phone check passed on hardware.
-- Automated tests only, not on hardware:
-  - the home-by checks
-  - the band relay retry: an answer kept and sent later after a failed send
-  - the two-state band signal on Find them
+- Automated tests only, not on hardware: the band relay retry, an answer kept and sent later after a failed send.
 
 ## What is simulated
 
@@ -74,8 +79,8 @@ On one iPhone 13 (Release build, branch `ntfy`, friends in a web browser, 2026-1
 - No PIN ends a duress alert, not even the real one. Only a duress contact can end it. A user who triggers duress by accident cannot cancel it. A duress contact has to resolve it. That counts as scenario 6, a false alarm resolved by an authorized contact. Until then the alert repeats, 60 s, 120 s, then every 5 min, and the duress card tells the contact not to call or text, so they check in person.
 - Misuse: any contact or group member in a night can start a check with "ask a friend", with no limit on how often. If the user stays silent, the alert shares their location with the alerted contacts. A real build needs a limit and a log of who asked.
 - Contacts are not asked to accept their role. They accepted a friend request, but they are not told that they are a tier contact or a duress contact.
-- The two Find them band states need several readings a second. The real iOS scan rate is not measured. With one reading a second or fewer, the state can still flip at the edge.
-- Screen readers: the check screens, alerts and Find them speak short lines, and ok and duress say the same words. The text colours reach 4.5:1 on every text and background pair the app draws. VoiceOver passed on an iPhone 13 on 2026-10-17 (see the results table). TalkBack on Android is not tried. Under TalkBack, a double-tap counts as one tap, so three double-taps say ok. Duress with a screen reader on is not tested.
+- The two Find them band states need several readings a second. The real iOS scan rate is not measured. With one reading a second or fewer, the state can still flip at the edge. At 5 m, with the band also connected to the user's phone, no reading arrived at all.
+- Screen readers: the check screens, alerts and Find them speak short lines, and ok and duress say the same words. The text colours reach 4.5:1 on every text and background pair the app draws. VoiceOver passed on an iPhone 13 on 2026-10-17 (see the results table). TalkBack on Android is not tried. Under a screen reader, one double-tap says ok. Duress with a screen reader on is not tested.
 - The outlined check after a wrong PIN uses the card line colour (about 2.9:1 on its panel), so it is visible but quiet. A watcher close by can see it too.
 - GPS is accurate to 5 to 10 m outdoors only.
 - Nobody can read another person's session without a token. On the Homebound app path every call has a per-user token, and the old phase 1 endpoints refuse the ids of Homebound phones. On the demo-panel path (ids from `POST /users`) there is no auth. A person who holds such a phone and knows a contact's id can read a hidden alert. `POST /demo/reset` and `POST /demo/skip` have no auth either, unless `KAZE_DEMO_KEY` is set, and they affect every night. A real build needs real auth on those.
@@ -92,8 +97,8 @@ The studies we plan, each with a method and a target, are in `VALIDATION.md`. We
 
 Automated tests cannot cover real phones, BLE, or the Arduino band.
 
-- Band on its own (an earlier firmware was tested in nRF Connect, see `Hardware/kaze_band/HARDWARE.md`): 0x01 and 0x02 arrive over notify, ask and ping writes work, the band reconnects without a reset, and it runs from a power bank. Passed on the board with the app: 3 taps ok. Still to check on the button and the touch sensor:
-  - The gestures: hold 1 s plus 2 taps duress, hold alone ok after 2.5 s, 1 or 2 taps nothing.
+- Band on its own (an earlier firmware was tested in nRF Connect, see `Hardware/kaze_band/HARDWARE.md`): 0x01 and 0x02 arrive over notify, ask and ping writes work, the band reconnects without a reset, and it runs from a power bank. Passed on the board with the app: 3 taps ok, and hold 1 s plus 2 taps duress on the touch sensor. The push button misses presses. Still to check:
+  - Hold alone ok after 2.5 s, and 1 or 2 taps nothing.
   - The same flash for ok and duress.
   - An unanswered ask stops after 30 s and sends nothing.
 - Current firmware (the two-person retest ran it on the board). Not checked yet:
@@ -105,10 +110,9 @@ Automated tests cannot cover real phones, BLE, or the Arduino band.
 - Band with the app. Passed on hardware on 2026-10-17 (`home-by` build and firmware): pairing, band ok, the band asking, Ping reaching the band, the heartbeat, state restoration, and advertising while connected. See "What the prototype actually demonstrates". Still untested on hardware:
   - The app asks the band again at the louder stage. The firmware starts the ask again on each write.
   - An answer from the band can fail to reach the server. Then the app keeps it and sends it later. It keeps an ok or a duress for 60 s, the same for both, so a late one cannot tell them apart and cannot answer a later check. The band keeps an answer made with no phone connected for the same 60 s. A duress that cannot be sent within 60 s is lost. The server timer still escalates silence. A server refusal is also kept and retried until it expires. Only a 404 (no night running) is dropped at once.
-  - The band signal on the friend's phone: "Their band is in range", then "You're right next to them" right beside the band, and the line under Ping.
   - With no night running, Home says "Band connected. Start a night to use it."
-  - The band duress gesture with a night running, during an alert and with no alert.
-  - Battery drain, a reminder after a band wake, and TalkBack.
+  - The band duress gesture during the user's own alert. It passed with no alert running.
+  - A reminder after a band wake, and TalkBack.
 
 ### Hardware test results
 
@@ -118,16 +122,17 @@ Fill this in during the hardware test. Move each pass to "What the prototype act
 |---|---|---|---|
 | Ask to band delay, phone locked | 10 trials. Median and max in seconds | About 12 s (a few tries, not 10 timed trials yet) | 2026-10-17 |
 | State restoration | Stop the app from the Mac, tap the band. Pass or fail | Pass. Relaunched in about 12 s, answer reached the server with the screen off | 2026-10-17 |
-| Battery drain per hour, 20 s heartbeat | Phone and band battery percent per hour |  |  |
+| Battery drain per hour, 20 s heartbeat | Phone and band battery percent per hour | Started at 23:22: iPhone 13 at 78%, night running, band connected, app in the background. The band runs on a 10,000 mAh power bank (2 of 4 lights). End reading pending | 2026-10-17 |
 | Hotter and colder, three zones | Two iPhones and the band. Walk away and back | Fail: not accurate past 1 m. Walking away sometimes showed a closer state. Replaced by two states, retest pending | 2026-10-17 |
 | Duress PIN from "Cancel an alert" | Type the duress PIN on the phone | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the phone showed the same filled "Alert ended" as the real PIN, the duress contact got the alert, the tier contact saw nothing new | 2026-10-17 |
-| Band duress gesture | Hold 1 s, 2 taps on the band | Fail: the duress contact got nothing. Two possible causes, both fixed: the server ignored the gesture while the user's own alert ran, and a band paired with no night gets its answers refused (Home now says so). Retest during an alert and with no alert | 2026-10-17 |
+| Band duress gesture | Hold 1 s, 2 taps on the band | First try (`judging` build): fail, the duress contact got nothing. Two possible causes were fixed. Retest (`main` build, touch sensor, no alert running): pass, 4 of 4 tries alerted the friend's phone. Earlier in the retest the alerts did arrive but were resolved on the friend's phone within seconds, which looked like a fail. The push button misses presses | 2026-10-17 |
 | Scaled alerts | Tier 1 does not answer, tier 2 gets the alert | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): tier 2 got the alert after tier 1 did not take it | 2026-10-17 |
-| Band signal at 0.5 m | State shown |  |  |
-| Band signal at 2 m | State shown |  |  |
-| Band signal at 5 m | State shown |  |  |
+| Band signal at 0.5 m | State shown | Pass: "You're right next to them" (`main` build, iPhone 15 Pro) | 2026-10-17 |
+| Band signal at 2 m | State shown | Pass: "Their band is in range" | 2026-10-17 |
+| Band signal at 5 m | State shown | Fail: "Looking for the band...", then "No band signal". The band was also connected to the user's phone. Fallback: Find them at close range, plus Ping | 2026-10-17 |
+| Be home by, set with the time picker | Set a time 2 to 3 min ahead, lock the phone | Pass (`main` build, iPhone 13): the check started at that time, and the band answered it | 2026-10-17 |
 | Advertising while connected | A second phone sees KAZE-Band. Pass or fail | Pass | 2026-10-17 |
-| New text colours and VoiceOver | Look at every screen. VoiceOver on: three double-taps on Check in | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the text reads well in the teammate's colours, the outlined check shows, VoiceOver reads the button and hint, three double-taps check in and it says "Thanks!" | 2026-10-17 |
+| New text colours and VoiceOver | Look at every screen. VoiceOver on: three double-taps on Check in | Pass (branch `ntfy`, iPhone 13 Release build, friends in a web browser): the text reads well in the teammate's colours, the outlined check shows, VoiceOver reads the button and hint, three double-taps check in and it says "Thanks!". Retest after the one-tap change (`main` build): one double-tap checks in | 2026-10-17 |
 | ntfy push to a contact's phone | The phone is the contact, subscribed in the ntfy app. The person in a web browser stays silent, phone locked | Pass (branch `ntfy`, iPhone 13): the lock screen showed "Homebound: A Homebound alert is waiting for you. Open the app." | 2026-10-17 |
 | Local reminder for the user's own check | Night with a 5 min check, phone locked, app not opened | Pass (branch `ntfy`, iPhone 13): the lock screen showed "Homebound: Open the app." when the check was due. A check started by a friend with the app closed and no band is not covered (known limit) | 2026-10-17 |
 | Themed header and alert names | Open each inner screen. Get an alert from a friend | Pass (branch `ntfy`, iPhone 13 and iPhone 15 Pro): the banner header and back button show on every inner screen, and alerts show the person's name | 2026-10-17 |
