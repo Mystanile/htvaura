@@ -5,6 +5,7 @@ import Animated, { Easing, FadeInUp, useAnimatedScrollHandler, useAnimatedStyle,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/use-theme';
+import { ScreenParticles } from '@/components/pixel-particles';
 
 const headerEntrance = FadeInUp.duration(280)
   .easing(Easing.bezier(0.23, 1, 0.32, 1))
@@ -39,6 +40,7 @@ export function AppScreen({ children, topInset = false, header }: PropsWithChild
         pointerEvents="none"
       />
       </Animated.View>
+      <ScreenParticles />
       {header && (
         <Animated.View entering={reducedMotion ? undefined : headerEntrance}
           style={{ paddingTop: insets.top + 4, paddingBottom: 4,

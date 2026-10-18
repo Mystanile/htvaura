@@ -26,7 +26,7 @@ export default function RootLayout() {
       <SafekeepsProvider>
         <StatusBar style="dark" />
         <ConnectionGate fontsReady={fontsLoaded || !!fontError}><Stack screenOptions={{
-          header: ScreenHeader,
+          header: (props) => <ScreenHeader {...props} />,
           contentStyle: { backgroundColor: theme.background },
         }}>
           <Stack.Screen name="index" options={{ title: 'Homebound', headerShown: false }} />

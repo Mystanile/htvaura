@@ -2,6 +2,7 @@ import { Pressable, View } from 'react-native';
 
 import { Artwork, PixelFrame } from '@/components/pixel-art';
 import { ThemedText } from '@/components/themed-text';
+import { ButtonParticles } from '@/components/pixel-particles';
 import { Radius, Spacing, TouchTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -32,10 +33,12 @@ export function AppButton({ label, onPress, variant = 'primary', disabled = fals
           borderWidth: filled || variant === 'quiet' ? 0 : 1.5,
           borderColor: disabled ? theme.border : edge,
           opacity: disabled && !filled ? 0.5 : 1,
-          transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
         };
       }}>
-      {variant === 'primary' && <PixelFrame sprite={Artwork.checkIn} />}
+      {({ pressed }) => <>
+      {(variant === 'primary' || (pressed && !disabled)) && (
+        <PixelFrame sprite={pressed && !disabled ? Artwork.checkInPressed : Artwork.checkIn} />
+      )}
       <View pointerEvents="none">
         <ThemedText type="button" style={{
           textAlign: 'center',
@@ -43,6 +46,8 @@ export function AppButton({ label, onPress, variant = 'primary', disabled = fals
             : variant === 'danger' ? theme.danger : variant === 'quiet' ? theme.accent : theme.text,
         }}>{label}</ThemedText>
       </View>
+      {variant === 'primary' && <ButtonParticles active={pressed && !disabled} />}
+      </>}
     </Pressable>
   );
 }

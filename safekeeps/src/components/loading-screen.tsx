@@ -4,7 +4,8 @@ import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 import { useTheme } from '@/hooks/use-theme';
 
-export const LOADING_CYCLE_MS = 1200;
+// Shared with the startup gate so all three 600 ms frames can play before the menu opens.
+export const LOADING_CYCLE_MS = 1800;
 
 const frames = [
   require('@/assets/images/homebound/house3.png'),

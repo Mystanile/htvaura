@@ -3,6 +3,7 @@ import { Pressable, Vibration, View } from 'react-native';
 
 import { Artwork, PixelFrame } from '@/components/pixel-art';
 import { AppButton } from '@/components/app-button';
+import { ButtonParticles } from '@/components/pixel-particles';
 import { Field } from '@/components/form';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -48,15 +49,17 @@ function PlainCheckIn() {
         accessibilityState={{ disabled: state.busy, busy: state.busy }}
         disabled={state.busy}
         onPress={() => { void state.recordCheckIn(); }}
-        style={({ pressed }) => ({
+        style={{
           ...hero,
-          opacity: state.busy ? 0.6 : pressed ? 0.8 : 1,
-          transform: [{ scale: pressed && !state.busy ? 0.98 : 1 }],
-        })}>
-        <PixelFrame sprite={Artwork.checkIn} />
+          opacity: state.busy ? 0.6 : 1,
+        }}>
+        {({ pressed }) => <>
+        <PixelFrame sprite={pressed && !state.busy ? Artwork.checkInPressed : Artwork.checkIn} />
         <ThemedText type="display" style={{ color: state.busy ? theme.textSecondary : theme.onPrimary }}>
           {state.busy ? 'Saving...' : 'Check In'}
         </ThemedText>
+        <ButtonParticles active={pressed && !state.busy} />
+        </>}
       </Pressable>
       <ThemedText themeColor="textSecondary">
         {!state.remindersEnabled ? 'Reminders off' : state.minutesRemaining === 0
@@ -155,16 +158,17 @@ function NightCheckIn({ view }: { view: NightView }) {
             if (touch.current.down || now - touch.current.at < 300) return;
             answer(decoder.pressIn(now)); answer(decoder.pressOut(now)); watch();
           }}
-          style={({ pressed }) => ({
+          style={{
             ...hero,
-            opacity: pressed ? 0.8 : 1,
             borderWidth: loud ? 4 : 0, borderColor: theme.primary,
-            transform: [{ scale: pressed ? 0.98 : 1 }],
-          })}>
-          <PixelFrame sprite={Artwork.checkIn} />
+          }}>
+          {({ pressed }) => <>
+          <PixelFrame sprite={pressed ? Artwork.checkInPressed : Artwork.checkIn} />
           <ThemedText type="display" style={{ textAlign: 'center', color: theme.onPrimary }}>
             {screen === 'armed' ? 'Check In' : loud ? 'Please answer now!' : 'Are you okay?'}
           </ThemedText>
+          <ButtonParticles active={pressed} />
+          </>}
         </Pressable>
       )}
       {screen === 'armed' && (

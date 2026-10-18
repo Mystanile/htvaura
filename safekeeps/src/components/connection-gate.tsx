@@ -1,5 +1,5 @@
-import { useEffect, useState, type PropsWithChildren } from 'react';
-import { Platform, View } from 'react-native';
+import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { View } from 'react-native';
 
 import { AppButton } from '@/components/app-button';
 import { Field } from '@/components/form';
@@ -21,25 +21,29 @@ export function ConnectionGate({ children, fontsReady = true }: PropsWithChildre
   const state = useSafekeeps();
   const [url, setUrl] = useState(process.env.EXPO_PUBLIC_API_URL ?? '');
   const [introComplete, setIntroComplete] = useState(false);
+  const guestStartAttempted = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setIntroComplete(true), LOADING_CYCLE_MS);
     return () => clearTimeout(timer);
   }, []);
 
-  if (!introComplete || !fontsReady || state.hydrating || (state.loading && !state.error)) {
+  useEffect(() => {
+    if (state.hydrating || state.session || state.busy || state.error || guestStartAttempted.current) return;
+    guestStartAttempted.current = true;
+    void state.startGuest(url.trim() || getDemoUrl());
+  }, [state, url]);
+
+  if (!introComplete || !fontsReady || state.hydrating || (!state.session && !state.error) || (state.loading && !state.error)) {
     return <LoadingScreen />;
   }
   if (!state.session) return (
     <AppScreen header={<Wordmark />}>
       <SectionCard tone="ink">
-        <ThemedText type="heading">Welcome to homebound</ThemedText>
-        <ThemedText>Start as a guest. Each device gets its own identity. No sign-in needed.</ThemedText>
-        {(state.error || (Platform.OS !== 'web' && !process.env.EXPO_PUBLIC_API_URL)) && (
+        <ThemedText type="heading">Unable to connect.</ThemedText>
           <Field label="Server address" value={url} onChangeText={setUrl} placeholder="http://YOUR_COMPUTER_IP:8000"
             autoCapitalize="none" autoCorrect={false} keyboardType="url" editable={!state.busy} />
-        )}
-        <AppButton label={state.busy ? 'Starting...' : 'Start demo'} disabled={state.busy}
+        <AppButton label={state.busy ? 'Connecting...' : 'Retry'} disabled={state.busy}
           onPress={() => { void state.startGuest(url.trim() || getDemoUrl()); }} />
         {state.error && <ThemedText selectable announce themeColor="danger">{state.error}</ThemedText>}
       </SectionCard>

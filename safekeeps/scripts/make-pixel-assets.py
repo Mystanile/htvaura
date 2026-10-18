@@ -27,6 +27,7 @@ FRAMES = {
     'sectionbig': (13, 87, 7, 87),
     'sectionfriends': (6, 5, 6, 5),
     'frame1': (5, 5, 8, 5),
+    'frame2': (5, 5, 8, 5),
     'friendempty': (1, 2, 3, 2),
     'friendaway': (16, 4, 5, 4),
     'friendpresent': (20, 4, 5, 4),

@@ -27,6 +27,8 @@ export const Artwork = {
     require('@/assets/images/homebound/scaled/sectionfriends.png'), 222, 135, [6, 5, 6, 5]),
   checkIn: sprite(require('@/assets/images/homebound/frame1.png'),
     require('@/assets/images/homebound/scaled/frame1.png'), 195, 61, [5, 5, 8, 5]),
+  checkInPressed: sprite(require('@/assets/images/homebound/frame2.png'),
+    require('@/assets/images/homebound/scaled/frame2.png'), 195, 58, [5, 5, 8, 5]),
   empty: sprite(require('@/assets/images/homebound/friendempty.png'),
     require('@/assets/images/homebound/scaled/friendempty.png'), 100, 36, [1, 2, 3, 2]),
   // the outer edge turns darker at row 16 (away) or 20 (present): that change stays in the top cap

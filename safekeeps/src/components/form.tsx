@@ -28,7 +28,7 @@ export function Field({ label, helper, ...input }: TextInputProps & { label: str
         onBlur={event => { setFocused(false); input.onBlur?.(event); }}
         style={{
           fontFamily: AppFont, minHeight: 52, paddingHorizontal: Spacing.three, paddingVertical: 12, fontSize: 17,
-          borderRadius: Radius.control, borderCurve: 'continuous', borderWidth: 1.5,
+          borderRadius: 0, borderWidth: 1.5,
           borderColor: focused ? theme.accent : theme.fieldBorder, backgroundColor: theme.field,
           color: theme.text, opacity: input.editable === false ? 0.5 : 1,
         }} />
