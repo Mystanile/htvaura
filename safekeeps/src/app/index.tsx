@@ -5,7 +5,8 @@ import { PixelRatio, Pressable, View } from 'react-native';
 import { AlertBanner } from '@/components/alert-banner';
 import { AlertsSection } from '@/components/alerts-section';
 import { AppButton } from '@/components/app-button';
-import { Artwork, PixelFrame } from '@/components/pixel-art';
+import { ART, Artwork, PixelFrame } from '@/components/pixel-art';
+import { ButtonParticles } from '@/components/pixel-particles';
 import { AppScreen } from '@/components/app-screen';
 import { CheckInCard } from '@/components/check-in-card';
 import { ConnectionStatus } from '@/components/connection-status';
@@ -120,12 +121,18 @@ export default function HomeScreen() {
                   width: '100%', minHeight: 70,
                   paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center',
                 }}>
+                {({ pressed }) => <>
                 <PixelFrame sprite={present ? Artwork.present : Artwork.away} />
+                {/* pressed: the fill darkens inside the frame's border, like the pressed button art */}
+                {pressed && <View pointerEvents="none" style={{ position: 'absolute', top: 2 * ART, left: 2 * ART, right: 2 * ART,
+                  bottom: 3 * ART, backgroundColor: 'rgba(0, 0, 0, 0.12)' }} />}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <ThemedText type="name" numberOfLines={2} style={{ flex: 1, fontSize: 17, lineHeight: 24, color: present ? theme.accent : AWAY_INK }}>{friend.name}</ThemedText>
                   <ThemedText maxFontSizeMultiplier={1.4} style={{ fontSize: 9, color: present ? theme.accent : AWAY_INK }}>CHECK IN?</ThemedText>
                 </View>
                 <ThemedText style={{ fontSize: 11, lineHeight: 16, color: present ? theme.accent : AWAY_INK }}>{status}</ThemedText>
+                <ButtonParticles active={pressed} />
+                </>}
               </Pressable>
             </Link>
             </View>

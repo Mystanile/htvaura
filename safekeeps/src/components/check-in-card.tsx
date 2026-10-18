@@ -29,8 +29,8 @@ const SETTLES = ['thanks', 'ended_true', 'ended_fake'];
 // What a screen reader says when the screen changes. Same words wherever the screens look the same: ok and duress both
 // end on 'thanks', and the real PIN, the duress PIN and a closed alert all say 'Alert ended'.
 const SPOKEN: Record<string, string> = {
-  asking: 'Are you okay? Tap three times quickly if you are okay.',
-  alarm: 'Please answer now. Tap three times quickly if you are okay.',
+  asking: 'Are you okay? Tap the button if you are okay.',
+  alarm: 'Please answer now. Tap the button if you are okay.',
   thanks: 'Thanks!',
   alert_active: 'Your contacts have been alerted',
   pin_retry: 'Incorrect PIN, try again',
@@ -148,11 +148,11 @@ function NightCheckIn({ view }: { view: NightView }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={screen === 'armed' ? 'Check in' : 'Are you okay?'}
-          accessibilityHint="Tap three times quickly if you are okay"
+          accessibilityHint="Tap if you are okay"
           onPressIn={() => { touch.current = { down: true, at: Date.now() }; answer(decoder.pressIn(Date.now())); watch(); }}
           onPressOut={() => { touch.current = { down: false, at: Date.now() }; answer(decoder.pressOut(Date.now())); watch(); }}
-          // TalkBack sends a click with no touch, so the press handlers never run. Count that click as one quick tap
-          // (three of them say ok, same as three taps). A real touch also ends in onPress, which is skipped here.
+          // TalkBack sends a click with no touch, so the press handlers never run. Count that click as one quick tap,
+          // which says ok. A real touch also ends in onPress, which is skipped here.
           onPress={() => {
             const now = Date.now();
             if (touch.current.down || now - touch.current.at < 300) return;
@@ -175,7 +175,7 @@ function NightCheckIn({ view }: { view: NightView }) {
         <>
           {/* the server checks on its own schedule during a night, so her local countdown does not apply */}
           <ThemedText themeColor="textSecondary">{"We'll check in on you during the night"}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">Tap 3 times quickly to check in</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">Tap the button to check in</ThemedText>
           {view.home_by != null && (
             <ThemedText type="small" themeColor="textSecondary">Home-by check at {clockText(view.home_by * 1000 - state.serverOffset)}</ThemedText>
           )}
@@ -187,7 +187,7 @@ function NightCheckIn({ view }: { view: NightView }) {
       {(screen === 'asking' || screen === 'alarm') && (
         <>
           {view.deadline !== null && <Countdown key={view.deadline} deadline={view.deadline} loud={loud} />}
-          <ThemedText type="small" themeColor="textSecondary">Tap the button 3 times quickly to say you are okay.</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">Tap the button to say you are okay.</ThemedText>
         </>
       )}
       {screen === 'thanks' && (
