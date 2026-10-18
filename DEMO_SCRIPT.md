@@ -1,217 +1,195 @@
-# KAZE demo script
+# Homebound demo script
 
-This is the script for the judges. It shows the check-in loop on real phones and the band, then the 7 KAZE scenarios on the demo panel. The full script takes about 9 minutes. To fit 6 minutes, skip step 5c and step 6. Also skip the restart in step 7 and the duress PIN part of step 8. Every alert is simulated. Nothing calls 911 or a real contact.
+This is a 5 and a half minute demo for the Project KAZE sponsor judge. It shows the check-in loop on real phones and the band. Every alert is simulated. Nothing calls 911 or a real contact.
 
-## The pitch in one line
+The pitch in one line: safety apps assume you can ask for help. Homebound asks you first. One answer means fine. Silence, or a hidden duress signal, gets help.
 
-Safety apps assume that the person can ask for help. KAZE asks them first. Every trigger becomes a quiet "are you okay?". One answer means fine. Only silence, or a hidden duress signal, gets help.
+## Cast
 
-## Cast and devices
-
-| Role | Device | What runs on it | Night setup |
-|---|---|---|---|
-| Wearer | iPhone 15 Pro and the KAZE band | Safekeeps app, Release build with Bluetooth | Starts the night |
-| Friend | Second iPhone | Safekeeps app. The band signal on Find them needs the Release build with Bluetooth. The web version in Safari does the rest | Tier 1 and duress contact |
-| Second friend | Laptop, browser tab | Safekeeps web version (`<web tunnel address>`) | Tier 2, not a duress contact |
-| Presenter | Laptop, second tab | Demo panel at `<tunnel address>/panel` | None |
-
-Every friend of the wearer is also a group member for the night. So the second friend is both the tier 2 contact and a plain group member. In scenario 5 the alert visibly moves to the second friend. In the duress and privacy steps, the second friend visibly sees nothing.
-
-The friend's phone needs a cable to get the Release build. Without it, the friend uses the web version, and you skip step 5c (the band signal).
-
-### Demo timers
-
-The server uses short demo timers so the judges do not wait. Say this out loud.
-
-| Timer | Demo value | Production value (about) |
+| Who | Device | Role in the story |
 |---|---|---|
-| Ask: "Are you okay?" before the louder stage | 30 s | 2 min |
-| Grace: "Please answer now!" before contacts are alerted | 15 s | 1 min |
-| Ack: a tier has this long to tap "I'm on it" before the next tier | 20 s | 3 min |
-| Ack hold: "I'm on it" without "Resolve" before the alert goes back out | 120 s | 10 min |
+| Presenter | iPhone A and the band | The person going out. Starts the night. |
+| Friend 1 | iPhone B, locked, subscribed in ntfy | One of "the friends you put first" (Tier 1). |
+| Friend 2 | Browser tab on the laptop, Homebound web app | The duress contact and Tier 2. |
+| Panel | Browser tab on the laptop | "Our time machine". Skips time and shows what the server sees. |
 
-After the last tier, the alert goes out to every contact again: 20 s later, then 60 s, 120 s and 300 s apart. When the round after the third one is due, the panel shows the simulated final step.
+With fewer people, one person holds iPhone B and the laptop, and the Presenter holds iPhone A. With one person alone, skip the locked-phone push in beat 2 and say so. Use the Friend 1 web tab instead.
 
-## Before the judges arrive (15 minutes)
+The demo timers are short so nobody waits. Beat 2 says this once.
 
-1. Start the server with a demo key. Use the folder with the newest code: `~/Desktop/kaze-judge` until the `judging` pull request is merged into `home-by`, then `~/Desktop/kaze-band`. Neither folder has a `.venv`, so the command uses the venv from `~/Desktop/kaze`:
-   `cd ~/Desktop/kaze-judge/server && KAZE_DEMO_KEY=<key> ~/Desktop/kaze/server/.venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000`
-   The server saves the nights to `server/kaze_state.pickle` every second (change the path with `KAZE_STATE`). Press Reset on the panel before the judges arrive, so the nights from rehearsal are gone.
+## Setup, done before the judges arrive
+
+1. Start the server from `~/Desktop/kaze` on `main`:
+   `cd server && KAZE_DEMO_KEY=<key> KAZE_NTFY_URL=https://ntfy.sh KAZE_NTFY_SECRET=<secret> .venv/bin/uvicorn kaze.app:app --host 0.0.0.0 --port 8000`
 2. Start the tunnel: `cloudflared tunnel --url http://localhost:8000`. Write down the address.
-3. If the tunnel address changed, enter it on each phone in Settings, Connection. Open the web version in a laptop tab for the second friend.
-4. Band: `QUIET_MODE` is `false` in `kaze_band.ino`, so the buzzer is on. Flash it. Power it from the power bank.
-5. On the wearer's phone, open Settings, Band, Pair band. Home shows "Band connected. Start a night to use it." The server refuses band answers until a night runs. After step 6, Home shows "Band connected".
-6. Make sure that the friend and the second friend are both friends of the wearer. On the wearer's phone, start a night:
-   - 4-digit PIN, and Repeat PIN.
-   - Duress PIN, and Repeat duress PIN. It must differ from the PIN. Write both PINs down for the presenter.
-   - Friend: Tier 1, Duress contact on.
-   - Second friend: Tier 2, Duress contact off.
-   - How often: 15 min.
-   - Who sees your location during an alert: Everyone alerted.
-7. Open the panel on the laptop and enter the key. Make sure that the wearer's night shows as armed, with the friend in tier 1 and the second friend in tier 2.
-8. Charge both phones. Turn the volume up on the wearer's phone. Turn auto-lock off on the wearer's phone. Step 6 locks it by hand.
-9. Rehearse the restart in step 7 once. Automated tests cover it. Nobody tried it yet with a real server process.
+3. Enter the address on both phones: Settings, Connection. Start the web app with `cd safekeeps && npx expo start --web` and open it in a laptop tab for Friend 2. Enter the same address in that tab: Settings, Connection.
+4. Open `<server address>/panel` in another tab. Enter the key. Press Reset.
+5. On iPhone B, open Settings and find "Get alerts when the app is closed". Subscribe to the topic in the ntfy app. Allow notifications. Check the push in step 8.
+6. On iPhone A, open Settings, Band, Pair band. Home shows "Band connected. Start a night to use it." Charge the power bank that runs the band. Charge both phones.
+7. On iPhone A, tap "Start a night":
+   - "4-digit PIN" and "Repeat PIN". Write both down.
+   - "Duress PIN" and "Repeat duress PIN". Pick a different number. Write it down.
+   - Friend 1: Tier 1, "Duress contact" off.
+   - Friend 2: Tier 2, "Duress contact" on.
+   - "How often": 2 hours. The demo uses only panel triggers.
+   - "Who sees your location during an alert": Everyone alerted.
+8. In the panel, check that iPhone A shows as armed with Friend 1 in the first group and Friend 2 in the second.
+9. Deny location access for Homebound on iPhone A. Then the app does not overwrite the sample location. On the panel, press "Set sample location" for iPhone A.
+10. Test the push: press Trigger "manual", then +30 s, then +15 s. Check iPhone B's lock screen. Friend 1 taps "I'm on it", then "Resolve".
+11. Set up VoiceOver as a shortcut on iPhone A: Settings, Accessibility, Accessibility Shortcut, VoiceOver.
+12. Turn on a phone hotspot as a backup network. Turn iPhone A auto-lock off for the demo. Turn the volume up.
+13. Put the backup video on the laptop, ready to play.
 
-If the venue Wi-Fi blocks the phones, use the hotspot of a phone that is not the wearer's. The tunnel works on any network.
+## The story
 
-## The script
+### 0. Hook (15 s)
 
-### 1. The problem (30 s)
+Say: "Most safety apps need a button press. The people who need help most often cannot press it. Homebound checks on you. Silence is the alarm."
 
-Say: "Most safety apps need you to press a button. The people who need help most often cannot: they are incapacitated, or someone is watching them. KAZE turns it around. It checks on you, and silence is the alarm."
+### 1. A safe check (30 s)
 
-### 2. Safe check, scenario 1 (50 s)
+Do:
+1. Panel: press Trigger "manual" on the Presenter card.
+2. iPhone A shows "Are you okay?" and buzzes. The band buzzes and blinks.
+3. Presenter taps the band 3 times.
+4. iPhone A shows "Thanks!". The panel goes back to armed.
 
-1. On the panel, press Trigger "manual" on the wearer's card. Or, on the friend's phone, tap "Request check-in".
-2. The wearer's phone shows "Are you okay?" with a countdown. The band buzzes once and blinks.
-3. Point at the phone: there is no "Leave night" button during a check. The server refuses Leave during a check too.
-4. The wearer taps the band 3 times. Phone-only fallback: tap the check-in button on the phone 3 times.
-5. The phone shows "Thanks!". The panel goes back to armed. Nobody is alerted.
-6. A check can also come from a "be home by" time. Set it in Start a night. At that time the phone asks "Are you okay?" the same way. The panel shows "Home-by check" until it fires.
+Say: "Every trigger is a question first. Three taps on the band and I am fine. Nobody is alerted. A false alarm costs three taps, not a panic."
 
-Say: "Every trigger is a check first. A trigger can be a timer, a friend asking, or being late home. A false alarm costs three taps, not a panic. And a person who grabs the phone cannot make the check go away by leaving the night."
+### 2. Silence (85 s)
 
-### 3. Duress, scenario 3 (60 s)
+Do:
+1. Panel: press Trigger "manual". The Presenter does not answer.
+2. Panel: press +30 s. iPhone A shows "Please answer now!". Press +15 s. iPhone A shows "Your contacts have been alerted".
+3. Friend 1's locked iPhone B shows the ntfy push: "Homebound: A Homebound alert is waiting for you. Open the app." Friend 1 opens Homebound at once and taps "I'm on it" within 20 s of the +15 s press. Later, Friend 2's tab would get the plain alert and beat 3 would not work.
+4. Show the card with what to do and what not to do, and the location.
+5. Friend 1 taps "Find them". The screen shows the distance and the GPS arrow. If the phones are close, it shows "You're close... Use Ping." instead.
+6. Friend 1 taps "Ping". iPhone A rings and the band beeps.
 
-1. Trigger another check from the panel.
-2. The wearer holds the band button for 1 second, then taps twice. Phone-only fallback: the same gesture on the check-in button.
-3. The band gives the same single flash as an ok. The phone shows the same "Thanks!".
-4. On the panel: the alert is hidden ("the user's phone shows nothing"). Only the duress contact is alerted.
-5. The friend's phone shows a silent alert with the wearer's location.
-6. Point at the second friend's tab: it shows nothing. In the panel privacy view, the second friend does not see the alert.
+Say once: "The timers here are short so nobody waits. A question lasts 30 s here and about 2 min in a real build. The louder stage lasts 15 s, about 1 min. A friend has 20 s to answer, about 3 min."
 
-Say: "If someone is watching, an ok and a duress look exactly the same. The band, the phone screen, and the vibration are identical. A test proves that a watcher cannot tell them apart. Only the contacts the person picked in private get the duress alert. The rest of the group sees nothing."
+Say: "Silence is the alarm. Here, 45 seconds of silence stand for a real wait. The server counts, so the phone can die and help still comes. Friend 1 gets a push on a locked phone, sees what to do, and says 'I'm on it'. Then the app guides them to me. Ping makes my phone ring so they can hear me."
 
-End it: on the friend's phone, tap "I'm on it", then "Resolve".
+Keep this alert running. Do not tap "Resolve".
 
-### 4. No answer, the next contact, and a stale "I'm on it", scenarios 2 and 5 (90 s)
+### 3. Duress with the PIN (60 s)
 
-1. Trigger a check. Do not answer.
-2. Press +30 s on the panel. The wearer's phone shows "Please answer now!". Then press +15 s. The phone shows "Your contacts have been alerted". One +60 s skip jumps past "Please answer now!", so use the two smaller skips.
-3. The friend's phone shows the alert banner and a response card: what to do, what not to do, and who is on it. For example, the card says "Stay with them once you find them" and "Do not leave them alone".
-4. The friend does not tap "I'm on it". Press +30 s. The alert moves to tier 2: the second friend's tab now shows the alert.
-5. On the second friend's tab, tap "I'm on it". Do not tap "Resolve".
-6. Press +60 s twice. The alert goes back out to every contact. The friend's phone shows "<second friend's name> said they were on it but has not resolved it." The second friend's tab shows "You said you were on it but have not resolved it." The panel shows the same.
-7. Press +15 min three times. The panel shows "Final step reached: emergency services would be contacted now (SIMULATED)". The friend's phone shows "Nobody answered. In a real deployment, emergency services would be contacted now (simulated)."
+Do:
+1. The Presenter looks at iPhone A. The alert screen has a PIN box. The Presenter types the duress PIN and taps "End alert".
+2. iPhone A shows "Alert ended" with a filled check, the same as the real PIN shows.
+3. Show Friend 1's screen. Nothing new appears.
+4. Show the Friend 2 tab. The duress alert appears with the location.
+5. Friend 2 taps "I'm on it".
+6. Do this within 2 min of Friend 1's "I'm on it" in beat 2, or the beat 2 alert goes back out. Presenter taps "Cancel an alert", types the real PIN, and taps "End alert". It ends the Presenter's own alert. The duress alert stays on Friend 2's screen.
+7. Friend 2 taps "Resolve". The duress alert ends.
 
-Say: "The server owns every timer. Contacts are ranked: a friend nearby first, then the group, then a sober contact who is not at the event. If nobody says 'I'm on it', it moves on. If someone says 'I'm on it' and then does nothing, it goes back out. Re-alerts slow down, so they do not spam people. At the end, a real product calls a dispatcher. Here it is only a flag on the panel."
+Say: "Someone is watching me and makes me cancel. I type a second PIN. My phone says 'Alert ended', exactly as it does for the real PIN. Friend 1's screen shows nothing new. Only the contact I picked in private, Friend 2, gets the alert. And no PIN ends it. Only Friend 2 can."
 
-Keep this alert running for step 5.
+### 4. Nobody answers (45 s)
 
-### 5. Find them (75 s)
+Do:
+1. Panel: press Trigger "manual". Press +30 s, then +15 s. The alert goes to Friend 1. Nobody taps "I'm on it".
+2. Panel: press +30 s. The alert moves to Friend 2's tab.
+3. Friend 2 taps "I'm on it", then "Resolve".
 
-a. Distance and direction. On the friend's phone, tap "Find them". It shows the distance and an arrow. Below about 30 m it says "You're close. GPS can't point closer than this. Use Ping." Indoor GPS is off by 20 to 50 m, so we do not fake precision. Under the name it shows "Location updated just now" or "Location updated N min ago". Right after the +15 min skips it shows a large age, until the wearer's phone sends its next location (about every 30 s).
+Say: "The panel is our time machine. Each click stands for waiting. +30 s means the question went unanswered. +15 s means the louder stage went unanswered. The next +30 s means Friend 1 did not tap 'I'm on it'. So the alert moves on to the next friend. It does not stop at one person."
 
-b. Ping. The friend taps "Ping". The wearer's phone flashes and rings for 5 s, and the band beeps and flashes.
+### 5. The phone loses connection (35 s)
 
-c. The band signal (needs the friend's phone on the Release build). Close to the wearer, the screen says "You're close. GPS can't point closer than this. Use Ping." Below that it shows "Their band is in range". Walk right up to the band. It changes to "You're right next to them". Under Ping it says "Bluetooth can only tell when you are right beside them. Use Ping to hear them." The friend's phone reads the band's Bluetooth signal strength. It uses the median of the last 4 s.
+Do:
+1. Panel: press Trigger "manual".
+2. On iPhone A, turn on airplane mode for real.
+3. Panel: press +30 s, then +15 s.
+4. Friend 1's phone shows the alert and the push.
+5. Turn airplane mode off. Friend 1 taps "I'm on it", then "Resolve". Do it within 20 s of the +15 s press, or the alert moves to Friend 2 as well.
 
-Say: "A location without its age is a guess, so we always show how old it is. Bluetooth signal strength cannot measure metres indoors, so the screen says only what it can tell: right beside them, or not. Ping works only on visible alerts. On a duress alert, a ringing phone tells the person watching that help is coming. So the server refuses it."
+Say: "I just cut my phone off the network for real. Help still comes. The countdown lives on the server, not on my phone."
 
-Then on the friend's phone tap "I'm on it", then "Resolve".
+### 6. Privacy (20 s)
 
-### 6. The phone in a pocket: heartbeat (30 s)
+Do:
+1. Panel: scroll to the Privacy view. Every contact shows "no" now.
+2. Friend 1 and Friend 2 screens show no location and no alert.
 
-1. Lock the wearer's phone and put it in a pocket.
-2. Trigger a check from the panel.
-3. Within about 20 s the band buzzes and blinks. The wearer taps 3 times. The panel goes back to armed.
+Say: "Contacts see my location only while an alert runs, and only the people it reached. When it ends, they stop seeing it. Group members never learn about a duress alert."
 
-Phone-only fallback: if the band does not buzz within 30 s, take out the phone and answer on it. Say that the band step is still under hardware test.
+### 7. VoiceOver (25 s)
 
-Say: "The band is the point: you answer without taking out your phone. When a known Bluetooth device sends data, iOS wakes the app in the background. It does this even after iOS closed the app to save memory. So the band sends a small heartbeat every 20 seconds. Each heartbeat wakes the app. The app asks the server whether a check is waiting, and tells the band to ask. Push notifications are faster, but they need a paid Apple account. If the band dies or is out of range, the server timer still escalates."
+Do: turn VoiceOver on, on iPhone A (the Accessibility Shortcut). Trigger a check from the panel. Three double-taps on "Are you okay?" answer it. It says "Thanks!". Turn VoiceOver off.
 
-### 7. Connection lost and server restart, scenario 4 (50 s)
+Say: "The same check works with a screen reader."
 
-1. Trigger a check. On the panel, press "Disconnect phone". This only marks the phone offline on the panel, because the phones poll the server. The phone itself keeps working.
-2. Press +60 s. The server still escalates. The friend still gets the alert.
-3. Restart the server mid-alert. In the server's terminal, press Ctrl+C, then run the same command again. The tunnel keeps running, so the address stays the same. Within a few seconds the panel and the friend's phone show the same alert, still escalating.
-4. To end it, the friend taps "I'm on it", then "Resolve". Step 8 needs a new alert.
+### 8. Validation (10 s)
 
-Say: "The countdown lives on the server, not the phone. A dead battery or no signal is not a way out. The server saves its state every second. A restart does not lose an alert either."
+Say: "We have not tested this with real users yet. `VALIDATION.md` lists the studies and their targets."
 
-### 8. Cancel with a PIN, and the duress PIN, scenario 6 (75 s)
+### Optional: duress on the band
 
-1. Start an alert as in step 4, parts 1 and 2.
-2. On the wearer's phone, enter a wrong PIN. It says "Incorrect PIN, try again".
-3. Enter a wrong PIN again. It shows "Alert ended" with an outlined check.
-4. On the panel, the alert is still running, now hidden.
-5. On the wearer's phone, tap "Cancel an alert" and enter another wrong PIN. It shows "Alert ended" again. More guesses show nothing new, and nobody is told.
+Do this beat only if the band duress gesture passed 10 of 10 on a retest. It has not passed yet, so skip it by default.
 
-Say: "If someone forces you to cancel, they cannot. The second wrong PIN looks like a cancel to the person watching, but help keeps coming. You know it is fake, because the check is outlined, not filled. The right PIN, or the friend who took the alert, ends it for real."
+Hold the band button for 1 second, then tap twice. The band flashes once, like an ok. The phone shows "Thanks!". Friend 2 gets the alert.
 
-End it: tap "Cancel an alert" and enter the right PIN. The check is filled, and the panel shows the alert resolved.
+## Timing
 
-The duress PIN:
+| Beat | Time |
+|---|---|
+| 0. Hook | 15 s |
+| 1. A safe check | 30 s |
+| 2. Silence | 85 s |
+| 3. Duress with the PIN | 60 s |
+| 4. Nobody answers | 45 s |
+| 5. The phone loses connection | 35 s |
+| 6. Privacy | 20 s |
+| 7. VoiceOver | 25 s |
+| 8. Validation | 10 s |
+| Total | 5 min 25 s |
 
-6. Start a new alert as in step 4, parts 1 and 2.
-7. On the wearer's phone, enter the duress PIN. It shows "Alert ended" with a filled check, exactly as the right PIN did a moment ago.
-8. On the panel, the wearer's alert is still running, now hidden. A new hidden alert of kind duress runs too.
-9. The friend's phone (the duress contact) now shows the silent duress alert. The wearer's location appears with the phone's next update, within about 30 s.
+## If a beat fails
 
-Say: "This is a duress PIN. If someone makes you cancel, you type it instead of your PIN. To the person watching, it is a real cancel, with the same filled check. In secret it alerts your duress contacts, and the first alert keeps going. Tests prove that both PINs look the same on the phone, in the server answers and to the group."
+| Beat | Fallback |
+|---|---|
+| 1 | The band does not connect: tap the "Are you okay?" button 3 times quickly on the phone. Say the band is a prototype. |
+| 2 | No push: open Homebound on iPhone B by hand and say the push passed in testing. No location: panel, "Set sample location". Ping does not ring: say the volume or the Ringer is off and move on. |
+| 3 | The alert does not reach Friend 2: check the Friend 2 tab is on the right address. Reload it. If it still fails, show the panel: the alert is marked hidden and Friend 2 is listed. |
+| 4 | A skip is wrong: press the next skip. The panel shows the stage. |
+| 5 | Airplane mode drops the band too: say so. The server timer still runs. Show Friend 1's phone getting the alert. If the phone does not return, switch to the hotspot. |
+| 6 | The privacy view is empty: press Trigger "manual" and skip 60 s once. Friend 1 (Tier 1) now shows location "yes". Friend 1 taps "I'm on it", then "Resolve". Friend 1 goes back to "no". |
+| 7 | VoiceOver does not speak: skip it. Say it passed in testing. |
+| Any | The tunnel is down: restart it, then enter the new address in Settings, Connection on both phones and in the Friend 2 tab. The server is down: run the same command again. Saved nights come back. Nothing works: play the backup video. |
 
-End it: tap "Cancel an alert" and enter the right PIN. The wearer's own alert ends. The duress alert stays. Then on the friend's phone, tap Resolve on the duress alert.
+## Hard questions
 
-### 9. Privacy, scenario 7 (30 s)
+- Fumbled duress: it reads as ok and clears the check. This is deliberate, so a watcher sees nothing odd. We have not run the user study yet.
+- Dead phone with a band duress: the band keeps the newest answer for 60 s, then it is lost. The server timer still escalates silence.
+- Bluetooth sniffing: the prototype sends plain text. The product path is bonding and encryption.
+- Accidental duress: only a duress contact can end a duress alert. A PIN cannot.
+- Ask a friend misuse: a friend can ask for a check. A real build needs a rate limit and a log.
+- Contact consent: contacts are not told their role yet. A real build asks them first.
+- Time to help: the worst case is about one check interval plus the ask and grace times. That is about 16 min at 15 min checks with the demo timers, and about 18 min with real-build timers. Shorter checks shorten it.
+- Detection: we do not detect drugging or unconsciousness. This is by design. We ask, and silence escalates.
 
-Point at the privacy view on the panel, and at the second friend's tab from step 3.
+## Do not claim
 
-Say: "Location goes to the server all night, but contacts see it only during an alert, and only the people that alert reached. In Start a night, the wearer can limit it to whoever says 'I'm on it'. When the alert ends, the sharing stops. Group members never learn about a duress alert. Groups last one night. Anyone can leave from the armed screen with one more tap, and nobody gets a notice. During a check, Leave is hidden and the server refuses it."
+- The band duress gesture works. It failed once before the fix. The retest is pending.
+- Find them with Bluetooth works on two phones. It did not pass on hardware.
+- Battery life. We did not measure it.
+- A reminder from a band wake works. It did not pass.
+- Android or TalkBack works. We did not try it.
+- Group separation works by itself. It is a panel trigger only.
+- The band is wearable. It is an Arduino UNO R4 WiFi dev board on a power bank.
+- A watcher cannot tell ok from duress. Tests compare the screens. They are not a study with people.
+- Contacts are ranked by who is nearby or sober. The user orders the contacts in groups. The app does not rank them.
+- Any call to 911 or a real contact. Everything is simulated.
+- The 12 s band wake is a timed study. It is a few tries.
+- The timers are real. They are demo values.
 
-## The 7 KAZE scenarios
+## What passed on hardware
 
-| # | Scenario | Script step | What the judges see | Automated test |
-|---|---|---|---|---|
-| 1 | Safe | 2 | "Thanks!", panel back to armed | `server/tests/test_scenarios.py` |
-| 2 | No response | 4 | The friend gets the alert | same file |
-| 3 | Duress | 3 and 8 | Friend alerted, second friend sees nothing. The duress PIN looks like a real cancel | same file, plus `test_twin.py` (a watcher cannot tell) |
-| 4 | Connectivity failure | 7 | The alert continues with the phone offline, and after a server restart | same file, over a real WebSocket, plus `test_persist.py` |
-| 5 | Unacknowledged alert | 4 | The alert moves from the friend to the second friend, and goes back out after a stale "I'm on it" | same file, plus `test_loop.py` |
-| 6 | False alarm | 8 | Fake end on wrong PINs, real end on the right PIN | same file |
-| 7 | Privacy | 9 | Privacy view, second friend sees nothing in duress | same file, plus `test_panel.py` |
+Source of truth: the results table in `DEMO_NOTES.md`.
 
-## What is real, simulated, and assumed
-
-Say this before the judges ask. The full list is in `DEMO_NOTES.md`. The studies we plan for the rest are in `VALIDATION.md`.
-
-- Real (runs in the prototype and passes automated tests):
-  - The server state machine and its timers, the tiers, "I'm on it" and its hold time, and the re-alert backoff.
-  - The saved state across a restart, and the demo panel.
-  - The Safekeeps app in a web browser. Find them with the GPS arrow, and the ping rules on the server.
-  - The duress PIN on the server: the same answer as the right PIN, and a silent duress alert (automated tests only).
-- Real on hardware (iPhone 15 Pro and the band, 2026-10-17):
-  - Pairing, band ok and duress through the app to the server, the band asking, and Ping reaching the band.
-  - The heartbeat: with the screen off, the band asked about 12 s after a check started.
-  - iOS state restoration: after the app was stopped, iOS relaunched it in the background and a band answer still reached the server, with nobody touching the phone.
-  - A second phone still sees the band while it is connected.
-- Built, not yet tested on hardware:
-  - The two-state band signal on Find them (it needs a second phone on the native build). The first version, with three zones and Warmer or Colder, was not accurate past 1 m in the two-person test.
-  - The duress PIN on a phone and the Start a night fields for it.
-  - The latest firmware changes: the buzzer on, and answers kept for 60 s until a phone subscribes. They compile. The tests above ran on the earlier firmware.
-- Simulated with the panel: the passage of time, a phone disconnect, a contact who does not answer, group separation, the final step (emergency services), and every alert. No SMS, calls, or 911.
-- Assumed:
-  - Contacts have the app open. There is no push or SMS yet.
-  - The timers are demo values.
-  - Some path from the band to the server always exists.
-  - Outdoor GPS is good to 5 to 10 m.
-  - Only one band is nearby. Every band has the same name, so the band signal on Find them follows any KAZE band.
-
-## Likely questions
-
-- Why not detect drugging or unconsciousness? Out of scope on purpose. We do not diagnose. We ask, and silence escalates.
-- Why not an RSSI cutoff for group separation? We measured at the venue: 2 m and 20 m look the same indoors. Only a lost signal for 30 s means something.
-- Why can the band not tell a friend how many metres away the person is? Bluetooth signal strength (RSSI) past 1 m is noise. At the venue, right beside the band read -41 dBm. From 1 m to 20 m it read -75 to -88 dBm, in no order. Our first version showed three zones and Warmer or Colder. In the two-person test it was wrong past 1 m. So the app now says only "right next to them" or "in range", and Ping does the rest. The real fix is UWB (ultra-wideband) radio, which measures distance. It is in the "Not built" list in `DEMO_NOTES.md`.
-- What if the phone is off? The server timer escalates anyway (scenario 4).
-- What if the server restarts? It saves its state every second and loads it at start (step 7).
-- What if someone takes the phone and cancels? The user can type the duress PIN. It looks like a real cancel, but it silently alerts the duress contacts and the alert keeps going. Two wrong PINs also show a fake "Alert ended", and more guesses change nothing. Leave does not work during a check. Removing contacts mid-night does not stop the alert either: contacts are fixed for the night.
-- What if a friend taps "I'm on it" and then does nothing? After the hold time, the alert goes back out with their name on it.
-- Why a band at all? It answers without the phone, and the touch sensor can hide under fabric. But everything works on a phone alone.
-- How do you know it works for real people? We do not know yet. `VALIDATION.md` lists the studies, each with a target. We have not run them.
-
-## If something fails during the demo
-
-- Band does not connect: answer on the phone. The same gestures work on the check-in button.
-- Tunnel down: restart it, then enter the new address in each phone's Settings and in the second friend's tab. No rebuild needed.
-- Server stops: run the same command again. The saved state brings the nights back.
-- A phone does not update: pull to the Home screen. It polls every 2.5 s.
-- Nothing works: run the panel alone. The 7 scenarios are on the panel's scenario guide, with the privacy view.
+- Two iPhones and the band: pairing, band ok taps, the band asking, Ping (phone ring and band beep), state restoration, and advertising while connected.
+- The heartbeat woke a locked phone in about 12 s, in a few tries.
+- One iPhone 13 and browser contacts: the duress PIN, the hand-off to Tier 2, the ntfy push to a locked phone, a local reminder for a scheduled check, the VoiceOver check-in.
+- Both iPhones: the themed header and the alert names.
+- Real server restarts during a running night kept the nights.
+- Tests: 305 server tests and 64 app node tests.
