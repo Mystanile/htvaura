@@ -1,6 +1,6 @@
 # Homebound code tour: a study guide for the Q&A
 
-All paths are relative to `~/Desktop/kaze-ntfy` (branch `ntfy`, pull request #9 into `judging`, commit `dae2947`). Every line number was checked against the files in that folder. The test counts come from runs on 2026-10-17.
+All paths are relative to the repository root, `~/Desktop/kaze` on branch `main`. Every line number was checked against the files on `main`. The test counts come from runs on 2026-10-17.
 
 The app's visible name is Homebound. The code, the folders and some strings still say safekeeps and KAZE. This guide uses those names where the code does.
 
@@ -128,7 +128,7 @@ Each trace is a list of steps with `path:line`. "Poll" means the 2.5 s refresh i
 
 ### 4.1 Start a night
 
-1. Home, "Start a night": `safekeeps/src/app/index.tsx:77`, then `router.push('/night')` in `safekeeps/src/components/night-entry.tsx:6`.
+1. Home, "Start a night": `safekeeps/src/app/index.tsx:78`, then `router.push('/night')` in `safekeeps/src/components/night-entry.tsx:6`.
 2. The form checks the inputs (`safekeeps/src/app/night.tsx:51-66`):
    - The PIN is 4 digits and typed twice.
    - The duress PIN is 4 digits, typed twice, and different from the PIN (`night.tsx:55-57`).
@@ -167,19 +167,19 @@ Each trace is a list of steps with `path:line`. "Poll" means the 2.5 s refresh i
 
 **The phone and the band see it**
 1. Next poll: `GET /safekeeps/night` (`bridge.py:71-80`) returns the user's own `view_for` (`loop.py:484-491`).
-2. The card buzzes once (`safekeeps/src/components/check-in-card.tsx:101`) and shows "Are you okay?" with a countdown (`check-in-card.tsx:166`, `check-in-card.tsx:237-250`). A screen reader says the same words once (`check-in-card.tsx:31`, `check-in-card.tsx:109`).
+2. The card buzzes once (`safekeeps/src/components/check-in-card.tsx:104`) and shows "Are you okay?" with a countdown (`check-in-card.tsx:168`, `check-in-card.tsx:241-254`). A screen reader says the same words once (`check-in-card.tsx:32`, `check-in-card.tsx:112`).
 3. `applyNight` (`safekeeps.tsx:37-42`) calls `onNight` (`safekeeps.tsx:41`). The band relay builds an ask key (`safekeeps/src/services/band.ts:35-37`) and writes ask once (`band-relay.ts:224-228`). With the app closed, `onNight` also calls `notifyCheckNow` (`band-relay.ts:222`, trace 4.12).
 4. The band: `askChar.written()` gives one 40 ms buzz, then blinks for up to 30 s (`Hardware/kaze_band/kaze_band.ino:213-231`).
 
 ### 4.3 The user answers "ok" on the phone
 
-1. Three quick taps. `onPressIn` and `onPressOut` feed times to the decoder (`check-in-card.tsx:149-150`). The third short release returns `'ok'` (`safekeeps/src/services/gesture.ts:45`). Under TalkBack, a double-tap sends one click with no touch. `onPress` counts that click as one quick tap (`check-in-card.tsx:151-157`).
-2. `answer('ok')` (`check-in-card.tsx:121-130`): one 50 ms vibration, "Thanks!" at once, then `sendNightEventRetry('ConfirmOk')`.
+1. One tap. `onPressIn` and `onPressOut` feed times to the decoder (`check-in-card.tsx:152-153`). A short release returns `'ok'` at once (`safekeeps/src/services/gesture.ts:41`). The button hint says "Tap if you are okay" and the spoken text says "Tap the button if you are okay." Under TalkBack, a double-tap sends one click with no touch. `onPress` counts that click as one quick tap (`check-in-card.tsx:154-160`). The band still needs three taps (trace 4.4).
+2. `answer('ok')` (`check-in-card.tsx:124-133`): one 50 ms vibration, "Thanks!" at once, then `sendNightEventRetry('ConfirmOk')`.
 3. `sendNightEventRetry` (`safekeeps.tsx:142-149`) tries every 700 ms for up to 10 s through `postNight`.
 4. Server: `night_event` (`bridge.py:90-105`) checks the token and the type (`bridge.py:95-96`), then `apply_event` (`app.py:358-376`), then `step`.
 5. `_on_confirm_ok` (`loop.py:251-252`), then `_front_ok` (`loop.py:240-248`): back to armed, screen `thanks`. No contact gets anything.
 6. `record_check_in` (`bridge.py:103-104`, `safekeeps.py:180-185`) writes the last check-in time.
-7. After 4 s the card goes back to the armed look (`check-in-card.tsx:25`, `check-in-card.tsx:88-93`).
+7. After 4 s the card goes back to the armed look (`check-in-card.tsx:26`, `check-in-card.tsx:91-96`).
 
 ### 4.4 The user answers "ok" on the band (through the relay)
 
@@ -189,13 +189,13 @@ Each trace is a list of steps with `path:line`. "Poll" means the 2.5 s refresh i
 4. Phone: the monitor callback (`band-relay.ts:102-103`) calls `decodeEvent` (`band.ts:23-26`), which gives `'ConfirmOk'`.
 5. `onEvent` (`band-relay.ts:198-201`), then `sendEvent` (`band-relay.ts:188-196`), then `deliver` (`band-relay.ts:158-163`), which POSTs `/safekeeps/night/events`.
 6. If every try fails for 10 s, the answer is saved and retried later, for at most 60 s (`band-relay.ts:194-195`, `band.ts:45-47`).
-7. If the server answers 404, no night is running, so there is nothing to answer. `deliver` counts that as done: no retry, nothing kept, and a kept answer is dropped (`band-relay.ts:161-162`, `noNight` at `band.ts:60`). The check does not look at the event type, so ok and duress take the same path. Home then says "Band connected. Start a night to use it." (`safekeeps/src/app/index.tsx:71-76`).
+7. If the server answers 404, no night is running, so there is nothing to answer. `deliver` counts that as done: no retry, nothing kept, and a kept answer is dropped (`band-relay.ts:161-162`, `noNight` at `band.ts:60`). The check does not look at the event type, so ok and duress take the same path. Home then says "Band connected. Start a night to use it." (`safekeeps/src/app/index.tsx:72-77`).
 8. Server: the same as 4.3 steps 4 to 6.
 
 ### 4.5 Duress
 
-1. Phone: hold 1 s or more, then 2 taps. `gesture.ts:42` arms duress, `gesture.ts:43` returns `'duress'`. Band: `kaze_band.ino:131-146`.
-2. App: the same `answer` path (`check-in-card.tsx:121-130`), with only the string `'Duress'` different. A screen reader says "Thanks!" for both (`check-in-card.tsx:33`). Band: the same `sendEvent` and beep, byte 2.
+1. Phone: hold 1 s or more, then 2 taps. `gesture.ts:39` arms duress, `gesture.ts:40` returns `'duress'`. Band: `kaze_band.ino:131-146`.
+2. App: the same `answer` path (`check-in-card.tsx:124-133`), with only the string `'Duress'` different. A screen reader says "Thanks!" for both (`check-in-card.tsx:34`). Band: the same `sendEvent` and beep, byte 2.
 3. Server: `night_event` (`bridge.py:90-105`), then `apply_event`, then `step`.
 4. `_on_duress` (`loop.py:267-271`): `_front_ok` gives the same "thanks" screen, or nothing in an alert, exactly as for an ok (`loop.py:271`). Then, in every front state, `_raise_duress` adds a hidden alert with one tier per duress contact (`loop.py:255-264`). `_alert_next_tier` (`loop.py:170-189`) alerts duress contact 1 with a 20 s ack timer.
 5. `record_check_in` writes the same record as an ok (`bridge.py:103-104`).
@@ -207,7 +207,7 @@ Each trace is a list of steps with `path:line`. "Poll" means the 2.5 s refresh i
 
 1. Ticker (`app.py:189-193`) or panel "+30 s" (`index.html:297-298`, then `demo_skip` at `app.py:436-444`). Both call `tick_all` (`app.py:132-137`).
 2. `_tick_front`: asking past its deadline becomes waiting. The screen is `alarm` and the grace deadline is counted from the ask deadline (`loop.py:328-333`).
-3. The phone shows "Please answer now!" and buzzes every 1.5 s (`check-in-card.tsx:112-119`, `check-in-card.tsx:166`). The band is asked again because the ask key changed (`band.ts:35-37`, `band-relay.ts:224-228`). This is unit-tested in `band.test.ts` but not yet tried on the band (`DEMO_NOTES.md:99`).
+3. The phone shows "Please answer now!" and buzzes every 1.5 s (`check-in-card.tsx:115-122`, `check-in-card.tsx:168`). The band is asked again because the ask key changed (`band.ts:35-37`, `band-relay.ts:224-228`). This is unit-tested in `band.test.ts` but not yet tried on the band (`DEMO_NOTES.md:99`).
 4. Panel "+15 s": waiting past its deadline becomes escalating. A front alert is created and the user sees `alert_active` (`loop.py:334-342`).
 5. `_alert_next_tier` (`loop.py:170-189`) alerts tier 1 and sets a 20 s ack deadline (`loop.py:173-176`). The alert effect carries the response card, never the location (`loop.py:187`).
 6. Panel "+30 s": `_on_tick` sees the alert's deadline passed (`loop.py:361-362`) and calls `_alert_next_tier` again, which alerts tier 2 (`loop.py:368`).
@@ -224,14 +224,14 @@ Each trace is a list of steps with `path:line`. "Poll" means the 2.5 s refresh i
 
 ### 4.8 Resolve with the PIN, and a wrong PIN twice
 
-1. `PinEntry.end()` (`check-in-card.tsx:270-277`) checks 4 digits on the phone, then sends `Resolve` with the PIN (`safekeeps.tsx:160`).
+1. `PinEntry.end()` (`check-in-card.tsx:274-281`) checks 4 digits on the phone, then sends `Resolve` with the PIN (`safekeeps.tsx:160`).
 2. `night_event` (`bridge.py:98-101`) requires a string PIN and sets `by` to the caller.
 3. `_on_resolve` (`loop.py:433-438`) sends it to `_on_user_resolve` (`loop.py:274-299`). A typed PIN equal to the night's duress PIN goes to the duress PIN path first (`loop.py:275-276`, see step 9).
 4. Right PIN (`loop.py:284-288`): screen `ended_true`, the front ends, and every plain alert raised under this PIN ends, hidden ones too. `mine` (`loop.py:283`) leaves out every duress alert. `_resolve` wipes their location (`loop.py:213`).
 5. First wrong PIN (`loop.py:291-293`): screen `pin_retry`. Nothing is sent to contacts, with one exception. The typed PIN can be the PIN of an older night whose hidden alert carried over. Then that alert ends (`loop.py:283`, `loop.py:293`).
 6. Second wrong PIN (`loop.py:294-299`): screen `ended_fake`. The front alert becomes hidden and keeps escalating. The front looks ended (`_end_front`, `loop.py:217-224`). Every alerted contact gets `wrong_pin_warning`.
 7. More guesses after that (`loop.py:289-290`): `ended_fake` again, and nobody is told.
-8. The app shows a filled check for `ended_true` and an outlined check for `ended_fake` (`check-in-card.tsx:204-218`, fill at `check-in-card.tsx:211`). Both have the same ring in the card line colour (`check-in-card.tsx:209`), about 2.9:1 on the panel, so only the fill tells them apart. A screen reader says "Alert ended" for both (`check-in-card.tsx:36-37`).
+8. The app shows a filled check for `ended_true` and an outlined check for `ended_fake` (`check-in-card.tsx:208-222`, fill at `check-in-card.tsx:215`). Both have the same ring in the card line colour (`check-in-card.tsx:213`), about 2.9:1 on the panel, so only the fill tells them apart. A screen reader says "Alert ended" for both (`check-in-card.tsx:37-38`).
 9. Duress PIN (`_on_duress_pin`, `loop.py:302-313`). The user types it in the same PIN box. A typical case: someone forces them to cancel.
    - First `_raise_duress` starts a hidden duress alert, with the front location (`loop.py:305`). It runs first because the end clears that location.
    - Then the front does exactly what the right PIN does: screen `ended_true` (the filled check), `_end_front`, and `pin_ended` (`loop.py:308-312`).
@@ -467,7 +467,7 @@ async def act_on_alert(owner_id: str, authorization, event) -> dict:
 
 **Key pieces**
 - `safekeeps/src/app/_layout.tsx`: imports the band relay at launch (`_layout.tsx:6`), wraps everything in `SafekeepsProvider` (`_layout.tsx:27`), mounts `NightEffects` once on every screen (`_layout.tsx:40`).
-- **The themed header.** `_layout.tsx:29-32` passes `ScreenHeader` as the native-stack `header` option. So every inner screen draws the Home banner with a themed back button and the screen title, in place of the iOS glass back button (`safekeeps/src/components/screen-header.tsx:12-36`). Home draws its own banner with "HOMEBOUND" and hides the stack header (`_layout.tsx:33`, `safekeeps/src/app/index.tsx:58-65`). The route title for Home is "Homebound" (`_layout.tsx:33`). The title is a header for screen readers (`screen-header.tsx:29`). The back button is 44 pt (`screen-header.tsx:24`).
+- **The themed header.** `_layout.tsx:29-32` passes `ScreenHeader` as the native-stack `header` option. So every inner screen draws the Home banner with a themed back button and the screen title, in place of the iOS glass back button (`safekeeps/src/components/screen-header.tsx:12-36`). Home draws its own banner with "HOMEBOUND" and hides the stack header (`_layout.tsx:33`, `safekeeps/src/app/index.tsx:59-66`). The route title for Home is "Homebound" (`_layout.tsx:33`). The title is a header for screen readers (`screen-header.tsx:29`). The back button is 44 pt (`screen-header.tsx:24`).
 - `safekeeps/src/state/safekeeps.tsx` (the most important app file): one big hook, `useSafekeepsState` (`safekeeps.tsx:8-172`), shared through a Context (`safekeeps.tsx:174-183`). It does the polling, `serverOffset`, the lock and most server calls (location updates, Ping, the Settings push lookup and the band relay call `api()` directly).
 
 ```tsx
@@ -489,11 +489,11 @@ async def act_on_alert(owner_id: str, authorization, event) -> dict:
 
   It schedules the next poll only after the last one finished, so slow requests never overlap.
 - `refresh` (`safekeeps.tsx:44-57`) drops a poll result that started before a user action (`safekeeps.tsx:49`). Without that, an old poll can land after your tap and show the old screen.
-- `serverOffset` (`safekeeps.tsx:37-42`) = server clock minus phone clock. Countdowns use it, so a phone with a wrong clock still shows the right time (`check-in-card.tsx:244`). The reminders use it too (`night-effects.tsx:119`).
+- `serverOffset` (`safekeeps.tsx:37-42`) = server clock minus phone clock. Countdowns use it, so a phone with a wrong clock still shows the right time (`check-in-card.tsx:248`). The reminders use it too (`night-effects.tsx:119`).
 - `mutate` (`safekeeps.tsx:74-92`): one action at a time (`lock`), and `busy` greys out buttons.
 - `sendNightEventRetry` (`safekeeps.tsx:140-149`): a finished gesture is retried every 700 ms for 10 s, so it is never silently dropped.
 - `safekeeps/src/services/demo-api.ts:49-78`: every call goes to `url + '/safekeeps' + path` with a Bearer token and an 8 s timeout (`demo-api.ts:56`).
-- `safekeeps/src/components/check-in-card.tsx`: the wearer's card. It draws `view.screen` from the server and adds only small local overlays (`check-in-card.tsx:75-80`, `check-in-card.tsx:103-107`). Ok and duress share one code path:
+- `safekeeps/src/components/check-in-card.tsx`: the wearer's card. It draws `view.screen` from the server and adds only small local overlays (`check-in-card.tsx:78-83`, `check-in-card.tsx:106-110`). Ok and duress share one code path:
 
 ```tsx
   function answer(result: GestureResult) {
@@ -508,8 +508,8 @@ async def act_on_alert(owner_id: str, authorization, event) -> dict:
   }
 ```
 
-- `PinEntry` (`check-in-card.tsx:264-288`): the phone checks only "4 digits". The phone never knows the right PIN. "Cancel an alert" on the armed screen (`check-in-card.tsx:178`) lets a duress user open the PIN entry even though the phone shows nothing.
-- `safekeeps/src/services/gesture.ts`: the tap decoder, the same rules as the band. It is a pure state machine: you pass it times, and it never reads the clock (`gesture.ts:2-3`). That is why it has 18 unit tests.
+- `PinEntry` (`check-in-card.tsx:268-292`): the phone checks only "4 digits". The phone never knows the right PIN. "Cancel an alert" on the armed screen (`check-in-card.tsx:182`) lets a duress user open the PIN entry even though the phone shows nothing.
+- `safekeeps/src/services/gesture.ts`: the tap decoder. On the phone one short tap is ok, so there is no tap counting. The duress rules are the same as the band (hold 1 s, then 2 taps within 2.5 s). The band still needs 3 taps for ok. It is a pure state machine: you pass it times, and it never reads the clock (`gesture.ts:3-4`). That is why it has 13 unit tests.
 
 ```ts
     pressOut(t: number): GestureResult {
@@ -517,14 +517,13 @@ async def act_on_alert(owner_id: str, authorization, event) -> dict:
       if (pressedAt === null) return late;
       const held = t - pressedAt;
       pressedAt = null;
-      if (held >= HOLD_MS) { armedUntil = t + DURESS_WINDOW_MS; duressTaps = 0; okTaps = 0; return late; }
+      if (held >= HOLD_MS) { armedUntil = t + DURESS_WINDOW_MS; duressTaps = 0; return late; }
       if (armedUntil !== null) return ++duressTaps >= 2 ? finish('duress') : late;
-      lastTapAt = t;
-      return ++okTaps >= 3 ? finish('ok') : late;
+      return late ?? finish('ok');
     },
 ```
 
-  `createGestureDecoder` (`gesture.ts:10-58`) is a closure, a function that keeps private variables, like a small class.
+  `createGestureDecoder` (`gesture.ts:10-53`) is a closure, a function that keeps private variables, like a small class.
 - `safekeeps/src/app/find/[id].tsx`: Find them. Too close for GPS means no arrow. The state has two thresholds, so it does not flip at the edge (`find/[id].tsx:72-77`):
 
 ```tsx
@@ -548,9 +547,9 @@ async def act_on_alert(owner_id: str, authorization, event) -> dict:
 **Accessibility, in the teammate's theme.** The look stays. The changes are small and sit in a few places.
 - Text colours. The foreground tokens are darker versions of the same hues, so text reaches 4.5:1 on every surface (`safekeeps/src/constants/theme.ts:29-33`). The field border reaches 3:1 (`theme.ts:33`). The off-state of a switch has its own darker track (`safekeeps/src/components/form.tsx`, `offTrack`).
 - Screen reader lines. `useAnnounce` says a line when its text changes. It skips the same text twice within 1 s (`safekeeps/src/hooks/use-announce.ts:8-16`). `ThemedText` takes an `announce` prop that uses it (`safekeeps/src/components/themed-text.tsx:11`, `themed-text.tsx:17`).
-- The same words for the same look. The check card has one table of spoken lines, `SPOKEN` (`check-in-card.tsx:28-38`). Ok and duress both end on "Thanks!". The right PIN, the duress PIN and the fake end all say "Alert ended". Nothing a watcher can hear tells them apart.
-- Labels and hints. The check button has a label that follows the screen and a hint, "Tap three times quickly if you are okay" (`check-in-card.tsx:146-148`). Fields repeat their helper text as the hint and hide the visible copy from the reader (`form.tsx`).
-- TalkBack. The `onPress` path counts one click as one quick tap, so three double-taps say ok (`check-in-card.tsx:151-157`).
+- The same words for the same look. The check card has one table of spoken lines, `SPOKEN` (`check-in-card.tsx:29-39`). Ok and duress both end on "Thanks!". The right PIN, the duress PIN and the fake end all say "Alert ended". Nothing a watcher can hear tells them apart.
+- Labels and hints. The check button has a label that follows the screen and a hint, "Tap if you are okay" (`check-in-card.tsx:150-151`). Fields repeat their helper text as the hint and hide the visible copy from the reader (`form.tsx`).
+- TalkBack. The `onPress` path counts one click as one quick tap, so one double-tap says ok (`check-in-card.tsx:154-160`).
 - Large text. `ThemedText` allows text to grow to 2x (`themed-text.tsx:20`). The layouts have no fixed heights. The header title is the exception and shrinks to fit (`screen-header.tsx:29-30`).
 - Touch targets. `TouchTarget` is 44 (`theme.ts:97`). Buttons and choice chips use it as a minimum height and width (`app-button.tsx`, `form.tsx`).
 - Motion. The ping flash stops with Reduce Motion (`night-effects.tsx:163-176`).
@@ -641,7 +640,7 @@ export function onNight(night: Night | null) {
 Run:
 
 ```
-cd ~/Desktop/kaze-ntfy/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q .
+cd ~/Desktop/kaze/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q .
 ```
 
 Result on 2026-10-17 (branch `ntfy`): `305 passed, 1 warning in 2.95s`.
@@ -676,19 +675,19 @@ How the tests stay fast:
 - `/demo/skip` instead of waiting
 - a temporary state file for every test (`server/tests/conftest.py:4-9`)
 
-### App: 64 node tests, all pass (80 ms)
+### App: 59 node tests, all pass (80 ms)
 
 Run:
 
 ```
-cd ~/Desktop/kaze-ntfy/safekeeps && node --test src/services/*.test.ts
+cd ~/Desktop/kaze/safekeeps && node --test src/services/*.test.ts
 ```
 
-Result on 2026-10-17: `tests 64, pass 64, fail 0`.
+Result on 2026-10-17: `tests 59, pass 59, fail 0`.
 
 | File | Tests | What it covers |
 |---|---|---|
-| `gesture.test.ts` | 18 | Each gesture rule and the edges: 1000 ms is a hold, 999 ms is a tap. |
+| `gesture.test.ts` | 13 | Each gesture rule and the edges: 1000 ms is a hold, 999 ms is a tap. |
 | `band.test.ts` | 18 | Byte decoding and base64 for all 256 bytes. The ask key, the 60 s pending rule (the same for ok and duress), the ping rule and the median. `nextNear`: enter at -60, leave at -68, reset with no reading, and no entry with fewer than 3 readings. `noNight`: only 404 drops. |
 | `geo.test.ts` | 12 | Distance, bearing, arrow rotation, the short way round. |
 | `home-by.test.ts` | 8 | Clock parsing, next time, rounding. |
@@ -722,7 +721,7 @@ On an iPhone 13 (Release build) with the friends in a web browser, branch `ntfy`
 | Scaled alerts: tier 1 silent, tier 2 gets it | Pass |
 | ntfy push to a locked phone | Pass: the lock screen showed "Homebound: A Homebound alert is waiting for you. Open the app." |
 | Local reminder, 5 min check, phone locked, app not opened | Pass: the lock screen showed "Homebound: Open the app." Not covered: a check a friend starts while the app is closed and there is no band |
-| New text colours and VoiceOver | Pass: the button and hint are read, three double-taps check in |
+| New text colours and VoiceOver | Pass on the older three-tap build: the button and hint are read, three double-taps check in |
 | Themed header and alert names (also on the iPhone 15 Pro) | Pass |
 
 Not tested on a phone: TalkBack, the duress gesture with a screen reader on, the band with the duress PIN build, and the band signal scan rate.
@@ -731,7 +730,7 @@ Honest note: the band tests in the first table ran on the earlier firmware and a
 
 ### Test counts to quote
 
-The `ntfy` branch has 305 server tests and 64 app node tests. `judging` has 291 and 57. `main` has 224 and 53, because the judging fixes are not merged yet. Quote the branch you demo.
+`main` has 305 server tests and 59 app node tests.
 
 ## 7. Likely questions and answers
 
@@ -769,7 +768,7 @@ Each tier has 20 s in the demo (`loop.py:31`, `loop.py:173-176`), then the next 
 The first wrong PIN is a normal retry (`loop.py:291-293`). The second shows "Alert ended", but the alert becomes hidden, keeps escalating, and contacts are warned (`loop.py:294-299`). More guesses change nothing (`loop.py:289-290`). Leave is refused during a check or alert (`loop.py:316-318`), and a new night does not cancel a hidden alert (`loop.py:130-131`). The user can also type the duress PIN. It looks like a real cancel, but it starts a silent duress alert and ends nothing (`loop.py:302-313`). No PIN ends a duress alert, not even the real one (decision 13, `loop.py:281-283`). So a captor who forces out the real PIN ends only the user's own alert. Guessing PINs until the filled check shows gets the captor nothing against a duress alert (`test_loop.py:1384`). Limits: a user who triggers duress by accident cannot cancel it. A duress contact has to resolve it, and until then the alert repeats (`DEMO_NOTES.md:67`). Guesses after an end screen are not limited, and the filled and outlined checks are a cue the design assumes the captor does not know (`DEMO_NOTES.md:66`). The PIN is 4 digits, compared as plain text (`loop.py:284`).
 
 #### Q: Can a watcher tell an ok from a duress?
-Not from the phone, the band or the server answer. The app uses one code path (`check-in-card.tsx:121-130`). The screen reader says "Thanks!" for both (`check-in-card.tsx:33`). The band uses one `sendEvent` and one beep (`kaze_band.ino:98-109`). The server runs the ok code first (`loop.py:271`) and writes the same record (`bridge.py:103-104`). The next check and the reminders are the same after both (`test_twin.py:89`). `test_twin.py` checks this over 500 random runs. Limits: the gesture itself differs (hold then 2 taps), the BLE link is not encrypted, and the HTTPS body length differs (`DEMO_NOTES.md:75`).
+Not from the phone, the band or the server answer. The app uses one code path (`check-in-card.tsx:124-133`). The screen reader says "Thanks!" for both (`check-in-card.tsx:34`). The band uses one `sendEvent` and one beep (`kaze_band.ino:98-109`). The server runs the ok code first (`loop.py:271`) and writes the same record (`bridge.py:103-104`). The next check and the reminders are the same after both (`test_twin.py:89`). `test_twin.py` checks this over 500 random runs. Limits: the gesture itself differs (hold then 2 taps), the BLE link is not encrypted, and the HTTPS body length differs (`DEMO_NOTES.md:75`).
 
 #### Q: What happens if the phone loses signal right when the user taps?
 The app retries every 700 ms for 10 s (`safekeeps.tsx:140-149`). The band path then stores the answer on the phone (SecureStore). It retries it until 60 s after the band sent it (`band-relay.ts:188-196`, `band.ts:45-47`). This part is unit-tested only, not on the phone with the band. If it still fails, the server timer escalates. So a failure leads to help, not to silence.
@@ -785,11 +784,11 @@ A phone can send only 5 event types (`bridge.py:17`). Resolve is always stamped 
 
 ### Usability and accessibility
 
-#### Q: Can an impaired person really do three taps?
-That is the only thing they need to do, and doing nothing is safe: silence escalates. A hold with no taps also counts as ok (`gesture.ts:25-29`, `kaze_band.ino:249-254`), so a clumsy press never sends duress. The band means they do not need to find or unlock the phone. Real usability with impaired users is not tested yet (`VALIDATION.md`).
+#### Q: Can an impaired person really do one tap?
+On the phone it is one tap. On the band it is three taps. That is the only thing they need to do, and doing nothing is safe: silence escalates. A hold with no taps also counts as ok (`gesture.ts:22-26`, `kaze_band.ino:249-254`), so a clumsy press never sends duress. The band means they do not need to find or unlock the phone. Real usability with impaired users is not tested yet (`VALIDATION.md`).
 
 #### Q: Does the app work with a screen reader and large text?
-Yes, in the parts the team changed and tested. The check screens, alerts and Find them speak short lines (`check-in-card.tsx:28-38`, `find/[id].tsx:79-84`, `alerts-section.tsx:53-65`). Ok and duress say the same words. The text colours reach 4.5:1 on every surface (`theme.ts:29-33`). Text grows to 2x (`themed-text.tsx:20`) and touch targets are at least 44 pt (`theme.ts:97`). Under TalkBack, a double-tap counts as one quick tap, so three double-taps say ok (`check-in-card.tsx:151-157`). Tested with VoiceOver on an iPhone 13 (`DEMO_NOTES.md:124`). Limits: TalkBack and the duress gesture with a screen reader are not tried on a phone. The outlined check after a wrong PIN is about 2.9:1, so it is visible but quiet (`DEMO_NOTES.md:72`). We have not run the planned studies with users yet (`DEMO_NOTES.md:82`, `VALIDATION.md`).
+Yes, in the parts the team changed and tested. The check screens, alerts and Find them speak short lines (`check-in-card.tsx:29-39`, `find/[id].tsx:79-84`, `alerts-section.tsx:53-65`). Ok and duress say the same words. The text colours reach 4.5:1 on every surface (`theme.ts:29-33`). Text grows to 2x (`themed-text.tsx:20`) and touch targets are at least 44 pt (`theme.ts:97`). Under TalkBack, a double-tap counts as one quick tap, so one double-tap says ok (`check-in-card.tsx:154-160`). Tested with VoiceOver on an iPhone 13 (`DEMO_NOTES.md:124`). Limits: TalkBack and the duress gesture with a screen reader are not tried on a phone. The outlined check after a wrong PIN is about 2.9:1, so it is visible but quiet (`DEMO_NOTES.md:72`). We have not run the planned studies with users yet (`DEMO_NOTES.md:82`, `VALIDATION.md`).
 
 #### Q: What happens when the phone is locked in a pocket?
 The band sends a heartbeat every 20 s (`kaze_band.ino:203-206`). iOS wakes the app for it, the relay asks the server, shows one plain notification and tells the band to ask (`band-relay.ts:205-211`, `check-now.ts:13-22`). Measured about 12 s on an iPhone 15 Pro (`DEMO_NOTES.md:14`). Limit: a swiped-away app is not relaunched by iOS (`DEMO_NOTES.md:59`). On a phone alone, the scheduled reminders still show for the next check (trace 4.12).
@@ -844,7 +843,7 @@ No. Ack, resolve and ping always answer `{"ok": True}` (`bridge.py:108-116`). Th
 No. The app hides the button (`find/[id].tsx:152-153`), and the server refuses it anyway: `_on_ping` ignores hidden alerts (`loop.py:402`).
 
 #### Q: Can the user leave a group?
-Yes, from the armed screen, with one extra tap and no notice to anyone but a `left` effect (`loop.py:316-322`, `check-in-card.tsx:219-231`). Not during a check or alert, so a captor cannot use Leave to cancel.
+Yes, from the armed screen, with one extra tap and no notice to anyone but a `left` effect (`loop.py:316-322`, `check-in-card.tsx:223-235`). Not during a check or alert, so a captor cannot use Leave to cancel.
 
 #### Q: What if I remove a friend during a night?
 Contacts are fixed for that night (`PLAN.md` decision 9, `DEMO_NOTES.md:76`). Otherwise a captor can remove contacts to cancel a hidden alert. The cost: the removed friend keeps that night's access. They still see the person's name on the alert (`bridge.py:78-79`).
@@ -870,7 +869,7 @@ The wrong PIN rule still protects a user who does not type the duress PIN. See `
 Not from the phone, the friends' screens or the server answer. The front runs the same code for both (`loop.py:308-312` against `loop.py:285-287`). The bridge does not record a check-in on Resolve, so `lastCheckIn` stays the same (`bridge.py:103-104`). `test_twin.py` compares the user's view and effects after every step. It does this from all 8 front states (`test_twin.py:431`) and in 500 random runs. The HTTP twin test compares status, body and length of every answer, and what every friend sees (`test_bridge.py:707`). Limit: the person who watches the hands sees which digits are typed.
 
 #### Q: Walk me through one request from the phone to the state machine.
-Use trace 4.5. The phone side is `check-in-card.tsx:126`, `safekeeps.tsx:145`, `demo-api.ts:58`. The server side is `bridge.py:90`, token at `safekeeps.py:51`, `apply_event` at `app.py:358`. Then `run` at `app.py:127`, `step` at `loop.py:475`, `_on_duress` at `loop.py:267`. Every entry point (phone, panel, ticker) ends in the same `run()`.
+Use trace 4.5. The phone side is `check-in-card.tsx:129`, `safekeeps.tsx:145`, `demo-api.ts:58`. The server side is `bridge.py:90`, token at `safekeeps.py:51`, `apply_event` at `app.py:358`. Then `run` at `app.py:127`, `step` at `loop.py:475`, `_on_duress` at `loop.py:267`. Every entry point (phone, panel, ticker) ends in the same `run()`.
 
 #### Q: How does the clock skip work without breaking the logic?
 There is one `offset` and one `now()` (`app.py:43-47`). `/demo/skip` adds to it and ticks every night at once (`app.py:436-444`). The loop never reads the clock, so nothing else changes. The phone follows through `serverOffset` (`safekeeps.tsx:40`).
@@ -882,7 +881,7 @@ SQLite holds the teammate's long-lived profiles and friends (`safekeeps.py:18-48
 With `KAZE_DEMO_KEY` set, the data routes need the `X-Demo-Key` header, compared in constant time (`app.py:425-430`). The key never goes in the URL (`test_panel.py:32`). Limit: one shared secret, no rate limit. Without the key the routes are open, the server logs a warning (`app.py:198-199`) and the panel shows a red banner.
 
 #### Q: Why does the app say Homebound but the code says safekeeps and KAZE?
-The team renamed the app late. The visible name is Homebound: the home screen, the notifications, the permission texts and the ntfy message (`app.json:13`, `index.tsx:62`, `app.py:98`). The folder names, the Python package and some internal strings keep the old names. A rename touches every import and adds no feature.
+The team renamed the app late. The visible name is Homebound: the home screen, the notifications, the permission texts and the ntfy message (`app.json:13`, `index.tsx:63`, `app.py:98`). The folder names, the Python package and some internal strings keep the old names. A rename touches every import and adds no feature.
 
 #### Q: Why the `safekeeps/safekeeps/` folder?
 A leftover copy of the Expo starter template from the teammate's first app commit (7043337 "setup"). Nothing uses it (`PLAN.md:191`). `tsconfig.json` maps `@/*` to `./src/*`.
@@ -890,7 +889,7 @@ A leftover copy of the Expo starter template from the teammate's first app commi
 ## 8. If you get stuck
 
 1. Open `server/kaze/loop.py` at `step` (line 475) and follow the handler for that event in `_HANDLERS` (line 460).
-2. Run the server tests: `cd ~/Desktop/kaze-ntfy/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q .` and say "305 pass in about 3 seconds".
+2. Run the server tests: `cd ~/Desktop/kaze/server && SAFEKEEPS_DB=/tmp/kz-tour.sqlite3 ~/Desktop/kaze/server/.venv/bin/pytest -q .` and say "305 pass in about 3 seconds".
 3. Run one scenario by name: add `-k test_3_duress` (or any scenario name from section 6) to the same command.
 4. Show the panel at `/panel`: the hidden alert row and the privacy table come from the same `view_for` the phones use (`panel.py:34-50`).
 5. Say "I do not know that detail, but here is where it lives". Then open the file from section 5 and read the comment above the function.

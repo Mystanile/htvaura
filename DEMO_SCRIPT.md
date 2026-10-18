@@ -115,7 +115,7 @@ Say: "Contacts see my location only while an alert runs, and only the people it 
 
 ### 7. VoiceOver (25 s)
 
-Do: turn VoiceOver on, on iPhone A (the Accessibility Shortcut). Trigger a check from the panel. Three double-taps on "Are you okay?" answer it. It says "Thanks!". Turn VoiceOver off.
+Do: turn VoiceOver on, on iPhone A (the Accessibility Shortcut). Trigger a check from the panel. One double-tap on "Are you okay?" answers it. It says "Thanks!". Turn VoiceOver off.
 
 Say: "The same check works with a screen reader."
 
@@ -148,7 +148,7 @@ Hold the band button for 1 second, then tap twice. The band flashes once, like a
 
 | Beat | Fallback |
 |---|---|
-| 1 | The band does not connect: tap the "Are you okay?" button 3 times quickly on the phone. Say the band is a prototype. |
+| 1 | The band does not connect: tap the "Are you okay?" button once on the phone. Say the band is a prototype. |
 | 2 | No push: open Homebound on iPhone B by hand and say the push passed in testing. No location: panel, "Set sample location". Ping does not ring: say the volume or the Ringer is off and move on. |
 | 3 | The alert does not reach Friend 2: check the Friend 2 tab is on the right address. Reload it. If it still fails, show the panel: the alert is marked hidden and Friend 2 is listed. |
 | 4 | A skip is wrong: press the next skip. The panel shows the stage. |

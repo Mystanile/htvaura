@@ -2,7 +2,7 @@
 
 Homebound is a safety app for a night out. It gets help to someone who cannot ask for it, because they passed out or because someone with them stops them from asking.
 
-The person sets a schedule, for example every 15 minutes. On that schedule, the app asks "Are you okay?". The person answers with three quick taps on the check-in button, on the phone or on the band. If nobody answers, the app alerts the person's friends, one group at a time, until a friend taps "I'm on it". Each friend needs Homebound too. It runs on iPhone and in a web browser.
+The person sets a schedule, for example every 15 minutes. On that schedule, the app asks "Are you okay?". The person answers with one tap on the phone's check-in button, or three quick taps on the band. If nobody answers, the app alerts the person's friends, one group at a time, until a friend taps "I'm on it". Each friend needs Homebound too. It runs on iPhone and in a web browser.
 
 We built it in 36 hours at Hack the Valley 11, a student hackathon. It is our entry for Project KAZE, a challenge sponsored by Swapna Samuel: get help to people who can no longer ask for it.
 
@@ -46,7 +46,7 @@ Each case has an automated test in `server/tests/test_scenarios.py`.
 
 | Case | What happens |
 |---|---|
-| 1. Safe | The person taps three times. Nobody gets an alert. |
+| 1. Safe | The person answers the check. Nobody gets an alert. |
 | 2. No response | The person stays silent. Tier 1 gets an alert. |
 | 3. Duress | The duress signal looks like a normal answer, and the duress contacts get an alert. |
 | 4. Lost connection | The phone goes offline during a check. The alert still goes out. |
@@ -79,7 +79,7 @@ Open two terminal windows in the `htvaura` folder.
 
    In window 2, press `w`. The app opens in your browser at `http://localhost:8081`. This tab is person A. Type the same address into a new tab for person B. Do not use the browser's Duplicate Tab, because a copy keeps A's account.
 
-3. In each tab, tap "Start demo". Tab A shows its friend code on the Home screen. In tab B, enter it under "Add a friend" and tap "Send friend request". In tab A, tap "Accept".
+3. Each tab makes its own guest account when it opens. Tab A shows its friend code on the Home screen. In tab B, enter it under "Add a friend" and tap "Send friend request". In tab A, tap "Accept".
 
 4. In tab A, tap "Start a night". Type a PIN twice and a different duress PIN twice. Put B in Tier 1, switch on "Duress contact" for B, and tap "Start the night".
 

@@ -935,12 +935,11 @@ Keep these rules:
 
 During a check (`asking` or `waiting`), the button does two things. Use `POST /safekeeps/night/events` for both.
 
-The gestures match the band (`Hardware/kaze_band/HARDWARE.md`):
+The duress gesture is the same as on the band (`Hardware/kaze_band/HARDWARE.md`). The ok gesture is shorter: the band needs 3 taps, the phone needs 1.
 
-- 3 quick taps within 1.5 s send `{"type": "ConfirmOk"}`.
+- One short tap sends `{"type": "ConfirmOk"}`.
 - Hold 1 s, then 2 quick taps within 2.5 s, send `{"type": "Duress"}`.
 - Hold 1 s and then nothing sends `{"type": "ConfirmOk"}` after 2.5 s.
-- 1 or 2 taps and then nothing send nothing. The count resets after 1.5 s.
 
 Give ok and duress the exact same feedback.
 
