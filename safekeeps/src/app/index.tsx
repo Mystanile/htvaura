@@ -66,7 +66,7 @@ export default function HomeScreen() {
       <AlertBanner />
       <ConnectionStatus />
       <AlertsSection />
-      <SectionCard tone="ink">
+      <SectionCard tone="ink" entranceDelay={70}>
         <CheckInCard />
         {band.paired && (
           <ThemedText type="small" themeColor="textSecondary">
@@ -88,7 +88,7 @@ export default function HomeScreen() {
           <ThemedText type="name" selectable>{state.me?.code}</ThemedText>
         </View>
       </SectionCard>
-      <SectionCard tone="green">
+      <SectionCard tone="green" entranceDelay={140}>
         {state.friendRequests.length > 0 && <ThemedText type="heading">Friend requests</ThemedText>}
         {state.friendRequests.map(request => <FriendRequest key={request.id} request={request} />)}
         {state.sentRequests.map(request => (
@@ -133,7 +133,7 @@ export default function HomeScreen() {
         })}
       </View>
       </SectionCard>
-      <SectionCard tone="ink">
+      <SectionCard tone="ink" entranceDelay={210}>
         <ThemedText type="heading" accessibilityRole="header">Add a friend</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">Enter their code to send a friend request. They will appear once they accept.</ThemedText>
         <Field label="Friend code" value={code} onChangeText={setCode} placeholder="Their code"
